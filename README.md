@@ -39,8 +39,10 @@ Veilon یک پنل مدیریت پروکسی رایگان و متن باز اس�
 
 ## پیش نیازها
 
-- یک سرور مجازی (VPS) با حداقل ۱ گیگابایت رم (۲ گیگابایت پیشنهاد می شود)
-- سیستم عامل: Ubuntu، Debian، CentOS Stream، AlmaLinux، Rocky Linux، Fedora یا Arch Linux، با معماری amd64 یا arm64 و systemd
+- یک سرور مجازی (VPS) لازم است
+- سیستم عامل: Ubuntu، Debian، CentOS Stream، AlmaLinux، Rocky Linux، Fedora یا Arch Linux، با systemd (پیشنهاد: Ubuntu 22.04 یا 24.04، یا Debian 12)
+- پردازنده: معماری amd64 (x86_64) یا arm64، حداقل ۱ هسته
+- رم: حداقل ۱ گیگابایت (۲ گیگابایت پیشنهاد می شود)
 - دسترسی root (یا کاربری که بتواند `sudo` بزند)
 - اختیاری: یک دامنه که رکورد DNS آن به IP سرور اشاره کند
 
@@ -48,42 +50,37 @@ Veilon یک پنل مدیریت پروکسی رایگان و متن باز اس�
 
 ### ۱. تهیه سرور
 
-از یک ارائه دهنده VPS (مثلا Hetzner، AWS Lightsail، DigitalOcean، Vultr و ...) یک سرور با **Ubuntu 24.04** یا **Debian 12** بخرید. بعد از ساخت سرور این سه چیز را دارید:
+یک سرور مجازی (VPS) لازم است، با یکی از سیستم عامل های بخش پیش نیازها (پیشنهاد: **Ubuntu 24.04** یا **Debian 12**)، حداقل ۱ هسته پردازنده amd64 یا arm64 و حداقل ۱ گیگابایت رم. بعد از تحویل سرور این اطلاعات را دارید:
 
 - **IP سرور** (مثلا `203.0.113.10`)
-- **نام کاربری** (معمولا `root`، در Lightsail و AWS معمولا `ubuntu`)
-- **رمز عبور** یا **فایل کلید** (`.pem`)
+- **نام کاربری** (معمولا `root`)
+- **رمز عبور**
 
 ### ۲. اتصال به سرور با SSH
 
-**ویندوز (PowerShell):** کلید Windows را بزنید، `PowerShell` را تایپ و باز کنید. سپس:
+روش اصلی ورود با رمز عبور است:
 
 ```bash
-ssh root@203.0.113.10
+ssh root@SERVER_IP
 ```
 
-اگر فایل کلید دارید:
+به جای `SERVER_IP`، IP سرور خودتان را بنویسید (مثلا `ssh root@203.0.113.10`). بار اول سوال `Are you sure you want to continue connecting` می آید؛ `yes` را تایپ کنید و Enter بزنید. سپس رمز عبور را وارد کنید و Enter بزنید. هنگام تایپ رمز چیزی روی صفحه نمایش داده نمی شود؛ این طبیعی است.
 
-```bash
-ssh -i C:\Users\YOU\Downloads\key.pem ubuntu@203.0.113.10
-```
+**ویندوز (PowerShell):** کلید Windows را بزنید، `PowerShell` را تایپ و باز کنید و دستور بالا را بزنید.
 
-بار اول سوال `Are you sure you want to continue connecting` می آید؛ `yes` را تایپ کنید و Enter بزنید. هنگام تایپ رمز چیزی روی صفحه نمایش داده نمی شود؛ این طبیعی است.
+**ویندوز با Termius:** اگر محیط گرافیکی را ترجیح می دهید، برنامه Termius را نصب کنید و مثل بخش اندروید جلو بروید.
 
-**ویندوز، اندروید یا iOS با Termius:** برنامه Termius را نصب کنید، روی **New Host** بزنید، IP سرور را در Address، نام کاربری را در Username و رمز یا کلید را وارد کنید و Connect را بزنید.
+**اندروید (Termius):** برنامه Termius را از Google Play نصب کنید، روی **New Host** بزنید، IP سرور را در **Address**، `root` را در **Username** و رمز را در **Password** وارد کنید و **Connect** را بزنید.
 
-**macOS و Linux:** برنامه Terminal را باز کنید و همان دستور بالا را بزنید:
+**macOS و Linux:** برنامه Terminal را باز کنید و همان دستور بالا را بزنید.
 
-```bash
-ssh root@203.0.113.10
-```
-
-اگر کلید دارید، اول دسترسی آن را محدود کنید:
-
-```bash
-chmod 600 ~/Downloads/key.pem
-ssh -i ~/Downloads/key.pem ubuntu@203.0.113.10
-```
+> **نکته (اختیاری): ورود با فایل کلید.** اگر به جای رمز، یک فایل کلید به شما داده شده است:
+>
+> ```bash
+> ssh -i key root@SERVER_IP
+> ```
+>
+> به جای `key` مسیر فایل کلید را بنویسید. در macOS و Linux اگر خطای دسترسی فایل دیدید، اول `chmod 600 key` را بزنید. در Termius فایل کلید را در بخش **Keys** اضافه کنید و برای Host انتخاب کنید.
 
 ### ۳. کاربر root شوید
 
@@ -153,21 +150,37 @@ cat /root/veilon-credentials.txt
 - **پورت 80/tcp** برای صدور و تمدید گواهی Let's Encrypt
 - **پورت هر ورودی** که می سازید (مثلا 443)
 
-فایروال داخل سرور (ufw یا firewalld) را Veilon خودش باز می کند:
+پورت پنل را در فایروال سرور باز کنید، و اگر ارائه دهنده سرور شما در پنل خودش فایروال دارد، آنجا هم باز کنید. برای Hysteria2، TUIC و WireGuard پورت ورودی باید به صورت UDP باز باشد.
+
+ساده ترین راه برای فایروال داخل سرور (ufw یا firewalld):
 
 ```bash
 veilon firewall
 ```
 
-ولی بسیاری از ارائه دهنده ها یک **فایروال جداگانه در پنل وب خودشان** دارند که باید دستی باز شود:
+یا دستی، با **ufw** (Ubuntu و Debian). به جای `PANEL_PORT` پورت پنل را بنویسید:
 
-- **AWS Lightsail:** صفحه سرور ← تب **Networking** ← بخش **IPv4 Firewall** ← **Add rule**؛ برای هر پورت یک قانون TCP بسازید (و برای Hysteria2، TUIC و WireGuard قانون UDP). اگر IPv6 فعال است، همین کار را در بخش IPv6 هم انجام دهید.
-- **Hetzner Cloud:** منوی **Firewalls** ← فایروال متصل به سرور ← **Inbound rules** ← پورت ها را اضافه کنید. اگر فایروالی متصل نیست، این مرحله لازم نیست.
-- **سایر ارائه دهنده ها:** دنبال بخشی با نام Firewall، Security Group یا Network rules بگردید.
+```bash
+ufw allow PANEL_PORT/tcp
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw reload
+```
+
+با **firewalld** (CentOS Stream، AlmaLinux، Rocky Linux، Fedora):
+
+```bash
+firewall-cmd --permanent --add-port=PANEL_PORT/tcp
+firewall-cmd --permanent --add-port=80/tcp
+firewall-cmd --permanent --add-port=443/tcp
+firewall-cmd --reload
+```
+
+برای پورت UDP، به جای `tcp` بنویسید `udp` (مثلا `ufw allow 8443/udp`).
 
 ## گواهی SSL: دامنه یا IP سرور
 
-- **دامنه (گزینه ۱):** گواهی ۹۰ روزه Let's Encrypt با تمدید خودکار. قبل از نصب، یک رکورد `A` برای دامنه بسازید که به IP سرور اشاره کند (اگر از Cloudflare استفاده می کنید، پروکسی ابر نارنجی را برای این رکورد خاموش کنید).
+- **دامنه (گزینه ۱):** گواهی ۹۰ روزه Let's Encrypt با تمدید خودکار. قبل از نصب، یک رکورد `A` برای دامنه بسازید که به IP سرور اشاره کند (اگر سرویس DNS شما گزینه پروکسی یا CDN دارد، آن را برای این رکورد خاموش کنید).
 - **IP سرور (گزینه ۲):** گواهی کوتاه مدت Let's Encrypt (حدود ۶ روز) مستقیم برای IP، که هر ۳ روز خودکار تمدید می شود. نیازی به دامنه نیست.
 - **رد کردن (گزینه ۳):** پنل با HTTP ساده باز می شود و بعدا می توانید از منو گواهی بگیرید.
 
@@ -260,13 +273,13 @@ veilon help
 **پنل باز نمی شود.**
 1. وضعیت سرویس را ببینید: `veilon status`
 2. آدرس دقیق را ببینید (پورت و مسیر را درست وارد کنید، با `/` آخر): `veilon info`
-3. پورت پنل را در فایروال ارائه دهنده (Lightsail، Hetzner و ...) باز کنید.
+3. پورت پنل را در فایروال سرور، و اگر ارائه دهنده سرور شما در پنل خودش فایروال دارد آنجا هم، باز کنید.
 4. لاگ ها را بررسی کنید: `veilon logs -n 100`
 
 **خطای گواهی یا «اتصال امن نیست».**
 - اگر گواهی نگرفته اید، آدرس با `http://` باز می شود نه `https://`.
 - پورت 80/tcp باید باز باشد، سپس دوباره گواهی بگیرید: `veilon cert issue --ip auto --panel`
-- برای دامنه، مطمئن شوید رکورد DNS به IP همین سرور اشاره می کند و پروکسی Cloudflare خاموش است.
+- برای دامنه، مطمئن شوید رکورد DNS به IP همین سرور اشاره می کند و پروکسی یا CDN سرویس DNS برای آن خاموش است.
 - لیست و وضعیت گواهی ها: `veilon cert list`
 
 **رمز پنل را فراموش کرده ام.**
@@ -290,7 +303,7 @@ ss -tulpn | grep :443
 ```
 
 **کاربر وصل نمی شود.**
-- پورت ورودی را در فایروال ارائه دهنده باز کنید (برای Hysteria2، TUIC و WireGuard به صورت UDP).
+- پورت ورودی را در فایروال سرور، و اگر ارائه دهنده سرور شما در پنل خودش فایروال دارد آنجا هم، باز کنید (برای Hysteria2، TUIC و WireGuard به صورت UDP).
 - ساعت گوشی و سرور باید درست باشد.
 - در برنامه کلاینت Update subscription را بزنید.
 
@@ -341,27 +354,37 @@ Veilon is a free, open-source proxy panel. One Go binary serves the web UI, the 
 
 ## Requirements
 
-- A VPS with at least 1 GB RAM (2 GB recommended)
-- Ubuntu, Debian, CentOS Stream, AlmaLinux, Rocky Linux, Fedora or Arch Linux on amd64 or arm64, with systemd
+- A VPS is required
+- OS: Ubuntu, Debian, CentOS Stream, AlmaLinux, Rocky Linux, Fedora or Arch Linux, with systemd (recommended: Ubuntu 22.04 or 24.04, or Debian 12)
+- CPU: amd64 (x86_64) or arm64, at least 1 core
+- RAM: at least 1 GB (2 GB recommended)
 - Root access (or a user with `sudo`)
 - Optional: a domain whose DNS record points to the server
 
 ## Install
 
-1. Get a VPS (e.g. Hetzner, AWS Lightsail, DigitalOcean, Vultr) with Ubuntu 24.04 or Debian 12. Note its IP, username and password or key file.
-2. Connect with SSH. Windows: PowerShell; Android and iOS: Termius; macOS and Linux: Terminal.
+1. A VPS is required (see Requirements; Ubuntu 24.04 or Debian 12 recommended). Note its IP, username (usually `root`) and password.
+2. Connect with SSH using your password (the main way):
 
 ```bash
-ssh root@203.0.113.10
+ssh root@SERVER_IP
 ```
 
-With a key file:
+Replace `SERVER_IP` with your server's IP. The first time, type `yes` to accept the host key, then enter your password (nothing is shown while you type; that is normal).
 
-```bash
-ssh -i ~/Downloads/key.pem ubuntu@203.0.113.10
-```
+- **Windows:** open PowerShell and run the command above, or use Termius.
+- **Android:** install Termius, tap **New Host**, enter the server IP as Address, `root` as Username and your password, then **Connect**.
+- **macOS and Linux:** open Terminal and run the command above.
 
-3. Become root:
+> **Optional: key login.** If your provider gave you a key file instead of a password:
+>
+> ```bash
+> ssh -i key root@SERVER_IP
+> ```
+>
+> Replace `key` with the path to the key file (on macOS and Linux run `chmod 600 key` first if SSH complains about permissions). In Termius, add the key under **Keys** and select it for the host.
+
+3. If you logged in as a non-root user, become root:
 
 ```bash
 sudo -i
@@ -393,11 +416,33 @@ install.sh uninstall [--purge] [-y]
 
 ## Firewall
 
-Open the panel port, 80/tcp (Let's Encrypt validation) and every inbound port (UDP for Hysteria2, TUIC and WireGuard). `veilon firewall` opens them in ufw or firewalld; your provider's own firewall must be opened in its web console (Lightsail: Networking → IPv4/IPv6 Firewall → Add rule; Hetzner: Firewalls → Inbound rules).
+Open the panel port in your server firewall, and in your provider's firewall panel if it has one. Also open 80/tcp (Let's Encrypt validation) and every inbound port (UDP for Hysteria2, TUIC and WireGuard).
+
+`veilon firewall` opens the Veilon ports in ufw or firewalld. To do it by hand, replace `PANEL_PORT` with your panel port.
+
+ufw (Ubuntu, Debian):
+
+```bash
+ufw allow PANEL_PORT/tcp
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw reload
+```
+
+firewalld (CentOS Stream, AlmaLinux, Rocky Linux, Fedora):
+
+```bash
+firewall-cmd --permanent --add-port=PANEL_PORT/tcp
+firewall-cmd --permanent --add-port=80/tcp
+firewall-cmd --permanent --add-port=443/tcp
+firewall-cmd --reload
+```
+
+For a UDP port use `udp` instead of `tcp` (e.g. `ufw allow 8443/udp`).
 
 ## SSL
 
-- **Domain:** Let's Encrypt, 90 days, auto renewed. Point an `A` record to the server first (Cloudflare proxy off).
+- **Domain:** Let's Encrypt, 90 days, auto renewed. Point an `A` record to the server first (turn off any DNS proxy or CDN option for that record).
 - **Server IP:** Let's Encrypt short-lived certificate (about 6 days), renewed every ~3 days. No domain needed.
 
 ```bash
@@ -450,8 +495,8 @@ veilon
 
 ## Troubleshooting
 
-- **Panel does not open:** `veilon status`, `veilon info` (exact port and path, with the trailing `/`), open the panel port in your provider's firewall, `veilon logs -n 100`.
-- **Certificate errors:** without a certificate use `http://`; open 80/tcp and run `veilon cert issue --ip auto --panel`; for a domain check the DNS record and turn the Cloudflare proxy off.
+- **Panel does not open:** `veilon status`, `veilon info` (exact port and path, with the trailing `/`), open the panel port in your server firewall (and your provider's firewall panel if it has one), `veilon logs -n 100`.
+- **Certificate errors:** without a certificate use `http://`; open 80/tcp and run `veilon cert issue --ip auto --panel`; for a domain check the DNS record and turn off any DNS proxy or CDN option.
 - **Forgot the password:** `cat /root/veilon-credentials.txt` or `veilon admin reset-credentials --password NEW_PASSWORD`.
 - **Port in use:** `veilon set-port 2096` for the panel; for inbounds find the other program with `ss -tulpn | grep :443`.
 
