@@ -1,0 +1,16 @@
++0000 2026-11-08 18:17:03 [36mINFO[0m inbound/tuic[inbound-3]: udp server started at [::]:4433
++0000 2026-11-08 18:17:03 [31mERROR[0m network: missing default interface
++0000 2026-11-08 18:17:03 [36mINFO[0m sing-box started (0.02s)
++0000 2026-11-08 18:17:04 [36mINFO[0m [[38;5;175m3172046751[0m 0ms] inbound/tuic[inbound-3]: inbound connection from 10.77.0.2:54053
++0000 2026-11-08 18:17:04 [36mINFO[0m [[38;5;175m3172046751[0m 0ms] inbound/tuic[inbound-3]: [7.alice] inbound connection to 127.0.0.1:8080
++0000 2026-11-08 18:17:04 [36mINFO[0m [[38;5;175m3172046751[0m 0ms] outbound/socks[u-7]: outbound connection to 127.0.0.1:8080
++0000 2026-11-08 18:17:04 [36mINFO[0m [[38;5;76m1198980924[0m 0ms] inbound/tuic[inbound-3]: inbound connection from 10.77.0.3:47885
++0000 2026-11-08 18:17:04 [36mINFO[0m [[38;5;76m1198980924[0m 0ms] inbound/tuic[inbound-3]: [7.alice] inbound connection to 127.0.0.1:8080
++0000 2026-11-08 18:17:04 [36mINFO[0m [[38;5;115m2688465251[0m 0ms] inbound/tuic[inbound-3]: inbound connection from [fd77::2]:41666
++0000 2026-11-08 18:17:04 [36mINFO[0m [[38;5;115m2688465251[0m 0ms] inbound/tuic[inbound-3]: [8.bob] inbound connection to 127.0.0.1:8080
++0000 2026-11-08 18:17:04 [36mINFO[0m [[38;5;115m2688465251[0m 0ms] outbound/socks[u-8]: outbound connection to 127.0.0.1:8080
++0000 2026-11-08 18:17:04 [31mERROR[0m inbound/tuic[inbound-3]: connection failed: handle uni stream: authentication: token mismatch
++0000 2026-11-08 18:17:04 [31mERROR[0m inbound/tuic[inbound-3]: handle stream request: handle uni stream: authentication: token mismatch
++0000 2026-11-08 18:17:05 [36mINFO[0m [[38;5;75m471553595[0m 0ms] inbound/tuic[inbound-3]: inbound packet connection from 10.77.0.2:54177
++0000 2026-11-08 18:17:05 [36mINFO[0m [[38;5;75m471553595[0m 0ms] inbound/tuic[inbound-3]: [8.bob] inbound packet connection to 127.0.0.1:5353
++0000 2026-11-08 18:17:05 [36mINFO[0m [[38;5;75m471553595[0m 0ms] outbound/socks[u-8]: outbound packet connection to 127.0.0.1:5353

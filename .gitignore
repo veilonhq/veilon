@@ -1,0 +1,60 @@
+# Build output and binaries
+/dist/
+/bin/
+/build/
+/veilon
+/veilon-*
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.*
+
+# Web UI
+web/node_modules/
+web/dist/
+web/dist-mock/
+web/*.local
+web/.vite/
+node_modules/
+
+# Embedded UI: only the placeholder is committed; release builds copy web/dist here
+panel/internal/webui/dist/*
+!panel/internal/webui/dist/index.html
+
+# Secrets, keys and local config
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+.env
+.env.*
+*.env
+veilon-credentials.txt
+secrets/
+
+# Databases and backups
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sql
+*.dump
+*.bak
+*.backup
+*.tar.gz
+*.zip
+backups/
+
+# Logs, editors, OS
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

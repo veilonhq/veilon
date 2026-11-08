@@ -1,0 +1,151 @@
+package xray
+
+import (
+	"archive/zip"
+	"bufio"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"io"
+	"log/slog"
+	"net/http"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"time"
+)
+
+// AssetName returns the official Xray-core release asset for this host.
+func AssetName(goos, goarch string) (string, error) {
+	if goos != "linux" {
+		return "", fmt.Errorf("unsupported OS %s", goos)
+	}
+	switch goarch {
+	case "amd64":
+		return "Xray-linux-64.zip", nil
+	case "arm64":
+		return "Xray-linux-arm64-v8a.zip", nil
+	case "386":
+		return "Xray-linux-32.zip", nil
+	case "arm":
+		return "Xray-linux-arm32-v7a.zip", nil
+	}
+	return "", fmt.Errorf("unsupported arch %s", goarch)
+}
+
+// Download fetches the Xray release (version "latest" or a tag) into dir,
+// verifies the published SHA-256 digest when available and extracts the
+// binary and geo data files.
+func Download(ctx context.Context, dir, version string) error {
+	asset, err := AssetName(runtime.GOOS, runtime.GOARCH)
+	if err != nil {
+		return err
+	}
+	base := "https://github.com/XTLS/Xray-core/releases/latest/download/"
+	if version != "" && version != "latest" {
+		base = "https://github.com/XTLS/Xray-core/releases/download/" + version + "/"
+	}
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return err
+	}
+	client := &http.Client{Timeout: 5 * time.Minute}
+	tmp, err := os.CreateTemp(dir, "xray-*.zip")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	defer tmp.Close()
+	slog.Info("downloading xray-core", "url", base+asset)
+	h := sha256.New()
+	if err := fetch(ctx, client, base+asset, io.MultiWriter(tmp, h)); err != nil {
+		return err
+	}
+	sum := hex.EncodeToString(h.Sum(nil))
+	var dg strings.Builder
+	if err := fetch(ctx, client, base+asset+".dgst", &dg); err == nil {
+		want := parseDigest(dg.String())
+		if want != "" && !strings.EqualFold(want, sum) {
+			return fmt.Errorf("xray digest mismatch: got %s want %s", sum, want)
+		}
+	} else {
+		slog.Warn("xray digest unavailable, skipping verification", "err", err)
+	}
+	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
+		return err
+	}
+	st, _ := tmp.Stat()
+	zr, err := zip.NewReader(tmp, st.Size())
+	if err != nil {
+		return err
+	}
+	wanted := map[string]os.FileMode{"xray": 0o755, "geoip.dat": 0o644, "geosite.dat": 0o644}
+	found := false
+	for _, f := range zr.File {
+		mode, ok := wanted[filepath.Base(f.Name)]
+		if !ok || f.FileInfo().IsDir() {
+			continue
+		}
+		if err := extract(f, filepath.Join(dir, filepath.Base(f.Name)), mode); err != nil {
+			return err
+		}
+		if filepath.Base(f.Name) == "xray" {
+			found = true
+		}
+	}
+	if !found {
+		return fmt.Errorf("xray binary not found in %s", asset)
+	}
+	return nil
+}
+
+func parseDigest(s string) string {
+	sc := bufio.NewScanner(strings.NewReader(s))
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if strings.HasPrefix(strings.ToUpper(line), "SHA2-256=") || strings.HasPrefix(strings.ToUpper(line), "SHA256=") {
+			_, v, _ := strings.Cut(line, "=")
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
+}
+
+func fetch(ctx context.Context, c *http.Client, url string, w io.Writer) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := c.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("GET %s: %s", url, resp.Status)
+	}
+	_, err = io.Copy(w, resp.Body)
+	return err
+}
+
+func extract(f *zip.File, dst string, mode os.FileMode) error {
+	rc, err := f.Open()
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+	tmp := dst + ".tmp"
+	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, io.LimitReader(rc, 512<<20)); err != nil {
+		out.Close()
+		return err
+	}
+	if err := out.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp, dst)
+}

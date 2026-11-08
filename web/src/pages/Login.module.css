@@ -1,0 +1,318 @@
+.page {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(360px, 0.75fr);
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    'top top'
+    'hero form';
+  padding: max(18px, env(safe-area-inset-top)) clamp(18px, 4vw, 56px) 32px;
+  gap: 0 clamp(24px, 5vw, 80px);
+  overflow: hidden;
+}
+.top {
+  grid-area: top;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.brand strong {
+  font-family: var(--font-display-en);
+  font-size: 21px;
+  letter-spacing: -0.02em;
+}
+.toggles {
+  display: flex;
+  gap: 4px;
+}
+.hero {
+  grid-area: hero;
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 520px;
+}
+.heroText {
+  position: relative;
+  z-index: 2;
+}
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 99px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent);
+}
+.headline {
+  margin-top: 22px;
+  font-size: clamp(46px, 8.6vw, 128px);
+  line-height: 0.95;
+  font-weight: 700;
+  letter-spacing: -0.045em;
+}
+html[lang='fa'] .headline {
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 800;
+}
+.line {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.04em;
+}
+.line em {
+  font-style: normal;
+  color: transparent;
+  background: linear-gradient(100deg, var(--accent) 10%, color-mix(in srgb, var(--accent) 50%, var(--violet)) 60%, var(--violet) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+[data-theme='light'] .line em {
+  background: linear-gradient(100deg, #5a9400 10%, var(--violet) 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.sub {
+  margin-top: 22px;
+  max-width: 460px;
+  color: var(--text-2);
+  font-size: 17px;
+}
+
+/* radar */
+.radar {
+  position: absolute;
+  width: min(640px, 78vw);
+  aspect-ratio: 1;
+  inset-inline-end: -8%;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  z-index: 1;
+  opacity: 0.9;
+  -webkit-mask-image: radial-gradient(circle, #000 55%, transparent 72%);
+  mask-image: radial-gradient(circle, #000 55%, transparent 72%);
+}
+.ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid var(--line-2);
+}
+.ring:nth-child(2) {
+  border-style: dashed;
+}
+.cross,
+.crossV {
+  position: absolute;
+  background: var(--line);
+}
+.cross {
+  top: 50%;
+  inset-inline: 0;
+  height: 1px;
+}
+.crossV {
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+.sweep {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0deg, transparent 300deg, color-mix(in srgb, var(--accent) 8%, transparent) 330deg, color-mix(in srgb, var(--accent) 38%, transparent) 359deg, transparent 360deg);
+  animation: sweep 6s linear infinite;
+}
+.blip {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 16px var(--accent);
+  opacity: 0;
+  animation: blip 6s ease-out infinite;
+}
+.blip:nth-of-type(2n) {
+  background: var(--violet);
+  box-shadow: 0 0 16px var(--violet);
+}
+.center {
+  position: absolute;
+  inset: 48.5%;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 8px var(--accent-soft), 0 0 30px var(--accent);
+}
+@keyframes sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes blip {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  6% {
+    opacity: 1;
+    transform: scale(1.3);
+  }
+  40% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* form — no box: big underlined fields on the open field */
+.form {
+  grid-area: form;
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  position: relative;
+  z-index: 3;
+  padding-inline-start: clamp(0px, 3vw, 40px);
+  border-inline-start: 1px solid var(--line);
+  padding-block: 28px;
+}
+.formTitle {
+  font-size: 26px;
+  font-weight: 700;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field > span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.input {
+  width: 100%;
+  height: 58px;
+  border: 0;
+  border-bottom: 2px solid var(--line-2);
+  background: transparent;
+  font-size: 22px;
+  font-family: var(--font-display-en);
+  color: var(--text);
+  padding: 0 2px;
+  transition: border-color 0.25s;
+  border-radius: 0;
+}
+.input:focus,
+.input:focus-visible {
+  outline: none;
+  border-bottom-color: var(--accent-fg);
+}
+.input[aria-invalid='true'] {
+  border-bottom-color: var(--danger);
+}
+.pwWrap {
+  position: relative;
+}
+.pwWrap .input {
+  padding-inline-end: 48px;
+}
+.eye {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+}
+.eye:hover {
+  color: var(--text);
+  background: var(--panel-2);
+}
+.err {
+  color: var(--danger-fg);
+  font-weight: 600;
+  font-size: 14px;
+}
+.submit {
+  margin-top: 6px;
+  justify-content: space-between;
+  height: 60px;
+  padding: 0 26px;
+  font-size: 17px;
+}
+.hint {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .page {
+    grid-template-columns: 1fr;
+    grid-template-areas: 'top' 'hero' 'form';
+    grid-template-rows: auto auto 1fr;
+    padding-bottom: 28px;
+  }
+  .hero {
+    min-height: 0;
+    padding: 64px 0 28px;
+  }
+  .radar {
+    width: 118vw;
+    max-width: 560px;
+    top: 44%;
+    inset-inline-end: -36%;
+    opacity: 0.75;
+  }
+  .headline {
+    font-size: clamp(46px, 13vw, 84px);
+  }
+  .sub {
+    font-size: 15.5px;
+    max-width: 320px;
+  }
+  .form {
+    border-inline-start: 0;
+    padding: 0;
+    gap: 20px;
+    align-self: start;
+  }
+  .formTitle {
+    font-size: 20px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sweep,
+  .blip {
+    animation: none !important;
+  }
+  .blip {
+    opacity: 0.6;
+  }
+}

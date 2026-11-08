@@ -1,0 +1,153 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 1100px;
+}
+.hero {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 22px;
+}
+.heart {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: var(--danger-soft);
+  color: var(--danger-fg);
+}
+.lead {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.9;
+  color: var(--text);
+}
+.thanks {
+  margin: 8px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-fg);
+}
+:global([data-theme='light']) .thanks {
+  color: var(--text-2);
+}
+.warn {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: var(--r-md);
+  background: var(--warn-soft);
+  color: var(--warn-fg);
+  border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+}
+.warn > svg {
+  flex: none;
+  margin-top: 3px;
+}
+.warn > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13.5px;
+  line-height: 1.8;
+}
+.warn strong {
+  font-size: 14.5px;
+}
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.card {
+  display: flex;
+  gap: 22px;
+  padding: 20px;
+  align-items: flex-start;
+}
+.qr {
+  flex: none;
+}
+.info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.net {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  background: var(--info-soft);
+  color: var(--info-fg);
+  border: 1px solid color-mix(in srgb, var(--info) 25%, transparent);
+}
+.app {
+  font-size: 13px;
+  color: var(--muted);
+}
+.coins {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.addr {
+  display: block;
+  padding: 12px 14px;
+  border-radius: var(--r-sm);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  font-size: 13.5px;
+  line-height: 1.6;
+  word-break: break-all;
+  user-select: all;
+  -webkit-user-select: all;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+}
+.note {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--warn-fg);
+}
+.note > svg {
+  flex: none;
+  margin-top: 4px;
+}
+@media (max-width: 640px) {
+  .hero {
+    padding: 16px;
+    gap: 12px;
+  }
+  .card {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 16px;
+  }
+  .qr {
+    align-self: center;
+  }
+}

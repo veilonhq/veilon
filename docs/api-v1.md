@@ -1,0 +1,154 @@
+# Veilon API v1 (phase 1 contract)
+
+Base: `/<panel_path>/api/v1` (panel_path is random, set at install; the web UI is served at `/<panel_path>/`). JSON everywhere. Auth: `Authorization: Bearer <jwt>`.
+Errors: `{"error": {"code": "string_code", "message": "human text"}}` with proper HTTP status.
+Times: RFC3339 UTC. Bytes: integers. `0` limit = unlimited.
+
+## Auth
+- `POST /auth/login` `{username, password}` → `{token, expires_at, admin:{id,username,is_sudo}}` (rate-limited: 5 fails / 10 min / IP → 429)
+- `GET /auth/me` → admin
+- `PATCH /auth/me` `{username, current_password}` → `{token, expires_at, admin}` — the signed-in admin renames themself. Requires the current password (`400 invalid_credentials` if wrong); username must be 3-32 chars of letters, digits, `_ . -` (`400 validation_error`) and unused by another admin (`409 conflict`). Audit-logged as `auth.username_changed` (`old -> new`). Existing tokens stay valid; the fresh token carries the new username.
+- `POST /auth/password` `{current_password, new_password}` → `{ok, token, expires_at}` (tokens issued before the change stop working, so the response carries a fresh token)
+
+## System
+- `GET /system/stats` → `{cpu_percent, mem_used, mem_total, disk_used, disk_total, swap_used, swap_total, cpu_cores, cpu_model, load_avg:[1m,5m,15m], uptime_sec, net_up_bps, net_down_bps, users_total, users_active, users_online, users_expired, users_limited, users_disabled, users_on_hold, traffic_total_up, traffic_total_down, core:{name:"xray", version, running, started_at, error?, enabled, protocols:[], instances, warnings:[]}, cores:[Core]}`. `cores` lists every engine (`xray`, `sing-box`, `mtg`, `amneziawg`) with the same shape (the web UI currently shows only `xray`; the other engines keep running); `enabled:false` means the engine has no inbounds and is not running; `warnings` lists inbounds the engine had to leave out (e.g. TUN without CAP_NET_ADMIN). Sizes are bytes; `swap_total` is 0 when the host has no swap; `cpu_cores` is the logical CPU count; `cpu_model` may be empty.
+- `GET /system/traffic?range=24h|7d|30d` → `{points:[{t, up, down}], bucket_sec}` (zero-filled, oldest first; buckets: 24h→15 min, 7d→1 h, 30d→6 h)
+- `POST /core/restart` (restarts every engine), `GET /core/logs?core=xray|sing-box|mtg|amneziawg&lines=200` → `{lines:[string]}` (default core `xray`)
+- `GET /core/config?core=…` → generated config of that engine (read-only, for debugging): JSON for xray / sing-box / amneziawg, TOML (`text/plain`) for mtg (one section per MTProto inbound).
+
+## Users
+User object:
+```
+{ id, username, status: "active"|"disabled"|"limited"|"expired"|"on_hold",
+  data_limit, used_traffic, up, down, expire_at|null, on_hold_days|null,
+  reset_strategy: "no_reset"|"day"|"week"|"month",
+  note, inbound_ids:[int], uuid, password, sub_token, sub_url,
+  online: bool, last_online_at|null, created_at, updated_at }
+```
+- `GET /users?search=&status=&page=1&per_page=20&sort=-created_at` → `{items:[User], total}`
+  (`search` matches username or note; `status` also accepts `online`; `sort` fields: `created_at`, `username`, `used_traffic`, `data_limit`, `expire_at`, `last_online_at`, `id`, prefix `-` for descending; `per_page` max 500)
+- `POST /users` `{username, data_limit, expire_at|null, on_hold_days|null, reset_strategy, note, inbound_ids}` → `201` User
+  (`on_hold_days` with no `expire_at` creates an `on_hold` user whose period starts at first connection; if both are given, `expire_at` wins)
+- `GET /users/{id}`, `PATCH /users/{id}` (same fields + status active/disabled; only fields present are changed, `null` clears nullable fields), `DELETE /users/{id}` → `{ok}`
+- `POST /users/{id}/reset-traffic`, `POST /users/{id}/revoke-sub` (new sub_token + new uuid/password)
+- `GET /users/{id}/links` → `{links:[{inbound_id, remark, protocol, uri, conf?, conf_name?, conf_url?}], sub_url}` — `uri` is `""` for protocols without a share-link standard (amneziawg, masque); WireGuard/AmneziaWG links carry the client config file in `conf` (with `conf_name`, e.g. `WG.conf`) and `conf_url`, a direct download of the same file (see Subscription). Tunnel and TUN inbounds have no client links.
+- `POST /users/bulk` `{action:"delete"|"disable"|"enable"|"reset_traffic"|"extend", ids:[], days?}` → `{ok, affected}`
+  (`extend` adds `days` to `expire_at` — from now if already expired — or to `on_hold_days` for on-hold users; users without expiry are unchanged)
+
+## Inbounds
+Inbound object:
+```
+{ id, remark, enabled,
+  protocol: "vless"|"vmess"|"trojan"|"shadowsocks"|"hysteria"|"tuic"|"wireguard"|"amneziawg"
+           |"http"|"mixed"|"tunnel"|"tun"|"mtproto"|"masque",
+  port, listen, network, security: "none"|"tls"|"reality",
+  tls: { cert_id|null, sni, alpn:[], fingerprint, allow_insecure:false } | null,
+  reality: { dest, server_names:[], private_key, public_key, short_ids:[], fingerprint, spider_x } | null,
+  transport: { path, host, service_name, mode },
+  flow: ""|"xtls-rprx-vision", ss_method, sniffing: bool,
+  settings: Settings, address_override: "", user_count, created_at }
+
+Settings (protocol-specific; fields that do not apply are reset to zero values):
+{ obfs_password, up_mbps, down_mbps,            // hysteria (Salamander obfs, client bandwidth hints)
+  congestion,                                   // tuic: bbr|cubic|new_reno
+  private_key, public_key, address, dns:[], keepalive, awg|null,   // wireguard / amneziawg
+  mtu,                                          // wireguard, amneziawg, masque, tun
+  udp,                                          // mixed: allow SOCKS5 UDP
+  target_address, target_port, tunnel_network,  // tunnel: tcp|udp|tcp,udp
+  tun_name, gateway:[], routes:[],              // tun
+  faketls_domain,                               // mtproto
+  pool:[], path }                               // masque
+awg = { jc, jmin, jmax, s1, s2, h1, h2, h3, h4 }
+```
+Engines: Xray-core serves vless, vmess, trojan, shadowsocks, hysteria (Hysteria 2), wireguard, http, mixed, tunnel, tun and masque; sing-box serves tuic; mtg-multi serves mtproto (one process per inbound); the built-in AmneziaWG sidecar (`veilon awg-run`, amneziawg-go) serves amneziawg. sing-box and mtg-multi are downloaded from their official GitHub releases into the data dir on first use (`VEILON_SINGBOX_VERSION`, default `1.14.4`; `VEILON_MTG_VERSION`, default `1.15.0`; `latest` is allowed).
+
+- `GET /inbounds` → `[Inbound]`, `POST /inbounds` → `201` Inbound, `GET|PATCH|DELETE /inbounds/{id}`
+  - PATCH merges the body onto the stored inbound field by field (nested `tls`/`reality`/`transport`/`settings` objects merge too; `null` clears `tls`/`reality`).
+  - Defaults: `enabled:true`, `sniffing:true`, `network:"tcp"`, `security:"none"`; ws/httpupgrade/xhttp path `/`; grpc `service_name:"grpc"`; xhttp `mode:"auto"` (`auto|packet-up|stream-up|stream-one`); grpc `mode` may be `gun|multi`.
+  - `network`, `transport`, `flow`, `ss_method` and `reality` only apply to vless/vmess/trojan/shadowsocks. For the other protocols `network` is informational: `udp` (hysteria, tuic, wireguard, amneziawg), `quic`/`h2` (masque), `tun`, the tunnel's network, or `tcp`.
+  - Reality: `dest` without port gets `:443`; empty `server_names` defaults to the dest host; empty `private_key` is generated; `public_key` is always derived from `private_key`; empty `short_ids` gets one random id; `fingerprint` defaults to `chrome`, `spider_x` to `/`. Reality is allowed for vless/trojan over tcp/grpc/xhttp.
+  - `flow:"xtls-rprx-vision"` requires vless + tcp + tls/reality. Shadowsocks requires security `none` and network `tcp`; `ss_method` ∈ `aes-128-gcm, aes-256-gcm, chacha20-ietf-poly1305, 2022-blake3-aes-128-gcm, 2022-blake3-aes-256-gcm` (2022 server keys are generated automatically).
+  - `tls.cert_id` must reference an existing certificate; empty `tls.sni` defaults to the certificate domain. With `tls.allow_insecure:true` share links also carry `pcs` (SHA-256 pin of the certificate) because current Xray-core clients no longer accept `allowInsecure`.
+  - hysteria, tuic and masque always use TLS (`security` is forced to `tls`, ALPN `h3`; masque accepts `h3` and/or `h2`). Without `tls.cert_id` a self-signed certificate for `tls.sni` (default `www.bing.com`) is created (or reused) and `allow_insecure` is set: links then pin the certificate (`pinSHA256` in hysteria2://, `fingerprint` in Clash, `certificate_public_key_sha256` in sing-box, `pinnedPeerCertSha256` in Xray JSON). `http` may use `security:"tls"` with a certificate (HTTPS proxy); every other new protocol is `none`.
+  - wireguard / amneziawg: empty `private_key` is generated, `public_key` is derived; `address` is the server tunnel address with prefix (IPv4, /16-/30, default random `10.x.y.1/24`), `mtu` 1280-1500 (1420), `dns` defaults to `1.1.1.1, 8.8.8.8`. Every user linked to the inbound gets a peer automatically (key pair, preshared key and the next free address of the subnet). amneziawg `awg` is generated when empty (Jc 3-8, Jmin 40, Jmax 70, random S1/S2 with S1+56≠S2, distinct H1-H4 > 4). Subnets of WG inbounds must not overlap.
+  - tunnel forwards every connection on `port` to `target_address:target_port` (`tunnel_network` tcp by default). tun has no port: it creates the interface `tun_name` (default `veilon-tun`) with `gateway` addresses (default `10.77.0.1/24`) and adds `routes` (specific subnets, never a default route) so that traffic routed into it leaves through the core. TUN needs CAP_NET_ADMIN; without it the inbound is skipped and reported in the core's `warnings`.
+  - mtproto: FakeTLS (`ee`) secrets are derived per user from the user's password and `faketls_domain` (default `www.cloudflare.com`).
+  - masque: `pool` holds at most one IPv4 and one IPv6 prefix (default `10.14.0.1/24`, `fd14::1/64`), `mtu` 1280+, `path` defaults to `/.well-known/masque/ip/{target}/{ipproto}/`.
+  - **Unique port and name.** No two inbounds may share a `port` (whatever the protocol, transport or listen address; TUN has no port) or a `remark` (compared trimmed and case-insensitive). A port used by the panel itself or by the internal core APIs is refused as well. Create and update answer `409` with `{"error":{"code":"conflict","message":"port 443 is already used by inbound \"Main\"","field":"port"|"remark","inbound":"Main"}}` (`inbound` is `""` when the panel holds the port). On update a value the inbound already had is not re-checked, so inbounds stored before this rule stay editable.
+- `POST /inbounds/reality-keys` → `{private_key, public_key, short_id}`
+- `POST /inbounds/wireguard-keys` → `{private_key, public_key, awg:{jc,jmin,jmax,s1,s2,h1,h2,h3,h4}}`
+
+### Traffic statistics per engine
+- Xray (all its protocols, including wireguard per-peer and http/mixed per account): exact, from Xray's stats API.
+- tuic: sing-box hands each authenticated user's traffic to a loopback inbound of Xray (`bridge-singbox`), so it is counted (and routed) by Xray exactly like the rest. TUIC therefore needs Xray running.
+- mtproto: per user from mtg-multi's `/stats` (cumulative counters).
+- amneziawg: per peer from amneziawg-go (`rx_bytes`/`tx_bytes`, reported every 10 s).
+- tunnel and tun have no users; their traffic counts as server traffic only.
+
+## Certificates (TLS)
+Certificate view (every endpoint below returns this shape):
+```
+{ id, domain,                 // first identifier, for display
+  identifiers: ["example.com"] | ["203.0.113.7", "2001:db8::7"],
+  type: "domain"|"ip", source: "acme"|"upload"|"self", issuer,
+  profile: ""|"shortlived",   // ACME profile ("shortlived" for IP certificates)
+  not_before, not_after,      // RFC 3339
+  auto_renew: bool,
+  http_port,                  // ACME only: local HTTP-01 listener port (default 80)
+  renew_at: time|null,        // next automatic renewal (ACME + auto_renew)
+  last_error: "", last_attempt_at: time|null,
+  in_use: bool }              // used by the panel or an inbound
+```
+- `GET /certs` → `[view]`
+- `GET /certs/{id}` → view
+- `GET /certs/public-ip` → `{ipv4, ipv6, candidates:[{ip, family:"ipv4"|"ipv6", sources:["api.ipify.org","interface",...]}]}`. Detection asks several external checkers over IPv4 and IPv6 and reads local interfaces; it can be wrong behind NAT, so UIs must show the result and let the admin confirm or type another address before issuing an IP certificate.
+- `POST /certs/acme` `{type, domain, ip, ipv6, email, http_port, use_for_panel}` → `201` view
+  - `type:"domain"` (default when `domain` is set): Let's Encrypt certificate for `domain`, valid 90 days, renewed when 30 days remain.
+  - `type:"ip"`: Let's Encrypt certificate for an IP address with the `shortlived` profile (about 160 hours). `ip` is an IPv4 or IPv6 address, or empty/`"auto"` to use the detected one; `ipv6` optionally adds an IPv6 address (or `"auto"`) to the same certificate. Renewed automatically every ~3 days; failed renewals are retried hourly (domain certificates: every 6 h).
+  - `email` is optional (ACME account contact). `http_port` (default 80) is the local port of the HTTP-01 listener; the CA always connects to port 80, so another value only makes sense when port 80 is forwarded to it. When the panel itself listens with plain HTTP on that port it answers the challenge.
+  - `use_for_panel:true` also makes it the panel certificate (`panel_cert_id`); the panel listener restarts with HTTPS ~1 s after the response. For a domain certificate `panel_domain` is set to it; for an IP certificate `server_address` is set to the IP when empty.
+  - Errors: `400 validation_error` (bad domain/IP, private IP, bad email); `502 acme_failed` with the CA's message (for example port 80 unreachable).
+- `PATCH /certs/{id}` `{auto_renew}` → view (turn automatic renewal of an ACME certificate on or off)
+- `POST /certs/{id}/renew` → view (renews now with the same identifiers and profile); `502 acme_failed` on CA errors
+- `POST /certs/{id}/revoke` → `{ok}`: revokes an ACME certificate at the CA and deletes it. `400` for non-ACME certificates, `409 conflict` if used by the panel or an inbound.
+- `POST /certs/self-signed` `{domain}` → `201` view (10-year ECDSA self-signed certificate, `source:"self"`)
+- `POST /certs/upload` `{domain, cert_pem, key_pem}` → `201` view (`domain` may be empty: taken from the certificate)
+- `DELETE /certs/{id}` → `{ok}`; `409 conflict` if used by the panel or an inbound
+
+Renewed certificates are hot-reloaded: the panel and running inbounds pick them up without a restart.
+
+## Settings
+- `GET /settings`, `PATCH /settings` → `{panel_port, panel_path, panel_domain, panel_cert_id, sub_path, sub_domain, sub_title, sub_update_hours, server_address, timezone, language:"fa"|"en"}`
+  - PATCH is partial. `panel_cert_id: null` (or `0`) disables HTTPS. Changing `panel_port` or `panel_cert_id` restarts the panel listener ~1 s after the response; a `panel_path` change applies immediately (the UI must navigate to the new path).
+  - Client address used in links: inbound `address_override` → `server_address` → `panel_domain` → request host.
+  - `sub_url` host: `sub_domain` → `panel_domain` → `server_address` → request host. The panel port is appended unless it is the scheme default or the host already includes a port (use `sub.example.com:443` behind a reverse proxy). Scheme is `https` when `panel_cert_id` is set.
+
+## Admins (sudo only)
+- `GET /admins` → `[{id, username, is_sudo, created_at}]`, `POST /admins` `{username,password,is_sudo}` → `201`, `DELETE /admins/{id}` (cannot delete yourself or the last sudo admin)
+
+## Audit
+- `GET /audit?page=&per_page=50` → `{items:[{id, admin, action, target, ip, created_at}], total}` (newest first)
+
+## Subscription (public, no auth)
+- `GET /<sub_path>/{sub_token}` → base64 v2ray links by default; `?format=singbox|clash|v2ray|json` or detect by User-Agent.
+  (`json` = array of complete Xray client configs, one per link. User-Agent: clash/mihomo/stash → clash; sing-box/SFA/SFI/SFM/SFT → singbox; anything else → v2ray. Per-format support: v2ray links — every protocol with a share-link standard (vless, vmess, trojan, ss, `hysteria2://`, `tuic://`, `wireguard://`, `http(s)://`, `socks://` for mixed, `tg://proxy` for mtproto); singbox — vless/vmess/trojan/ss (not xhttp), hysteria2, tuic, http, socks, wireguard (as an endpoint); clash — the same plus amneziawg (`amnezia-wg-option`), without trojan over plain TCP; json (Xray) — everything except tuic, amneziawg and mtproto, plus masque, which only exists here. Unsupported entries are skipped per format.)
+  Headers: `subscription-userinfo: upload=..; download=..; total=..; expire=<unix>`, `profile-title: base64:<b64>`, `profile-update-interval: <hours>`, `content-disposition`.
+- `GET /<sub_path>/{sub_token}/info` → HTML-free JSON `{username, status, used, limit, expire_at, links}` (for a future user page).
+- `GET /<sub_path>/{sub_token}/conf/{inbound_id}` (optionally ending in `.conf`) → the WireGuard / AmneziaWG client config of that inbound as `application/octet-stream` with `Content-Disposition: attachment; filename="NAME.conf"`, so Android browsers save it as `NAME.conf` and not `.conf.txt`. `404` when the user has no such config.
+
+## Limits, connection log, groups and admin permissions (API preview)
+Implemented in the backend (schema 5) and covered by unit tests; the web UI covers user limits, groups, admin permissions and the global blocking settings (`ad_block`, `block_torrent` in `/settings`), but none of it is verified on a production server yet. The UI hides pages and actions the signed-in admin lacks permission for, reading `permissions` from `GET /auth/me`. Everything defaults to off: with no limit set, nothing changes for a user.
+- Extra User fields (`GET`/`PATCH /users/{id}`, `POST /users`; `0`/`false`/`""` = off): `ip_limit` (concurrent client IPs), `device_limit` and `require_hwid` (HWID devices, read from the `X-Hwid` subscription header), `speed_limit_down` / `speed_limit_up` (Mbps), `traffic_multiplier` (counted = real × multiplier, `1` = none), `daily_limit` / `daily_used` (bytes), `block_torrent`, `window_from` / `window_to` (`HH:MM`) and `window_days` (weekday bit mask) for an allowed time window, `group_id`, and read-only `suspend_reason`, `admin_id`.
+- IP and speed limits are enforced with nftables (`table inet veilon_guard`, timed bans on inbound ports only) and `tc` on the default interface. The guard runs only for users that have a limit; when `nft` or `tc` are missing it logs one warning and does nothing.
+- `GET /users/{id}/connections` → `{ips:[{id, ip, country, first_seen, last_seen, count, blocked, live}], devices:[{id, hwid, os, os_version, model, user_agent, ip, country, first_seen, last_seen, count, blocked}]}`
+- `POST /users/{id}/ips` `{ip, blocked}`, `DELETE /users/{id}/ips/{ip_id}`, `PATCH /users/{id}/devices/{device_id}` `{blocked}`, `DELETE /users/{id}/devices/{device_id}`
+- Groups: `GET|POST /groups`, `PATCH|DELETE /groups/{id}`; Group `{id, name, color, ad_block, inbound_ids, defaults, users, created_at}`.
+- Admins: `PATCH /admins/{id}` also accepts `permissions` (`users_view, users_create, users_edit, users_delete, all_users, inbounds, settings, certs, logs, groups`), `user_quota` and `traffic_quota`. Sub-admins created before permissions existed keep full access; a new sub-admin without `permissions` gets the four `users_*` flags and sees only its own users.
+
+## Extensions (implemented beyond the original contract)
+- `GET /health` (no auth) → `{status:"ok", version, schema}`.
+- Every timestamp is RFC3339 UTC and may carry fractional seconds (e.g. `2026-11-06T16:19:17.594Z`).
+- Error codes in use: `bad_request`, `validation_error`, `unauthorized`, `invalid_credentials`, `forbidden`, `not_found`, `conflict`, `rate_limited`, `acme_failed`, `internal`. Unknown endpoints/methods return `404 not_found` as JSON.
+- Non-sudo admins can use the endpoints their permissions allow (see above), never `/admins`.
+- Online = traffic seen in the last 2 minutes (stats are polled every 10 s).
+- The UI is served from `/<panel_path>/` with SPA fallback to `index.html`. The server injects into `<head>`: `<base href="/<panel_path>/">` and `window.__VEILON__ = {basePath:"/<panel_path>/", apiBase:"/<panel_path>/api/v1"}`. Build the UI with relative asset URLs (Vite `base: './'`).

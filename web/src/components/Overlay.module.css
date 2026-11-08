@@ -1,0 +1,146 @@
+.layer {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+}
+.alignCenter {
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.alignTop {
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10vh 14px 14px;
+}
+.scrim {
+  position: absolute;
+  inset: 0;
+  /* colour is animated from JS (Overlay.tsx Scrim): background-color only, no
+   * opacity layer; touch-action stops the page underneath from scrolling */
+  background: var(--scrim);
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+/* No backdrop-filter on overlays: these layers animate (opacity/transform)
+ * and a blurred backdrop under an animating layer makes several Android GPUs
+ * dim the whole page for a frame and then snap back (visible flash). Solid,
+ * nearly opaque surfaces look the same and composite cheaply. */
+.sheet {
+  position: absolute;
+  will-change: transform;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  box-shadow: 0 40px 120px -20px rgba(0, 0, 0, 0.6);
+  outline: none;
+}
+.side {
+  top: 12px;
+  bottom: 12px;
+  inset-inline-end: 12px;
+  border-radius: var(--r-xl);
+}
+.bottom {
+  inset-inline: 0;
+  bottom: 0;
+  max-height: 94dvh;
+  overscroll-behavior: contain;
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  border-bottom: 0;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.handleZone {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 2px;
+  touch-action: none;
+  cursor: grab;
+}
+.handle {
+  width: 44px;
+  height: 5px;
+  border-radius: 99px;
+  background: var(--line-2);
+}
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 20px 20px 14px 24px;
+  border-bottom: 1px solid var(--line);
+}
+[dir='rtl'] .head {
+  padding: 20px 24px 14px 20px;
+}
+.bottom .head {
+  padding-top: 8px;
+  touch-action: none;
+}
+.headText {
+  flex: 1;
+  min-width: 0;
+}
+.title {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.subtitle {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 13.5px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 20px 24px 28px;
+}
+.foot {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 14px 20px;
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+@media (max-width: 720px) {
+  .body {
+    padding: 16px 18px 24px;
+  }
+  .head {
+    padding-inline: 18px 12px;
+  }
+  .foot > * {
+    flex: 1;
+  }
+}
+.modal {
+  position: relative;
+  width: min(460px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  box-shadow: 0 40px 120px -20px rgba(0, 0, 0, 0.6);
+  outline: none;
+}
+
+/* Tall bottom sheets keep one fixed height on phones, so content that loads
+ * or changes (skeleton -> detail, wizard steps) never makes the sheet's top
+ * edge jump. */
+.bottom.tall {
+  height: 94dvh;
+}
+.layer {
+  overscroll-behavior: contain;
+}

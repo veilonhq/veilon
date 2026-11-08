@@ -1,0 +1,256 @@
+.ring {
+  position: relative;
+  flex: none;
+}
+.ring svg {
+  display: block;
+}
+.ringInner {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  line-height: 1.1;
+}
+
+.gauge {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  container-type: inline-size;
+}
+.gaugeArc {
+  position: relative;
+  width: 100%;
+  max-width: 148px;
+}
+.gaugeArc svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.gaugeText {
+  position: absolute;
+  top: 31%;
+  left: 18%;
+  right: 18%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  text-align: center;
+}
+.gaugeText strong {
+  font-size: 22px;
+  font-size: clamp(16px, 17cqi, 26px);
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+.gaugeText span {
+  font-size: 12px;
+  font-size: clamp(10.5px, 8.6cqi, 12.5px);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--muted);
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gaugeLines {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  width: 100%;
+  min-width: 0;
+  margin-top: -4px;
+  text-align: center;
+  line-height: 1.35;
+}
+.gaugeLines > span {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gaugeLine1 {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.gaugeLine2 {
+  font-size: 11px;
+  color: var(--muted);
+}
+.gaugeOff .gaugeText strong {
+  color: var(--muted);
+}
+
+.wave {
+  position: relative;
+  width: 100%;
+}
+.wave canvas {
+  display: block;
+}
+
+/* core pulse */
+.pulse {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.pulseOn {
+  color: var(--accent);
+}
+.pulseOff {
+  color: var(--danger);
+}
+.pulse > span:not(.core) {
+  position: absolute;
+  inset: 18%;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  opacity: 0;
+}
+.pulseOn .pr1,
+.pulseOn .pr2,
+.pulseOn .pr3 {
+  animation: ripple 3.6s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+}
+.pulseOn .pr2 {
+  animation-delay: 1.2s;
+}
+.pulseOn .pr3 {
+  animation-delay: 2.4s;
+}
+@keyframes ripple {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+.pulseSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.rot {
+  transform-origin: 50px 50px;
+  animation: spin 18s linear infinite;
+}
+.rotRev {
+  transform-origin: 50px 50px;
+  animation: spin 11s linear infinite reverse;
+}
+.pulseOff .rot,
+.pulseOff .rotRev {
+  animation-play-state: paused;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.core {
+  width: 30%;
+  height: 30%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff 0%, currentColor 38%, color-mix(in srgb, currentColor 40%, #000) 100%);
+  box-shadow: 0 0 40px 6px color-mix(in srgb, currentColor 45%, transparent), 0 0 0 6px color-mix(in srgb, currentColor 12%, transparent);
+  animation: breathe 2.4s ease-in-out infinite;
+}
+.pulseOff .core {
+  animation: none;
+  filter: saturate(0.8);
+}
+@keyframes breathe {
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+/* online orbit */
+.orbit {
+  position: relative;
+  flex: none;
+}
+.orbitRing {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px dashed var(--line-2);
+}
+.orbitTrack {
+  position: absolute;
+  inset: 0;
+  animation: spin linear infinite;
+}
+.sat {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  margin: -15px 0 0 -15px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-family: var(--font-display-en);
+  color: var(--text);
+  background: var(--panel-solid);
+  border: 1px solid var(--line-2);
+  box-shadow: 0 0 0 3px var(--bg);
+  animation: spin linear infinite;
+}
+.sat:nth-child(3n + 1) {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.sat:nth-child(3n + 2) {
+  border-color: color-mix(in srgb, var(--violet) 60%, transparent);
+}
+.sat::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  inset-inline-end: -1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--panel-solid);
+}
+.orbitCore {
+  position: absolute;
+  inset: 39%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent-soft), transparent 70%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .orbitTrack,
+  .sat,
+  .rot,
+  .rotRev,
+  .core {
+    animation: none !important;
+  }
+  .pulse > span:not(.core) {
+    animation: none !important;
+    opacity: 0.25;
+    transform: scale(1.2);
+  }
+}
