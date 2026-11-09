@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
+	"github.com/veilonhq/veilon/panel/internal/logbuf"
 	"github.com/veilonhq/veilon/panel/internal/util"
 	"github.com/veilonhq/veilon/panel/internal/xray"
 )
@@ -82,6 +84,28 @@ func (s *Set) Logs(name string, n int) ([]string, error) {
 		return nil, err
 	}
 	return e.Logs(n), nil
+}
+
+// LogEntries returns recent log lines of one engine ("" = primary) with
+// their times and levels.
+func (s *Set) LogEntries(name string, n int) ([]logbuf.Entry, error) {
+	e, err := s.find(name)
+	if err != nil {
+		return nil, err
+	}
+	if le, ok := e.(interface{ LogEntries(int) []logbuf.Entry }); ok {
+		return le.LogEntries(n), nil
+	}
+	return logbuf.FromLines(e.Name(), e.Logs(n), time.Local), nil
+}
+
+// Names lists the engines.
+func (s *Set) Names() []string {
+	out := make([]string, len(s.Engines))
+	for i, e := range s.Engines {
+		out[i] = e.Name()
+	}
+	return out
 }
 
 // GenerateConfig renders one engine's config ("" = primary).

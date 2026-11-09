@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/veilonhq/veilon/panel/internal/guard"
+	"github.com/veilonhq/veilon/panel/internal/logbuf"
 	"github.com/veilonhq/veilon/panel/internal/util"
 	"github.com/veilonhq/veilon/panel/internal/xray"
 )
@@ -107,7 +108,7 @@ type Supervisor struct {
 	gen      uint64
 	reloadCh chan bool
 	exits    chan exitEvent
-	logs     *ring
+	logs     *logbuf.Ring
 	sysUp    atomic.Int64
 	sysDown  atomic.Int64
 }
@@ -120,7 +121,7 @@ func NewSupervisor(spec Spec) *Supervisor {
 	if spec.StatsEvery == 0 {
 		spec.StatsEvery = 10 * time.Second
 	}
-	return &Supervisor{spec: spec, procs: map[string]*proc{}, reloadCh: make(chan bool, 1), exits: make(chan exitEvent, 16), logs: newRing(2000)}
+	return &Supervisor{spec: spec, procs: map[string]*proc{}, reloadCh: make(chan bool, 1), exits: make(chan exitEvent, 16), logs: logbuf.New(spec.Name, 2000)}
 }
 
 // Name returns the engine name.
@@ -156,7 +157,10 @@ func (s *Supervisor) Restart() {
 }
 
 // Logs returns recent output lines.
-func (s *Supervisor) Logs(n int) []string { return s.logs.last(n) }
+func (s *Supervisor) Logs(n int) []string { return s.logs.Lines(n) }
+
+// LogEntries returns recent output lines with the time each was written.
+func (s *Supervisor) LogEntries(n int) []logbuf.Entry { return s.logs.Last(n) }
 
 // GenerateConfig renders the current configuration of every instance.
 func (s *Supervisor) GenerateConfig() ([]byte, error) {
@@ -252,7 +256,7 @@ func (s *Supervisor) Run(ctx context.Context) {
 				if d > time.Minute {
 					d = time.Minute
 				}
-				s.logs.add(fmt.Sprintf("[veilon] %s %s; restarting in %s", ev.key, msg, d))
+				s.logs.Add(fmt.Sprintf("[veilon] %s %s; restarting in %s", ev.key, msg, d))
 				retry = time.After(d)
 			}
 			s.mu.Unlock()
@@ -372,7 +376,7 @@ func (s *Supervisor) apply(ctx context.Context, force bool) {
 				s.mu.Lock()
 				p.inst = in
 				s.mu.Unlock()
-				s.logs.add(fmt.Sprintf("[veilon] %s reloaded", key))
+				s.logs.Add(fmt.Sprintf("[veilon] %s reloaded", key))
 				continue
 			}
 		}
@@ -451,10 +455,11 @@ func (s *Supervisor) startProc(p *proc) error {
 			if strings.TrimSpace(line) != "" {
 				p.lastOut.Store(line)
 			}
+			tag := ""
 			if key != "main" {
-				line = "[" + key + "] " + line
+				tag = key
 			}
-			s.logs.add(line)
+			s.logs.AddTagged(tag, line)
 		}
 	}()
 	go func() {
@@ -463,7 +468,7 @@ func (s *Supervisor) startProc(p *proc) error {
 		close(done)
 		go func() { s.exits <- exitEvent{key: key, gen: gen, err: err} }()
 	}()
-	s.logs.add(fmt.Sprintf("[veilon] %s %s started (pid %d)", s.spec.Name, key, cmd.Process.Pid))
+	s.logs.Add(fmt.Sprintf("[veilon] %s %s started (pid %d)", s.spec.Name, key, cmd.Process.Pid))
 	slog.Info("engine started", "engine", s.spec.Name, "instance", key, "pid", cmd.Process.Pid)
 	return nil
 }
@@ -484,7 +489,7 @@ func (s *Supervisor) stopProc(p *proc) {
 		_ = cmd.Process.Kill()
 		<-done
 	}
-	s.logs.add(fmt.Sprintf("[veilon] %s %s stopped", s.spec.Name, p.inst.Key))
+	s.logs.Add(fmt.Sprintf("[veilon] %s %s stopped", s.spec.Name, p.inst.Key))
 }
 
 func (s *Supervisor) stopAll() {
@@ -497,30 +502,4 @@ func (s *Supervisor) stopAll() {
 	for _, p := range ps {
 		s.stopProc(p)
 	}
-}
-
-type ring struct {
-	mu    sync.Mutex
-	lines []string
-	max   int
-}
-
-func newRing(max int) *ring { return &ring{max: max} }
-
-func (r *ring) add(s string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.lines = append(r.lines, s)
-	if len(r.lines) > r.max {
-		r.lines = append([]string(nil), r.lines[len(r.lines)-r.max:]...)
-	}
-}
-
-func (r *ring) last(n int) []string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if n <= 0 || n > len(r.lines) {
-		n = len(r.lines)
-	}
-	return append([]string{}, r.lines[len(r.lines)-n:]...)
 }

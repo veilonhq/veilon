@@ -35,6 +35,11 @@ type Host struct {
 	UptimeSec  int64      `json:"uptime_sec"`
 	NetUpBps   float64    `json:"net_up_bps"`
 	NetDownBps float64    `json:"net_down_bps"`
+	// NetSampledAt is when the network rates were measured (UTC; zero
+	// before the second sample) and NetIntervalMs the window they cover:
+	// rate = bytes moved in the window / window.
+	NetSampledAt  *time.Time `json:"net_sampled_at"`
+	NetIntervalMs int64      `json:"net_interval_ms"`
 }
 
 // Sampler keeps rolling CPU and network rates.
@@ -46,6 +51,8 @@ type Sampler struct {
 	lastIdle, lastTotal uint64
 	lastRx, lastTx      uint64
 	lastNet             time.Time
+	netAt               time.Time
+	netWindow           time.Duration
 }
 
 // Run samples every interval until ctx is done.
@@ -83,6 +90,7 @@ func (s *Sampler) sample() {
 		if sec > 0 && rx >= s.lastRx && tx >= s.lastTx {
 			s.down = float64(rx-s.lastRx) / sec
 			s.up = float64(tx-s.lastTx) / sec
+			s.netAt, s.netWindow = now.UTC(), now.Sub(s.lastNet)
 		}
 	}
 	s.lastRx, s.lastTx, s.lastNet = rx, tx, now
@@ -91,7 +99,11 @@ func (s *Sampler) sample() {
 // Snapshot returns current host metrics.
 func (s *Sampler) Snapshot() Host {
 	s.mu.RLock()
-	h := Host{CPUPercent: round2(s.cpu), NetUpBps: round2(s.up), NetDownBps: round2(s.down)}
+	h := Host{CPUPercent: round2(s.cpu), NetUpBps: round2(s.up), NetDownBps: round2(s.down), NetIntervalMs: s.netWindow.Milliseconds()}
+	if !s.netAt.IsZero() {
+		at := s.netAt
+		h.NetSampledAt = &at
+	}
 	s.mu.RUnlock()
 	m := readMemInfo()
 	h.MemTotal, h.MemUsed, h.SwapTotal, h.SwapUsed = m.total, m.used, m.swapTotal, m.swapUsed

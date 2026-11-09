@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -19,6 +20,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/certs"
 	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/inbounds"
+	"github.com/veilonhq/veilon/panel/internal/logbuf"
 	"github.com/veilonhq/veilon/panel/internal/stats"
 	"github.com/veilonhq/veilon/panel/internal/sub"
 	"github.com/veilonhq/veilon/panel/internal/users"
@@ -53,6 +55,8 @@ type Server struct {
 	OnListenerChange func()
 	// Live returns a user's live client IPs (connection guard; may be nil).
 	Live func(userID int64) []string
+	// PanelLogs holds the panel's own log (may be nil).
+	PanelLogs *logbuf.Ring
 
 	settings atomic.Pointer[db.Settings]
 	api      http.Handler
@@ -137,8 +141,31 @@ type apiError struct {
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	b, err := json.Marshal(v)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":{"code":"internal","message":"encoding failed"}}` + "\n"))
+		return
+	}
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	_, _ = w.Write(append(utcTimes(b), '\n'))
+}
+
+// offsetTime matches an RFC 3339 time with a numeric zone offset inside a
+// JSON string ("2026-11-06T20:14:00+03:30").
+var offsetTime = regexp.MustCompile(`"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?[+-]\d{2}:\d{2}"`)
+
+// utcTimes rewrites every RFC 3339 time with a zone offset to UTC ("Z"), so
+// that the API keeps its contract (all times RFC 3339 UTC) whatever zone a
+// value was loaded in (database driver, user input, process zone).
+func utcTimes(b []byte) []byte {
+	return offsetTime.ReplaceAllFunc(b, func(m []byte) []byte {
+		t, err := time.Parse(time.RFC3339Nano, string(m[1:len(m)-1]))
+		if err != nil {
+			return m
+		}
+		return []byte(`"` + t.UTC().Format(time.RFC3339Nano) + `"`)
+	})
 }
 
 func writeErr(w http.ResponseWriter, status int, code, msg string) {

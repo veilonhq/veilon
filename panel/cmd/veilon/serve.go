@@ -25,6 +25,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/guard"
 	"github.com/veilonhq/veilon/panel/internal/inbounds"
 	"github.com/veilonhq/veilon/panel/internal/jobs"
+	"github.com/veilonhq/veilon/panel/internal/logbuf"
 	"github.com/veilonhq/veilon/panel/internal/stats"
 	"github.com/veilonhq/veilon/panel/internal/sub"
 	usagemeter "github.com/veilonhq/veilon/panel/internal/usage"
@@ -35,7 +36,8 @@ import (
 )
 
 func cmdServe(args []string) error {
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	panelLogs := logbuf.New("panel", 2000)
+	slog.SetDefault(slog.New(&logbuf.Handler{Next: slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}), Ring: panelLogs}))
 	cfg, gdb, err := openDB()
 	if err != nil {
 		return err
@@ -113,7 +115,7 @@ func cmdServe(args []string) error {
 	sampler := &stats.Sampler{DiskPath: cfg.DataDir}
 	srv = api.New(&api.Server{
 		DB: gdb, Auth: authSvc, Users: userSvc, Inbounds: inbSvc, Certs: certSvc,
-		Sub: &sub.Service{DB: gdb}, Core: core, Sampler: sampler, TrustProxy: cfg.TrustProxy,
+		Sub: &sub.Service{DB: gdb}, Core: core, Sampler: sampler, TrustProxy: cfg.TrustProxy, PanelLogs: panelLogs,
 		Live: func(id int64) []string { return connGuard.Tracker.Live(id, time.Now().UTC()) },
 		OnListenerChange: func() {
 			select {

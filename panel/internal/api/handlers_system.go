@@ -8,6 +8,7 @@ import (
 
 	"github.com/veilonhq/veilon/panel/internal/audit"
 	"github.com/veilonhq/veilon/panel/internal/db"
+	"github.com/veilonhq/veilon/panel/internal/logbuf"
 	"github.com/veilonhq/veilon/panel/internal/stats"
 	"github.com/veilonhq/veilon/panel/internal/usage"
 	"github.com/veilonhq/veilon/panel/internal/users"
@@ -47,6 +48,7 @@ func (s *Server) systemStats(w http.ResponseWriter, r *http.Request, a *db.Admin
 		"cpu_cores": h.CPUCores, "cpu_model": h.CPUModel, "load_avg": h.LoadAvg,
 		"net_up_bps": h.NetUpBps, "net_down_bps": h.NetDownBps,
 		"traffic_up_bps": round2(uUp), "traffic_down_bps": round2(uDown),
+		"net_sampled_at": h.NetSampledAt, "net_interval_ms": h.NetIntervalMs,
 		"users_total": total, "users_active": by[db.StatusActive], "users_online": online,
 		"users_expired": by[db.StatusExpired], "users_limited": by[db.StatusLimited],
 		"users_disabled": by[db.StatusDisabled], "users_on_hold": by[db.StatusOnHold],
@@ -99,20 +101,84 @@ func (s *Server) coreRestart(w http.ResponseWriter, r *http.Request, a *db.Admin
 	writeJSON(w, 200, map[string]any{"ok": true})
 }
 
+// maxLogLines is the most lines one source keeps (and returns).
+const maxLogLines = 2000
+
+// coreLogs returns recent log lines of one source (an engine, "panel") or
+// of every source ("all"), oldest first. entries carry the RFC 3339 UTC time
+// each line was written, its level and source; lines is the same as plain
+// text (kept for older clients).
 func (s *Server) coreLogs(w http.ResponseWriter, r *http.Request, a *db.Admin) {
 	n, _ := strconv.Atoi(r.URL.Query().Get("lines"))
 	if n <= 0 {
 		n = 200
 	}
-	if n > 2000 {
-		n = 2000
+	if n > maxLogLines {
+		n = maxLogLines
 	}
-	lines, err := s.Core.Logs(r.URL.Query().Get("core"), n)
+	src := r.URL.Query().Get("core")
+	var entries []logbuf.Entry
+	switch src {
+	case "panel":
+		entries = s.panelLogs(n)
+	case "all":
+		names := []string{"xray"}
+		if nl, ok := s.Core.(interface{ Names() []string }); ok {
+			names = nl.Names()
+		}
+		for _, name := range names {
+			es, err := s.engineLogs(name, n)
+			if err == nil {
+				entries = append(entries, es...)
+			}
+		}
+		entries = append(entries, s.panelLogs(n)...)
+		logbuf.SortByTime(entries)
+		if len(entries) > n {
+			entries = entries[len(entries)-n:]
+		}
+	default:
+		es, err := s.engineLogs(src, n)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "bad_request", err.Error())
+			return
+		}
+		entries = es
+	}
+	if entries == nil {
+		entries = []logbuf.Entry{}
+	}
+	lines := make([]string, len(entries))
+	for i, e := range entries {
+		lines[i] = e.Msg
+		if e.T != nil {
+			lines[i] = e.T.UTC().Format(time.RFC3339Nano) + " " + e.Msg
+		}
+	}
+	writeJSON(w, 200, map[string]any{"lines": lines, "entries": entries})
+}
+
+func (s *Server) panelLogs(n int) []logbuf.Entry {
+	if s.PanelLogs == nil {
+		return nil
+	}
+	return s.PanelLogs.Last(n)
+}
+
+func (s *Server) engineLogs(name string, n int) ([]logbuf.Entry, error) {
+	if le, ok := s.Core.(interface {
+		LogEntries(string, int) ([]logbuf.Entry, error)
+	}); ok {
+		return le.LogEntries(name, n)
+	}
+	lines, err := s.Core.Logs(name, n)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "bad_request", err.Error())
-		return
+		return nil, err
 	}
-	writeJSON(w, 200, map[string]any{"lines": lines})
+	if name == "" {
+		name = "xray"
+	}
+	return logbuf.FromLines(name, lines, time.Local), nil
 }
 
 func (s *Server) coreConfig(w http.ResponseWriter, r *http.Request, a *db.Admin) {
