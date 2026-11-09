@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -43,7 +44,7 @@ var ErrRateLimited = errors.New("GitHub API rate limit reached; try again later"
 const releasesTTL = time.Hour
 
 // ReleasesURL is the GitHub API endpoint listing Xray-core releases.
-var ReleasesURL = "https://api.github.com/repos/XTLS/Xray-core/releases?per_page=40"
+var ReleasesURL = "https://api.github.com/repos/XTLS/Xray-core/releases?per_page=100"
 
 type releaseCache struct {
 	mu        sync.Mutex
@@ -100,6 +101,46 @@ func (c *releaseCache) result(now time.Time, limited bool) (ReleaseList, error) 
 	return out, nil
 }
 
+type ghRelease struct {
+	TagName     string    `json:"tag_name"`
+	Draft       bool      `json:"draft"`
+	Prerelease  bool      `json:"prerelease"`
+	PublishedAt time.Time `json:"published_at"`
+	Assets      []struct {
+		Name string `json:"name"`
+	} `json:"assets"`
+}
+
+// stableTagRe matches plain release tags (v1.2.3); any suffix such as
+// -rc1, -beta, -alpha or -pre marks a test build.
+var stableTagRe = regexp.MustCompile(`^v\d+\.\d+(\.\d+)?$`)
+
+// stableReleases keeps only stable releases: not drafts, not marked
+// prerelease on GitHub, a plain version tag, and (when asset is set) a build
+// for this host.
+func stableReleases(raw []ghRelease, asset string) []Release {
+	out := []Release{}
+	for _, r := range raw {
+		if r.Draft || r.Prerelease || !stableTagRe.MatchString(r.TagName) {
+			continue
+		}
+		if asset != "" {
+			has := false
+			for _, a := range r.Assets {
+				if a.Name == asset {
+					has = true
+					break
+				}
+			}
+			if !has {
+				continue
+			}
+		}
+		out = append(out, Release{Tag: r.TagName, PublishedAt: r.PublishedAt})
+	}
+	return out
+}
+
 // fetchReleases reads the GitHub releases API. On a rate limit it returns
 // the reset time.
 func fetchReleases(ctx context.Context, client *http.Client, url string) ([]Release, time.Time, error) {
@@ -127,38 +168,12 @@ func fetchReleases(ctx context.Context, client *http.Client, url string) ([]Rele
 	if resp.StatusCode != http.StatusOK {
 		return nil, time.Time{}, fmt.Errorf("fetch releases: %s", resp.Status)
 	}
-	var raw []struct {
-		TagName     string    `json:"tag_name"`
-		Draft       bool      `json:"draft"`
-		Prerelease  bool      `json:"prerelease"`
-		PublishedAt time.Time `json:"published_at"`
-		Assets      []struct {
-			Name string `json:"name"`
-		} `json:"assets"`
-	}
+	var raw []ghRelease
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 16<<20)).Decode(&raw); err != nil {
 		return nil, time.Time{}, fmt.Errorf("parse releases: %w", err)
 	}
 	asset, _ := AssetName(runtime.GOOS, runtime.GOARCH)
-	var out []Release
-	for _, r := range raw {
-		if r.Draft || !tagRe.MatchString(r.TagName) {
-			continue
-		}
-		if asset != "" {
-			has := false
-			for _, a := range r.Assets {
-				if a.Name == asset {
-					has = true
-					break
-				}
-			}
-			if !has {
-				continue
-			}
-		}
-		out = append(out, Release{Tag: r.TagName, Prerelease: r.Prerelease, PublishedAt: r.PublishedAt})
-	}
+	out := stableReleases(raw, asset)
 	return out, time.Time{}, nil
 }
 

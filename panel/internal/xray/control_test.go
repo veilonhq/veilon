@@ -35,12 +35,17 @@ func TestReleasesCacheAndRateLimit(t *testing.T) {
 			return
 		}
 		fmt.Fprintf(w, `[
- {"tag_name":"v26.11.9","prerelease":false,"published_at":"2026-11-09T05:31:00Z","assets":[{"name":%q}]},
- {"tag_name":"v26.11.1","draft":true,"assets":[{"name":%q}]},
- {"tag_name":"v26.10.31","prerelease":true,"published_at":"2026-10-31T13:37:00Z","assets":[{"name":%q}]},
+ {"tag_name":"v26.11.9","prerelease":false,"published_at":"2026-11-09T05:31:00Z","assets":[{"name":%[1]q}]},
+ {"tag_name":"v26.11.1","draft":true,"assets":[{"name":%[1]q}]},
+ {"tag_name":"v26.10.31","prerelease":true,"published_at":"2026-10-31T13:37:00Z","assets":[{"name":%[1]q}]},
+ {"tag_name":"v26.10.20-rc1","assets":[{"name":%[1]q}]},
+ {"tag_name":"v26.10.19-beta.2","assets":[{"name":%[1]q}]},
+ {"tag_name":"v26.10.18-alpha","assets":[{"name":%[1]q}]},
+ {"tag_name":"v26.10.17-pre","assets":[{"name":%[1]q}]},
  {"tag_name":"v26.10.1","assets":[{"name":"Other.zip"}]},
- {"tag_name":"nightly","assets":[{"name":%q}]}
-]`, asset, asset, asset, asset)
+ {"tag_name":"nightly","assets":[{"name":%[1]q}]},
+ {"tag_name":"v25.9.5","published_at":"2025-09-05T00:00:00Z","assets":[{"name":%[1]q}]}
+]`, asset)
 	}))
 	defer srv.Close()
 	var c releaseCache
@@ -50,7 +55,7 @@ func TestReleasesCacheAndRateLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(l.Releases) != 2 || l.Releases[0].Tag != "v26.11.9" || !l.Releases[1].Prerelease || l.Stale {
+	if len(l.Releases) != 2 || l.Releases[0].Tag != "v26.11.9" || l.Releases[1].Tag != "v25.9.5" || l.Stale {
 		t.Fatalf("bad list %+v", l)
 	}
 	if _, err := c.get(ctx, srv.Client(), srv.URL, false, now.Add(time.Minute)); err != nil || hits.Load() != 1 {

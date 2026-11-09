@@ -141,8 +141,19 @@ func cmdServe(args []string) error {
 	go util.Supervise(ctx, "system stats", func(ctx context.Context) { sampler.Run(ctx, 3*time.Second) })
 	guardDone := make(chan struct{})
 	go func() { util.Supervise(ctx, "connection guard", connGuard.RunLoop); close(guardDone) }()
+	// The jobs runner stops only after the cores: their final counter reads
+	// land in the users' totals, and the runner's last flush must store them
+	// in the traffic history too.
+	jobsCtx, stopJobs := context.WithCancel(context.Background())
+	defer stopJobs()
 	jobsDone := make(chan struct{})
-	go func() { util.Supervise(ctx, "jobs", runner.Run); close(jobsDone) }()
+	go func() { util.Supervise(jobsCtx, "jobs", runner.Run); close(jobsDone) }()
+	finish := func() {
+		stop()
+		<-coreDone
+		stopJobs()
+		<-jobsDone
+	}
 	ctl := &ctlServer{certs: certSvc, api: srv, updateGeo: func(ctx context.Context) error {
 		if err := updateGeoFiles(ctx, filepath.Dir(cfg.XrayBin)); err != nil {
 			return err
@@ -184,8 +195,7 @@ func cmdServe(args []string) error {
 		}
 		ln, err := net.Listen("tcp", addr)
 		if err != nil {
-			stop()
-			<-coreDone
+			finish()
 			return fmt.Errorf("listen %s: %w", addr, err)
 		}
 		errCh := make(chan error, 1)
@@ -208,8 +218,7 @@ func cmdServe(args []string) error {
 		select {
 		case <-ctx.Done():
 			shut(hs)
-			<-coreDone
-			<-jobsDone
+			finish()
 			<-guardDone
 			slog.Info("veilon stopped")
 			return nil
@@ -219,8 +228,7 @@ func cmdServe(args []string) error {
 			srv.ReloadSettings()
 		case err := <-errCh:
 			if err != nil && !errors.Is(err, http.ErrServerClosed) {
-				stop()
-				<-coreDone
+				finish()
 				return err
 			}
 		}

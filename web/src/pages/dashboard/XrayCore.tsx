@@ -107,8 +107,6 @@ export function CoreVersionField({ core }: { core?: CoreInfo }) {
       value: r.tag,
       label: r.tag,
       text: r.tag,
-      // the current version is marked by the list's check; a hint here would also crowd the trigger
-      hint: r.prerelease && r.tag !== current ? t('xray.prerelease') : undefined,
     }));
     if (current && !list.some((r) => r.tag === current)) opts.unshift({ value: current, label: current, text: current });
     return opts;

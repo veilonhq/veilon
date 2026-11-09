@@ -197,6 +197,11 @@ func (m *Manager) Run(ctx context.Context) {
 		m.mu.Unlock()
 		select {
 		case <-ctx.Done():
+			// Read the counters one last time so the bytes since the last
+			// poll are not lost on shutdown.
+			if m.isRunning() {
+				m.collect(context.Background())
+			}
 			m.stop()
 			return
 		case f := <-m.reloadCh:
