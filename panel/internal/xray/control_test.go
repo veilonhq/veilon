@@ -185,3 +185,30 @@ func TestPowerPersistsAndSwapRollsBack(t *testing.T) {
 	cancel()
 	<-done
 }
+
+func TestStableReleasesNewestFive(t *testing.T) {
+	var raw []ghRelease
+	add := func(tag string, pre, draft bool) {
+		r := ghRelease{TagName: tag, Prerelease: pre, Draft: draft}
+		r.Assets = append(r.Assets, struct {
+			Name string `json:"name"`
+		}{"Xray-linux-64.zip"})
+		raw = append(raw, r)
+	}
+	add("v26.12.1", false, true)       // draft
+	add("v26.11.20", true, false)      // GitHub prerelease
+	add("v26.11.15-rc1", false, false) // suffixed tag
+	for _, tag := range []string{"v26.11.9", "v26.10.31", "v26.10.21", "v26.9.30", "v26.9.9", "v26.7.28", "v26.7.11"} {
+		add(tag, false, false)
+	}
+	got := stableReleases(raw, "Xray-linux-64.zip")
+	want := []string{"v26.11.9", "v26.10.31", "v26.10.21", "v26.9.30", "v26.9.9"}
+	if len(got) != MaxReleases || len(got) != len(want) {
+		t.Fatalf("want %d releases, got %+v", MaxReleases, got)
+	}
+	for i, r := range got {
+		if r.Tag != want[i] {
+			t.Fatalf("release %d: got %s want %s", i, r.Tag, want[i])
+		}
+	}
+}

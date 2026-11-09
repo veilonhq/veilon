@@ -8,25 +8,8 @@ import { engineName } from '@/lib/protocols';
 import { useI18n } from '@/i18n';
 import { confirmAction, toast } from '@/store/feedback';
 import s from './XrayCore.module.css';
+import { cmpVer, tagOf, versionItems } from './xrayVersions';
 
-/** "v26.10.31" → [26, 10, 31] */
-function verParts(v: string) {
-  return v
-    .replace(/^v/, '')
-    .split(/[.-]/)
-    .map((x) => parseInt(x, 10))
-    .filter((x) => !Number.isNaN(x));
-}
-function cmpVer(a: string, b: string) {
-  const x = verParts(a);
-  const y = verParts(b);
-  for (let i = 0; i < Math.max(x.length, y.length); i++) {
-    const d = (x[i] ?? 0) - (y[i] ?? 0);
-    if (d) return d;
-  }
-  return 0;
-}
-const tagOf = (v?: string) => (v ? (v.startsWith('v') ? v : `v${v}`) : '');
 
 /**
  * On/off switch for the cores. Switching off asks whether only Xray or every
@@ -102,14 +85,12 @@ export function CoreVersionField({ core }: { core?: CoreInfo }) {
   const installing = (job?.running && job.kind === 'install') || core?.busy === 'install';
 
   const options = useMemo<SelectOption<string>[]>(() => {
-    const list = releases.data?.releases ?? [];
-    const opts: SelectOption<string>[] = list.map((r) => ({
-      value: r.tag,
-      label: r.tag,
-      text: r.tag,
+    return versionItems(releases.data?.releases ?? [], current).map((v) => ({
+      value: v.tag,
+      label: v.tag,
+      text: v.tag,
+      hint: v.current ? t('xray.current') : undefined,
     }));
-    if (current && !list.some((r) => r.tag === current)) opts.unshift({ value: current, label: current, text: current });
-    return opts;
   }, [releases.data, current, t]);
 
   const choose = async (tag: string) => {

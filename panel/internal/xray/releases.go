@@ -115,12 +115,19 @@ type ghRelease struct {
 // -rc1, -beta, -alpha or -pre marks a test build.
 var stableTagRe = regexp.MustCompile(`^v\d+\.\d+(\.\d+)?$`)
 
-// stableReleases keeps only stable releases: not drafts, not marked
-// prerelease on GitHub, a plain version tag, and (when asset is set) a build
-// for this host.
+// MaxReleases is how many stable releases the version picker offers
+// (newest first; the installed version is added by the UI when older).
+const MaxReleases = 5
+
+// stableReleases keeps the MaxReleases newest stable releases: not drafts,
+// not marked prerelease on GitHub, a plain version tag, and (when asset is
+// set) a build for this host. GitHub lists releases newest first.
 func stableReleases(raw []ghRelease, asset string) []Release {
 	out := []Release{}
 	for _, r := range raw {
+		if len(out) == MaxReleases {
+			break
+		}
 		if r.Draft || r.Prerelease || !stableTagRe.MatchString(r.TagName) {
 			continue
 		}

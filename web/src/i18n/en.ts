@@ -753,6 +753,7 @@ const en: Record<MessageKey, string> = {
   'xray.offCores': 'Off',
   'xray.restartOff': 'The core is off. Switch it on first.',
   'xray.chooseVersion': 'Choose Xray version',
+  'xray.current': 'current',
   'xray.prerelease': 'pre-release',
   'xray.install': 'Install',
   'xray.installConfirm': 'Install {v}?',

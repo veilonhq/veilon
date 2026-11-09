@@ -752,6 +752,7 @@ const fa = {
   'xray.offCores': 'خاموش',
   'xray.restartOff': 'هسته خاموش است. اول روشنش کنید.',
   'xray.chooseVersion': 'انتخاب نسخهٔ Xray',
+  'xray.current': 'نسخهٔ فعلی',
   'xray.prerelease': 'پیش انتشار',
   'xray.install': 'نصب',
   'xray.installConfirm': 'نسخهٔ {v} نصب شود؟',
