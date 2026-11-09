@@ -26,7 +26,7 @@ PORT=""
 PANEL_PATH=""
 ADMIN_USER=""
 ADMIN_PASS=""
-VERSION="latest"
+REL_VERSION="latest"
 LOCAL_BINARY=""
 PURGE=0
 ASSUME_YES=0
@@ -99,18 +99,18 @@ parse_args() {
 			--ip) CERT_IP="${2:?--ip needs a value}"; shift ;;
 			--ipv6) CERT_IPV6="${2:?--ipv6 needs a value}"; shift ;;
 			--email) CERT_EMAIL="${2:?--email needs a value}"; shift ;;
-			--version) VERSION="${2:?--version needs a value}"; shift ;;
+			--version) REL_VERSION="${2:?--version needs a value}"; shift ;;
 			--binary) LOCAL_BINARY="${2:?--binary needs a value}"; shift ;;
 			--purge) PURGE=1 ;;
 			-y|--yes) ASSUME_YES=1 ;;
 			-h|--help) usage ;;
-			latest|v[0-9]*|[0-9]*) VERSION="$1" ;;
+			latest|v[0-9]*|[0-9]*) REL_VERSION="$1" ;;
 			*) die "unknown argument: $1 (see --help)" ;;
 		esac
 		shift
 	done
-	if [[ "$VERSION" != latest && "$VERSION" != v* ]]; then
-		VERSION="v${VERSION}"
+	if [[ "$REL_VERSION" != latest && "$REL_VERSION" != v* ]]; then
+		REL_VERSION="v${REL_VERSION}"
 	fi
 	if [[ -n "$CERT_DOMAIN" && -z "$CERT_MODE" ]]; then CERT_MODE="domain"; fi
 	if [[ -n "$CERT_IP$CERT_IPV6" && -z "$CERT_MODE" ]]; then CERT_MODE="ip"; fi
@@ -164,10 +164,13 @@ require_root() { [[ $EUID -eq 0 ]] || die "run as root (sudo bash install.sh ...
 
 detect_os() {
 	[[ -r /etc/os-release ]] || die "cannot detect the OS (/etc/os-release missing)"
-	# shellcheck disable=SC1091
-	. /etc/os-release
-	OS_ID="${ID:-unknown}"
-	case "${ID:-} ${ID_LIKE:-}" in
+	# read only ID and ID_LIKE: sourcing os-release into this shell would
+	# overwrite our variables (it defines VERSION, NAME, ...)
+	local os_id os_like
+	os_id=$(. /etc/os-release && printf '%s' "${ID:-}")
+	os_like=$(. /etc/os-release && printf '%s' "${ID_LIKE:-}")
+	OS_ID="${os_id:-unknown}"
+	case "${os_id} ${os_like}" in
 		*ubuntu*|*debian*) PKG="apt" ;;
 		*arch*) PKG="pacman" ;;
 		*rhel*|*centos*|*fedora*|*almalinux*|*rocky*)
@@ -301,20 +304,20 @@ fetch_binary() {
 		return
 	fi
 	asset="veilon-linux-${ARCH}"
-	if [[ "$VERSION" == "latest" ]]; then
+	if [[ "$REL_VERSION" == "latest" ]]; then
 		base="https://github.com/${REPO}/releases/latest/download"
 	else
-		base="https://github.com/${REPO}/releases/download/${VERSION}"
+		base="https://github.com/${REPO}/releases/download/${REL_VERSION}"
 	fi
 	tmp=$(mktemp -d)
-	info "downloading ${asset} (${VERSION})"
+	info "downloading ${asset} (${REL_VERSION})"
 	if ! curl -fL --retry 3 --progress-bar -o "${tmp}/${asset}" "${base}/${asset}"; then
 		rm -rf "$tmp"
 		die "download failed: ${base}/${asset}"
 	fi
 	if ! curl -fsSL --retry 3 -o "${tmp}/checksums.txt" "${base}/checksums.txt"; then
 		rm -rf "$tmp"
-		die "checksums.txt is not available for ${VERSION}; refusing to install an unverified binary"
+		die "checksums.txt is not available for ${REL_VERSION}; refusing to install an unverified binary"
 	fi
 	if ! (cd "$tmp" && grep -E "[[:space:]]\*?${asset}\$" checksums.txt | sha256sum -c --status); then
 		rm -rf "$tmp"
