@@ -53,7 +53,7 @@ func (s *Server) systemStats(w http.ResponseWriter, r *http.Request, a *db.Admin
 		"users_expired": by[db.StatusExpired], "users_limited": by[db.StatusLimited],
 		"users_disabled": by[db.StatusDisabled], "users_on_hold": by[db.StatusOnHold],
 		"traffic_total_up": up, "traffic_total_down": down,
-		"core": s.Core.Status(), "cores": s.Core.Statuses(),
+		"core": s.Core.Status(), "cores": s.Core.Statuses(), "stopped_cores": s.stoppedCores(),
 	})
 }
 

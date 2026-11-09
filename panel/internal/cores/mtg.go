@@ -62,6 +62,7 @@ type mtgMeta struct {
 func NewMTG(opt Options) *MTG {
 	e := &MTG{opt: opt, ports: map[int64]int{}, cnt: counter{}}
 	e.Supervisor = NewSupervisor(Spec{
+		DB:           opt.DB,
 		Name:         "mtg",
 		Protocols:    []string{inbounds.MTProto},
 		Bin:          func() string { return opt.BinPath },

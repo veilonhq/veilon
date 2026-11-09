@@ -33,6 +33,8 @@ export interface XrayInfo {
   status: CoreInfo;
   job: XrayJob | null;
   geo: XrayGeoFile[] | null;
+  /** engines an admin switched off */
+  stopped_cores?: string[];
 }
 
 const xk = {
@@ -70,6 +72,12 @@ function useCoreMutation<T>(fn: (v: T) => Promise<unknown>) {
   });
 }
 
-export const useCorePower = () => useCoreMutation((on: boolean) => api(on ? '/core/start' : '/core/stop', { method: 'POST' }));
+/** Which cores a power switch touches: only Xray, or every core (xray, sing-box, mtg, amneziawg). */
+export type CoreScope = 'xray' | 'all';
+/** Stop defaults to Xray only; start with no scope brings back every core that was switched off. */
+export const useCorePower = () =>
+  useCoreMutation(({ on, scope }: { on: boolean; scope?: CoreScope }) =>
+    api(on ? '/core/start' : '/core/stop', { method: 'POST', body: scope ? { scope } : undefined }),
+  );
 export const useInstallXray = () => useCoreMutation((version: string) => api('/core/xray/install', { method: 'POST', body: { version } }));
 export const useUpdateGeo = () => useCoreMutation((_: void) => api('/core/xray/geo', { method: 'POST' }));

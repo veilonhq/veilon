@@ -95,6 +95,8 @@ export interface SystemStats {
   core: CoreInfo;
   /** every engine (xray, sing-box, mtg, amneziawg) */
   cores?: CoreInfo[];
+  /** engines an admin switched off (they stay off across panel restarts) */
+  stopped_cores?: string[];
 }
 
 export type TrafficRange = '24h' | '7d' | '30d';

@@ -3,6 +3,7 @@ package cores
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -137,4 +138,64 @@ func (s *Set) XrayController() xray.Controller {
 		return m
 	}
 	return nil
+}
+
+// Power scopes for SetPower.
+const (
+	ScopeXray = "xray" // only the primary engine (Xray-core)
+	ScopeAll  = "all"  // every engine
+)
+
+// ErrBadScope is returned for an unknown power scope.
+var ErrBadScope = fmt.Errorf("scope must be %q or %q", ScopeXray, ScopeAll)
+
+// powered is an engine that can be switched on and off.
+type powered interface {
+	SetPower(ctx context.Context, on bool) error
+}
+
+// SetPower switches engines on or off and returns the names it changed.
+// ScopeXray touches only the primary engine; ScopeAll touches every engine,
+// skipping the ones already in the wanted state (so starting "all" brings
+// back exactly what was stopped). Each choice is stored by the engine.
+func (s *Set) SetPower(ctx context.Context, scope string, on bool) ([]string, error) {
+	var targets []Engine
+	switch scope {
+	case ScopeXray:
+		if len(s.Engines) > 0 {
+			targets = s.Engines[:1]
+		}
+	case ScopeAll:
+		targets = s.Engines
+	default:
+		return nil, ErrBadScope
+	}
+	changed := []string{}
+	var errs []string
+	for _, e := range targets {
+		p, ok := e.(powered)
+		if !ok || e.Status().Stopped == !on {
+			continue
+		}
+		if err := p.SetPower(ctx, on); err != nil {
+			errs = append(errs, e.Name()+": "+err.Error())
+			continue
+		}
+		changed = append(changed, e.Name())
+	}
+	if len(errs) > 0 {
+		return changed, fmt.Errorf("%s", strings.Join(errs, "; "))
+	}
+	return changed, nil
+}
+
+// StoppedNames lists the engines an admin switched off.
+func (s *Set) StoppedNames() []string {
+	out := []string{}
+	for _, e := range s.Engines {
+		if e.Status().Stopped {
+			out = append(out, e.Name())
+		}
+	}
+	return out
 }

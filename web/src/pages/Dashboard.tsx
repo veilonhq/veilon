@@ -136,7 +136,7 @@ export default function DashboardPage() {
               <strong className={`display ${s.coreState} ${d?.core.running ? s.on : s.off}`}>
                 {d ? (d.core.running ? t('dash.coreRunning') : d.core.stopped ? t('xray.off') : t('dash.coreStopped')) : '—'}
               </strong>
-              <CorePowerSwitch core={d?.core} />
+              <CorePowerSwitch core={d?.core} stoppedCores={d?.stopped_cores} />
               <CoreVersionField core={d?.core} />
               {d?.core.running && d.core.started_at && <span className={s.meta}>{t('dash.coreSince', { time: duration(Date.now() - new Date(d.core.started_at).getTime()) })}</span>}
               {d?.core.error && (
@@ -157,7 +157,7 @@ export default function DashboardPage() {
                   <span className={s.engineName}>{engineName(c.name)}</span>
                   <span className={`${s.engineVer} num ltr`}>{c.version || ''}</span>
                   <span className={s.engineState}>
-                    {!d ? '—' : idle ? t('dash.engineIdle') : warn.length ? t('dash.engineWarnings', { n: warn.length }) : c.running ? t('dash.coreRunning') : t('dash.coreStopped')}
+                    {!d ? '—' : idle ? t('dash.engineIdle') : warn.length ? t('dash.engineWarnings', { n: warn.length }) : c.running ? t('dash.coreRunning') : c.stopped ? t('xray.off') : t('dash.coreStopped')}
                   </span>
                 </li>
               );

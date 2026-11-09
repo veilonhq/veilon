@@ -84,3 +84,84 @@ func TestCoreXrayEndpoints(t *testing.T) {
 		t.Fatalf("info %d %v", code, m)
 	}
 }
+
+// fakePowerSet switches named engines; it mirrors cores.Set.SetPower.
+type fakePowerSet struct {
+	fakeCore
+	off map[string]bool
+}
+
+var fakeEngines = []string{"xray", "sing-box", "mtg", "amneziawg"}
+
+func (f *fakePowerSet) Status() xray.Status {
+	return xray.Status{Name: "xray", Running: !f.off["xray"], Stopped: f.off["xray"]}
+}
+func (f *fakePowerSet) Statuses() []xray.Status {
+	out := []xray.Status{}
+	for _, n := range fakeEngines {
+		out = append(out, xray.Status{Name: n, Running: !f.off[n], Stopped: f.off[n]})
+	}
+	return out
+}
+func (f *fakePowerSet) SetPower(_ context.Context, scope string, on bool) ([]string, error) {
+	names := fakeEngines
+	if scope == "xray" {
+		names = names[:1]
+	}
+	changed := []string{}
+	for _, n := range names {
+		if f.off[n] == !on {
+			continue
+		}
+		f.off[n] = !on
+		changed = append(changed, n)
+	}
+	return changed, nil
+}
+func (f *fakePowerSet) StoppedNames() []string {
+	out := []string{}
+	for _, n := range fakeEngines {
+		if f.off[n] {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+func TestCorePowerScope(t *testing.T) {
+	c, srv := setup(t)
+	const api = "/secret/api/v1"
+	_, m, _ := c.do("POST", api+"/auth/login", map[string]string{"username": "root", "password": "password123"})
+	c.tok = m["token"].(string)
+	fp := &fakePowerSet{off: map[string]bool{}}
+	srv.Core = fp
+	stopped := func(m map[string]any) int { return len(m["stopped_cores"].([]any)) }
+
+	// No scope: stop touches only Xray.
+	code, m, _ := c.do("POST", api+"/core/stop", nil)
+	if code != 200 || !fp.off["xray"] || fp.off["mtg"] || m["scope"] != "xray" || stopped(m) != 1 {
+		t.Fatalf("stop %d %v", code, m)
+	}
+	if code, _, _ := c.do("POST", api+"/core/stop", map[string]string{"scope": "nope"}); code != 400 {
+		t.Fatalf("bad scope %d", code)
+	}
+	// scope=all in the body stops every core.
+	code, m, _ = c.do("POST", api+"/core/stop", map[string]string{"scope": "all"})
+	if code != 200 || stopped(m) != 4 || len(m["changed"].([]any)) != 3 {
+		t.Fatalf("stop all %d %v", code, m)
+	}
+	code, m, _ = c.do("GET", api+"/system/stats", nil)
+	if code != 200 || stopped(m) != 4 {
+		t.Fatalf("stats %d %v", code, m["stopped_cores"])
+	}
+	// scope=xray in the query starts only Xray.
+	code, m, _ = c.do("POST", api+"/core/start?scope=xray", nil)
+	if code != 200 || fp.off["xray"] || !fp.off["sing-box"] || stopped(m) != 3 {
+		t.Fatalf("start xray %d %v", code, m)
+	}
+	// No scope: start brings back everything that was stopped.
+	code, m, _ = c.do("POST", api+"/core/start", nil)
+	if code != 200 || stopped(m) != 0 || len(m["changed"].([]any)) != 3 {
+		t.Fatalf("start %d %v", code, m)
+	}
+}

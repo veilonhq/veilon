@@ -145,6 +145,7 @@ func NewSingbox(opt Options) *Singbox {
 	e := &Singbox{opt: opt}
 	cfgPath := filepath.Join(opt.DataDir, "sing-box", "config.json")
 	e.Supervisor = NewSupervisor(Spec{
+		DB:         opt.DB,
 		Name:       "sing-box",
 		Protocols:  []string{inbounds.TUIC},
 		Bin:        func() string { return opt.BinPath },

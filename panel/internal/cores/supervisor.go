@@ -22,6 +22,9 @@ import (
 	"syscall"
 	"time"
 
+	"gorm.io/gorm"
+
+	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/guard"
 	"github.com/veilonhq/veilon/panel/internal/logbuf"
 	"github.com/veilonhq/veilon/panel/internal/util"
@@ -72,7 +75,14 @@ type Spec struct {
 	// ConfigGlob matches the config files this engine writes; files it
 	// matches that no planned instance uses (deleted inbounds) are removed.
 	ConfigGlob string
+	// DB stores the admin's on/off choice (setting StoppedKey(Name)); nil
+	// keeps it in memory only.
+	DB *gorm.DB
 }
+
+// StoppedKey is the setting that persists an engine's on/off choice ("1" =
+// switched off). The "_" prefix keeps it out of the public settings API.
+func StoppedKey(name string) string { return "_" + name + "_stopped" }
 
 // Running describes a live instance for Collect.
 type Running struct {
@@ -110,6 +120,8 @@ type Supervisor struct {
 	ensured  bool
 	gen      uint64
 	reloadCh chan bool
+	powerCh  chan chan struct{}
+	stopped  bool // desired state: switched off by an admin
 	exits    chan exitEvent
 	logs     *logbuf.Ring
 	sysUp    atomic.Int64
@@ -124,7 +136,7 @@ func NewSupervisor(spec Spec) *Supervisor {
 	if spec.StatsEvery == 0 {
 		spec.StatsEvery = 10 * time.Second
 	}
-	return &Supervisor{spec: spec, procs: map[string]*proc{}, reloadCh: make(chan bool, 1), exits: make(chan exitEvent, 16), logs: logbuf.New(spec.Name, 2000)}
+	return &Supervisor{spec: spec, procs: map[string]*proc{}, reloadCh: make(chan bool, 1), powerCh: make(chan chan struct{}), exits: make(chan exitEvent, 16), logs: logbuf.New(spec.Name, 2000)}
 }
 
 // Name returns the engine name.
@@ -188,11 +200,69 @@ func (s *Supervisor) GenerateConfig() ([]byte, error) {
 	return b.Bytes(), nil
 }
 
+// SetPower switches the engine on or off. The choice is stored, so a stopped
+// engine stays stopped after a panel restart and through Restart.
+func (s *Supervisor) SetPower(ctx context.Context, on bool) error {
+	if s.spec.DB != nil {
+		v := "0"
+		if !on {
+			v = "1"
+		}
+		if err := db.SetSetting(s.spec.DB, StoppedKey(s.spec.Name), v); err != nil {
+			return err
+		}
+	}
+	s.mu.Lock()
+	s.stopped = !on
+	s.mu.Unlock()
+	if on {
+		s.logs.Add(fmt.Sprintf("[veilon] %s switched on", s.spec.Name))
+	} else {
+		s.logs.Add(fmt.Sprintf("[veilon] %s switched off", s.spec.Name))
+	}
+	done := make(chan struct{})
+	t := time.NewTimer(30 * time.Second)
+	defer t.Stop()
+	select {
+	case s.powerCh <- done:
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return fmt.Errorf("%s supervisor is not running", s.spec.Name)
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// Stopped reports whether an admin switched the engine off.
+func (s *Supervisor) Stopped() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.stopped
+}
+
+func (s *Supervisor) loadDesiredState() {
+	if s.spec.DB == nil {
+		return
+	}
+	off := db.GetSetting(s.spec.DB, StoppedKey(s.spec.Name)) == "1"
+	s.mu.Lock()
+	s.stopped = off
+	s.mu.Unlock()
+	if off {
+		s.logs.Add(fmt.Sprintf("[veilon] %s is switched off; it will not be started", s.spec.Name))
+	}
+}
+
 // Status reports the engine state.
 func (s *Supervisor) Status() xray.Status {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	st := xray.Status{Name: s.spec.Name, Version: s.version, Error: s.lastErr, Enabled: s.enabled, Protocols: s.spec.Protocols, Instances: len(s.procs), Warnings: []string{}}
+	st := xray.Status{Name: s.spec.Name, Version: s.version, Error: s.lastErr, Enabled: s.enabled, Protocols: s.spec.Protocols, Instances: len(s.procs), Warnings: []string{}, Stopped: s.stopped}
 	if len(s.procs) > 0 {
 		all := true
 		var first time.Time
@@ -221,6 +291,7 @@ func (s *Supervisor) setErr(e string) {
 
 // Run supervises the engine until ctx is cancelled.
 func (s *Supervisor) Run(ctx context.Context) {
+	s.loadDesiredState()
 	s.apply(ctx, false)
 	statsT := time.NewTicker(s.spec.StatsEvery)
 	defer statsT.Stop()
@@ -235,6 +306,12 @@ func (s *Supervisor) Run(ctx context.Context) {
 		case f := <-s.reloadCh:
 			force = force || f
 			debounce = time.After(s.spec.Debounce)
+		case done := <-s.powerCh:
+			// Apply at once; a pending debounced reload is folded in.
+			debounce, retry = nil, nil
+			s.apply(ctx, force)
+			force = false
+			close(done)
 		case <-debounce:
 			debounce = nil
 			s.apply(ctx, force)
@@ -320,7 +397,18 @@ func (s *Supervisor) apply(ctx context.Context, force bool) {
 	}
 	s.mu.Lock()
 	s.enabled = len(plan) > 0
+	stopped := s.stopped
 	s.mu.Unlock()
+	if stopped {
+		// Switched off: stop everything but keep the config files.
+		s.collect(ctx)
+		s.stopAll()
+		s.mu.Lock()
+		s.procs = map[string]*proc{}
+		s.lastErr = ""
+		s.mu.Unlock()
+		return
+	}
 	// Grab counters before anything restarts.
 	s.collect(ctx)
 	// Stop instances that are no longer wanted.

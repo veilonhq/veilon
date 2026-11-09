@@ -2,8 +2,9 @@ import { Globe, Power, RotateCw } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import { useRestartCore } from '@/api/hooks';
 import type { CoreInfo } from '@/api/types';
-import { useCorePower, useInstallXray, useUpdateGeo, useXrayInfo, useXrayReleases } from '@/api/xray';
+import { type CoreScope, useCorePower, useInstallXray, useUpdateGeo, useXrayInfo, useXrayReleases } from '@/api/xray';
 import { Select, type SelectOption } from '@/components/Select';
+import { engineName } from '@/lib/protocols';
 import { useI18n } from '@/i18n';
 import { confirmAction, toast } from '@/store/feedback';
 import s from './XrayCore.module.css';
@@ -27,36 +28,66 @@ function cmpVer(a: string, b: string) {
 }
 const tagOf = (v?: string) => (v ? (v.startsWith('v') ? v : `v${v}`) : '');
 
-/** On/off switch for the Xray core. A switched-off core stays off until switched on. */
-export function CorePowerSwitch({ core }: { core?: CoreInfo }) {
+/**
+ * On/off switch for the cores. Switching off asks whether only Xray or every
+ * core goes off; switching on brings back every core that was switched off.
+ * A switched-off core stays off until switched on, even after a panel restart.
+ */
+export function CorePowerSwitch({ core, stoppedCores }: { core?: CoreInfo; stoppedCores?: string[] }) {
   const { t } = useI18n();
   const power = useCorePower();
   const on = !!core && !core.stopped;
+  const off = stoppedCores ?? (core?.stopped ? [core.name] : []);
   const toggle = async () => {
     if (!core) return;
+    let scope: CoreScope | undefined;
     if (on) {
-      const ok = await confirmAction({ title: t('xray.stopConfirm'), body: t('xray.stopBody'), confirmLabel: t('xray.stop'), danger: true });
+      const ok = await confirmAction({
+        title: t('xray.stopConfirm'),
+        body: t('xray.stopBody'),
+        confirmLabel: t('xray.stop'),
+        danger: true,
+        choiceInput: {
+          label: t('xray.stopScope'),
+          initial: 0,
+          options: [
+            { value: 0, label: t('xray.scopeXray') },
+            { value: 1, label: t('xray.scopeAll') },
+          ],
+        },
+      });
       if (!ok) return;
+      scope = ok.value === 1 ? 'all' : 'xray';
     }
-    power.mutate(!on, {
-      onSuccess: () => toast.success(on ? t('xray.stopped') : t('xray.started')),
-      onError: (e) => toast.error(t('common.error'), (e as Error).message),
-    });
+    power.mutate(
+      { on: !on, scope },
+      {
+        onSuccess: () => toast.success(on ? (scope === 'all' ? t('xray.stoppedAll') : t('xray.stopped')) : off.length > 1 ? t('xray.startedAll') : t('xray.started')),
+        onError: (e) => toast.error(t('common.error'), (e as Error).message),
+      },
+    );
   };
   return (
-    <label className={s.power}>
-      <Power size={14} aria-hidden="true" />
-      <span>{on ? t('xray.on') : t('xray.off')}</span>
-      <button
-        type="button"
-        role="switch"
-        className="switch"
-        aria-checked={on}
-        aria-label={t('xray.power')}
-        disabled={!core || power.isPending || !!core.busy}
-        onClick={toggle}
-      />
-    </label>
+    <>
+      <label className={s.power}>
+        <Power size={14} aria-hidden="true" />
+        <span>{on ? t('xray.on') : t('xray.off')}</span>
+        <button
+          type="button"
+          role="switch"
+          className="switch"
+          aria-checked={on}
+          aria-label={t('xray.power')}
+          disabled={!core || power.isPending || !!core.busy}
+          onClick={toggle}
+        />
+      </label>
+      {off.length > 0 && (
+        <span className={s.note}>
+          {t('xray.offCores')}: <span className="ltr">{off.map(engineName).join(', ')}</span>
+        </span>
+      )}
+    </>
   );
 }
 

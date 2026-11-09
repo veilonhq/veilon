@@ -102,6 +102,7 @@ func NewAWG(opt Options, self string) *AWG {
 	e := &AWG{opt: opt, owners: map[string]int64{}, latest: map[string]awgSample{}, cnt: counter{}}
 	cfgDir := filepath.Join(opt.DataDir, "amneziawg")
 	e.Supervisor = NewSupervisor(Spec{
+		DB:           opt.DB,
 		Name:         "amneziawg",
 		Protocols:    []string{inbounds.AmneziaWG},
 		Bin:          func() string { return self },

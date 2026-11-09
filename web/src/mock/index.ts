@@ -287,7 +287,7 @@ let settings: Settings = {
 
 let coreStarted = now() - 3 * DAY - 4 * 3_600_000;
 let coreRunning = true;
-let xrayStopped = false;
+const stoppedCores = new Set<string>();
 let xrayVersion = '26.10.31';
 let totalUp = 412 * GB;
 let totalDown = 3.86 * 1024 * GB;
@@ -333,8 +333,8 @@ function coresInfo() {
     const enabled = name === 'xray' || ibs.length > 0;
     const warnings = name === 'xray' && inbounds.some((i) => i.protocol === 'tun' && i.enabled) ? ['TUN · Office subnets: CAP_NET_ADMIN is missing; inbound skipped'] : [];
     return {
-      name, version: versions[name], running: enabled && coreRunning && !(name === 'xray' && xrayStopped), started_at: enabled && coreRunning && !(name === 'xray' && xrayStopped) ? iso(coreStarted) : null, enabled,
-      stopped: name === 'xray' && xrayStopped,
+      name, version: versions[name], running: enabled && coreRunning && !stoppedCores.has(name), started_at: enabled && coreRunning && !stoppedCores.has(name) ? iso(coreStarted) : null, enabled,
+      stopped: stoppedCores.has(name),
       protocols: [...new Set(ibs.map((i) => i.protocol))], instances: name === 'mtg' ? ibs.length : enabled ? 1 : 0, warnings,
     };
   });
@@ -365,6 +365,7 @@ function stats() {
     traffic_total_up: Math.round(totalUp), traffic_total_down: Math.round(totalDown),
     core: coresInfo()[0],
     cores: coresInfo(),
+    stopped_cores: [...stoppedCores],
   };
 }
 
@@ -531,13 +532,19 @@ function route(method: string, path: string, q: URLSearchParams, body: Body): un
     return { ok: true };
   }
   if (path === '/core/start' || path === '/core/stop') {
-    xrayStopped = path === '/core/stop';
+    const on = path === '/core/start';
+    const scope = q.get('scope') || String((body as { scope?: string } | undefined)?.scope ?? '') || (on ? 'all' : 'xray');
+    if (scope !== 'xray' && scope !== 'all') throw new HttpError(400, 'validation_error', 'scope must be "xray" or "all"');
+    const names = scope === 'xray' ? ['xray'] : ['xray', 'sing-box', 'mtg', 'amneziawg'];
+    const changed = names.filter((n) => stoppedCores.has(n) === on);
+    for (const n of changed) (on ? stoppedCores.delete(n) : stoppedCores.add(n));
     coreStarted = now();
-    addAudit(xrayStopped ? 'core.stop' : 'core.start', 'xray');
-    return { ok: true, status: coresInfo()[0] };
+    addAudit(on ? 'core.start' : 'core.stop', changed.length ? `${scope}: ${changed.join(', ')}` : scope);
+    const cores = coresInfo();
+    return { ok: true, scope, changed, status: cores[0], cores, stopped_cores: [...stoppedCores] };
   }
   if (path === '/core/xray') {
-    return { status: coresInfo()[0], job: null, geo: [{ name: 'geoip.dat', size: 19_800_000, updated_at: iso(now() - 9 * DAY) }, { name: 'geosite.dat', size: 9_100_000, updated_at: iso(now() - 9 * DAY) }] };
+    return { status: coresInfo()[0], stopped_cores: [...stoppedCores], job: null, geo: [{ name: 'geoip.dat', size: 19_800_000, updated_at: iso(now() - 9 * DAY) }, { name: 'geosite.dat', size: 9_100_000, updated_at: iso(now() - 9 * DAY) }] };
   }
   if (path === '/core/xray/releases') {
     const tags = ['v26.11.9', 'v26.10.31', 'v26.10.21', 'v26.9.30', 'v26.9.9', 'v26.7.28', 'v26.7.11', 'v26.6.27'];
