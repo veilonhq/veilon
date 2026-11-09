@@ -832,9 +832,11 @@ function route(method: string, path: string, q: URLSearchParams, body: Body): un
     if (!currentAdmin().is_sudo) throw new HttpError(403, 'forbidden', 'sudo admin required');
     if (method === 'GET') return admins.map(adminFull);
     if (method === 'POST') {
-      const b = body as { username: string; is_sudo: boolean };
+      const b = body as { username: string; is_sudo: boolean; permissions?: Perm[]; user_quota?: number; traffic_quota?: number };
       if (admins.some((a) => a.username === b.username)) throw new HttpError(409, 'username_taken', 'Admin already exists');
-      const a: Admin = { id: Math.max(...admins.map((x) => x.id)) + 1, username: b.username, is_sudo: !!b.is_sudo, created_at: iso(now()), permissions: b.is_sudo ? ALL_PERMS : SUB_PERMS, user_quota: 0, traffic_quota: 0 };
+      if ((b.user_quota ?? 0) < 0 || (b.traffic_quota ?? 0) < 0) throw new HttpError(400, 'validation_error', 'quotas must be >= 0');
+      const perms = b.is_sudo ? ALL_PERMS : b.permissions ? ALL_PERMS.filter((p) => b.permissions!.includes(p)) : SUB_PERMS;
+      const a: Admin = { id: Math.max(...admins.map((x) => x.id)) + 1, username: b.username, is_sudo: !!b.is_sudo, created_at: iso(now()), permissions: perms, user_quota: b.is_sudo ? 0 : b.user_quota ?? 0, traffic_quota: b.is_sudo ? 0 : b.traffic_quota ?? 0 };
       admins.push(a);
       return adminFull(a);
     }

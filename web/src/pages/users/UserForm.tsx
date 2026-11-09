@@ -8,14 +8,14 @@ import { Select } from '@/components/Select';
 import { useI18n, type MessageKey } from '@/i18n';
 import { GB, USERNAME_RE } from '@/lib/user';
 import { toast } from '@/store/feedback';
+import { LimitField } from './LimitField';
 import s from './Users.module.css';
 
 type ExpMode = 'keep' | 'never' | 'days' | 'hold';
 export const RESETS: ResetStrategy[] = ['no_reset', 'day', 'week', 'month'];
-export const LIMITS = [10, 30, 50, 100, 0];
+export const LIMITS = [10, 30, 50, 100];
 export const DAYS = [7, 30, 90, 365];
-export const DAILY = [0, 1, 2, 5];
-export const SPEEDS = [0, 5, 10, 20, 50];
+export const DAILY = [1, 2, 5];
 /** Weekdays in the panel's order (Saturday first); the value is the JS/Go weekday (0 = Sunday). */
 export const WEEK = [6, 0, 1, 2, 3, 4, 5];
 export const ALL_DAYS = 0x7f;
@@ -332,27 +332,7 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
           </Field>
 
           <Sec id="data" icon={HardDrive} title={t('form.sec.data')} summary={dataSum} open={openSecs.has('data')} onToggle={toggleSec}>
-            <fieldset className={s.fs}>
-              <legend className="field__label">{t('form.dataLimit')}</legend>
-              <div className={s.chipRow}>
-                {LIMITS.map((g) => (
-                  <button type="button" key={g} className="pill" aria-pressed={limitGb === g} onClick={() => setLimitGb(g)}>
-                    {g === 0 ? t('common.unlimited') : `${n(g)} GB`}
-                  </button>
-                ))}
-                <input
-                  className={`input num ${s.inlineNum}`}
-                  type="number"
-                  inputMode="decimal"
-                  min={0}
-                  step="any"
-                  value={limitGb}
-                  onChange={(e) => setLimitGb(Math.max(0, Number(e.target.value)))}
-                  aria-label={t('form.dataLimit')}
-                />
-              </div>
-              <span className="field__hint">{t('form.dataLimitHint')}</span>
-            </fieldset>
+            <LimitField label={t('form.dataLimit')} unit="GB" decimals fallback={30} value={limitGb} onChange={setLimitGb} presets={LIMITS} hint={t('form.dataLimitHint')} />
 
             <fieldset className={s.fs}>
               <legend className="field__label">{t('user.resetStrategy')}</legend>
@@ -378,11 +358,7 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
               />
               <span className="field__hint">{t('form.multiplierHint')}</span>
             </div>
-            <div className={s.fs}>
-              <span className="field__label">{t('form.dailyLimit')}</span>
-              <NumChips value={gb(lim.daily_limit)} onChange={(v) => L('daily_limit', Math.round(v * GB))} options={DAILY} zero={t('form.noCap')} unit="GB" label={t('form.dailyLimit')} />
-              <span className="field__hint">{t('form.dailyLimitHint')}</span>
-            </div>
+            <LimitField label={t('form.dailyLimit')} unit="GB" decimals fallback={1} value={gb(lim.daily_limit)} onChange={(v) => L('daily_limit', Math.round(v * GB))} presets={DAILY} hint={t('form.dailyLimitHint')} />
           </Sec>
 
           <Sec id="time" icon={Clock} title={t('form.sec.time')} summary={timeSum} open={openSecs.has('time')} onToggle={toggleSec}>
@@ -494,15 +470,8 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
           </Sec>
 
           <Sec id="speed" icon={Gauge} title={t('form.sec.speed')} summary={speedSum} open={openSecs.has('speed')} onToggle={toggleSec}>
-            <div className={s.fs}>
-              <span className="field__label">{t('form.speedDown')}</span>
-              <NumChips value={lim.speed_limit_down} onChange={(v) => L('speed_limit_down', v)} options={SPEEDS} zero={t('common.unlimited')} unit="Mbps" label={t('form.speedDown')} />
-            </div>
-            <div className={s.fs}>
-              <span className="field__label">{t('form.speedUp')}</span>
-              <NumChips value={lim.speed_limit_up} onChange={(v) => L('speed_limit_up', v)} options={SPEEDS} zero={t('common.unlimited')} unit="Mbps" label={t('form.speedUp')} />
-              <span className="field__hint">{t('form.speedHint')}</span>
-            </div>
+            <LimitField unit="Mbps" label={t('form.speedDown')} value={lim.speed_limit_down} onChange={(v) => L('speed_limit_down', v)} />
+            <LimitField unit="Mbps" label={t('form.speedUp')} value={lim.speed_limit_up} onChange={(v) => L('speed_limit_up', v)} hint={t('form.speedHint')} />
           </Sec>
 
           <Sec id="access" icon={KeyRound} title={t('form.sec.access')} summary={accessSum} open={openSecs.has('access')} onToggle={toggleSec}>

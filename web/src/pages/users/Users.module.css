@@ -1507,3 +1507,79 @@ html[lang='fa'] .lbText {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ---------- speed limit field (free Mbps input with − / + and unlimited switch) ---------- */
+.speedHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.speedUnl {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-2);
+  cursor: pointer;
+  user-select: none;
+}
+.speedStep {
+  height: 44px;
+  transition: opacity 0.15s ease;
+}
+.speedStep .stepBtn {
+  width: 46px;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.speedOff {
+  opacity: 0.55;
+}
+.speedVal {
+  display: inline-flex;
+  justify-content: center;
+  gap: 5px;
+  min-width: 120px;
+  padding: 0 6px;
+  border-inline: 1px solid var(--line);
+  height: 100%;
+  align-items: center;
+}
+.speedInput {
+  width: 7ch;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  font-size: 16px;
+  text-align: end;
+  outline: none;
+  padding: 0;
+}
+.speedInput:disabled {
+  text-align: center;
+  width: 3ch;
+}
+.speedStep:focus-within {
+  border-color: var(--accent);
+}
+.speedUnit {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.quickPicks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.quickPicks :global(.pill) {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 12.5px;
+}

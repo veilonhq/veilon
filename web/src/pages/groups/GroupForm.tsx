@@ -7,7 +7,8 @@ import { Field, Switch } from '@/components/misc';
 import { useI18n } from '@/i18n';
 import { GB } from '@/lib/user';
 import { confirmAction, toast } from '@/store/feedback';
-import { DAILY, DAYS, LIMITS, NO_LIMITS, NumChips, RESETS, SPEEDS, Sec, Stepper, gb, round1 } from '../users/UserForm';
+import { DAILY, DAYS, LIMITS, NO_LIMITS, NumChips, RESETS, Sec, Stepper, gb, round1 } from '../users/UserForm';
+import { LimitField } from '../users/LimitField';
 import u from '../users/Users.module.css';
 import s from '../pages.module.css';
 
@@ -261,10 +262,7 @@ export function GroupForm({ open, group, onClose, inbounds }: Props) {
         </Sec>
 
         <Sec<SecKey> id="data" icon={HardDrive} title={t('form.sec.data')} summary={dataSum} open={openSecs.has('data')} onToggle={toggleSec}>
-          <div className={u.fs}>
-            <span className="field__label">{t('form.dataLimit')}</span>
-            <NumChips value={limitGb} onChange={setLimitGb} options={LIMITS} zero={t('common.unlimited')} unit="GB" label={t('form.dataLimit')} />
-          </div>
+          <LimitField label={t('form.dataLimit')} unit="GB" decimals fallback={30} value={limitGb} onChange={setLimitGb} presets={LIMITS} />
           <fieldset className={u.fs}>
             <legend className="field__label">{t('user.resetStrategy')}</legend>
             <div className="seg seg--wrap" role="radiogroup" aria-label={t('user.resetStrategy')}>
@@ -287,17 +285,7 @@ export function GroupForm({ open, group, onClose, inbounds }: Props) {
               format={(v) => `×${n(v, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`}
             />
           </div>
-          <div className={u.fs}>
-            <span className="field__label">{t('form.dailyLimit')}</span>
-            <NumChips
-              value={gb(lim.daily_limit)}
-              onChange={(v) => L('daily_limit', Math.round(v * GB))}
-              options={DAILY}
-              zero={t('form.noCap')}
-              unit="GB"
-              label={t('form.dailyLimit')}
-            />
-          </div>
+          <LimitField label={t('form.dailyLimit')} unit="GB" decimals fallback={1} value={gb(lim.daily_limit)} onChange={(v) => L('daily_limit', Math.round(v * GB))} presets={DAILY} />
         </Sec>
 
         <Sec<SecKey> id="time" icon={Clock} title={t('form.expiry')} summary={timeSum} open={openSecs.has('time')} onToggle={toggleSec}>
@@ -343,21 +331,8 @@ export function GroupForm({ open, group, onClose, inbounds }: Props) {
         </Sec>
 
         <Sec<SecKey> id="speed" icon={Gauge} title={t('form.sec.speed')} summary={speedSum} open={openSecs.has('speed')} onToggle={toggleSec}>
-          <div className={u.fs}>
-            <span className="field__label">{t('form.speedDown')}</span>
-            <NumChips
-              value={lim.speed_limit_down}
-              onChange={(v) => L('speed_limit_down', v)}
-              options={SPEEDS}
-              zero={t('common.unlimited')}
-              unit="Mbps"
-              label={t('form.speedDown')}
-            />
-          </div>
-          <div className={u.fs}>
-            <span className="field__label">{t('form.speedUp')}</span>
-            <NumChips value={lim.speed_limit_up} onChange={(v) => L('speed_limit_up', v)} options={SPEEDS} zero={t('common.unlimited')} unit="Mbps" label={t('form.speedUp')} />
-          </div>
+          <LimitField unit="Mbps" label={t('form.speedDown')} value={lim.speed_limit_down} onChange={(v) => L('speed_limit_down', v)} />
+          <LimitField unit="Mbps" label={t('form.speedUp')} value={lim.speed_limit_up} onChange={(v) => L('speed_limit_up', v)} hint={t('form.speedHint')} />
         </Sec>
       </form>
     </Sheet>
