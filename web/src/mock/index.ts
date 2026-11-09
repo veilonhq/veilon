@@ -294,22 +294,28 @@ let totalDown = 3.86 * 1024 * GB;
 let lastUp = 2_400_000;
 let lastDown = 11_000_000;
 
-const logLines: string[] = [];
+type MockLog = { seq: number; t: string | null; source: string; level: 'debug' | 'info' | 'warning' | 'error'; msg: string };
+const logLines: MockLog[] = [];
+let logSeq = 0;
+function addLog(msg: string, source = 'xray', at = now()) {
+  const level = /\[Error\]/.test(msg) ? 'error' : /\[Warning\]/.test(msg) ? 'warning' : 'info';
+  logLines.push({ seq: ++logSeq, t: iso(at), source, level, msg });
+}
 function logLine() {
-  const t = new Date();
-  const ts = `${t.getFullYear()}/${String(t.getMonth() + 1).padStart(2, '0')}/${String(t.getDate()).padStart(2, '0')} ${t.toTimeString().slice(0, 8)}.${String(t.getMilliseconds()).padStart(3, '0')}`;
+  const ts = '';
   const u = pick(users.filter((x) => x.online));
   const r = rnd();
   const ip = `${pick([5, 31, 37, 78, 91, 151, 185])}.${Math.floor(rnd() * 255)}.${Math.floor(rnd() * 255)}.${Math.floor(rnd() * 255)}`;
   if (r < 0.7) {
     const host = pick(['www.google.com', 'i.instagram.com', 'web.telegram.org', 'api.github.com', 'rr3---sn.googlevideo.com', 'open.spotify.com', 'x.com', 'www.wikipedia.org']);
-    return `${ts} from ${ip}:${Math.floor(rnd() * 60000 + 1024)} accepted tcp:${host}:443 [${pick(inbounds).remark.split(' ')[0].toLowerCase()}-in >> direct] email: ${u?.username ?? 'arash'}`;
+    return `${ts}from ${ip}:${Math.floor(rnd() * 60000 + 1024)} accepted tcp:${host}:443 [${pick(inbounds).remark.split(' ')[0].toLowerCase()}-in >> direct] email: ${u?.username ?? 'arash'}`;
   }
-  if (r < 0.85) return `${ts} [Info] [${Math.floor(rnd() * 4e9)}] proxy/vless/inbound: firstLen = ${Math.floor(rnd() * 1400)}`;
-  if (r < 0.95) return `${ts} [Warning] [${Math.floor(rnd() * 4e9)}] app/dispatcher: default route for tcp:${ip}:${Math.floor(rnd() * 60000)}`;
-  return `${ts} [Error] [${Math.floor(rnd() * 4e9)}] proxy/vless/inbound: invalid request from ${ip}: invalid user > not found`;
+  if (r < 0.85) return `${ts}[Info] [${Math.floor(rnd() * 4e9)}] proxy/vless/inbound: firstLen = ${Math.floor(rnd() * 1400)}`;
+  if (r < 0.95) return `${ts}[Warning] [${Math.floor(rnd() * 4e9)}] app/dispatcher: default route for tcp:${ip}:${Math.floor(rnd() * 60000)}`;
+  return `${ts}[Error] [${Math.floor(rnd() * 4e9)}] proxy/vless/inbound: invalid request from ${ip}: invalid user > not found`;
 }
-for (let i = 0; i < 120; i++) logLines.push(logLine());
+for (let i = 0; i < 120; i++) addLog(logLine(), 'xray', now() - (120 - i) * 1700 - Math.floor(rnd() * 900));
+addLog('Veilon 0.1.0 listening on :2053', 'panel', now() - 210_000);
 
 function addAudit(action: string, target: string) {
   audit.unshift({ id: (audit[0]?.id ?? 0) + 1, admin: 'root', action, target, ip: '127.0.0.1', created_at: iso(now()) });
@@ -348,7 +354,7 @@ function stats() {
     cpu_cores: 2, cpu_model: 'Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz',
     load_avg: [0.42, 0.37, 0.31] as [number, number, number],
     uptime_sec: Math.floor((now() - (now() - 18 * DAY - 7_200_000)) / 1000),
-    net_up_bps: Math.round(lastUp), net_down_bps: Math.round(lastDown),
+    net_up_bps: Math.round(lastUp), net_down_bps: Math.round(lastDown), net_sampled_at: iso(now()), net_interval_ms: 3000,
     users_total: users.length,
     users_active: users.filter((u) => u.status === 'active').length,
     users_online: coreRunning ? users.filter((u) => u.online).length : 0,
@@ -367,7 +373,7 @@ function traffic(range: string) {
   const step = range === '24h' ? 1_800_000 : range === '7d' ? 7_200_000 : 12 * 3_600_000;
   const pts = [];
   for (let i = n - 1; i >= 0; i--) {
-    const t = now() - i * step;
+    const t = Math.floor(now() / step) * step - i * step;
     const h = new Date(t).getHours();
     const diurnal = 0.45 + 0.55 * Math.sin(((h - 9) / 24) * Math.PI * 2) ** 2;
     const scale = step / 1000;
@@ -520,7 +526,8 @@ function route(method: string, path: string, q: URLSearchParams, body: Body): un
     coreRunning = true;
     coreStarted = now();
     addAudit('core.restart', '—');
-    logLines.push(`${new Date().toISOString()} [Warning] core: Xray 25.10.15 started`);
+    addLog('[Warning] core: Xray 25.10.15 started');
+    addLog('core restarted by root', 'panel');
     return { ok: true };
   }
   if (path === '/core/start' || path === '/core/stop') {
@@ -547,16 +554,19 @@ function route(method: string, path: string, q: URLSearchParams, body: Body): un
     addAudit('core.geo_update', 'xray');
     return { ok: true, job: { kind: 'geo', running: false, started_at: iso(now()), finished_at: iso(now()) } };
   }
-  if (path === '/core/logs' && q.get('core') && q.get('core') !== 'xray') {
+  if (path === '/core/logs' && q.get('core') && !['xray', 'all', 'panel'].includes(q.get('core')!)) {
     const c = q.get('core')!;
     const t0 = new Date().toISOString();
-    return { lines: [`${t0} [${c}] started`, `${t0} [${c}] serving ${inbounds.filter((i) => engineOf(i.protocol) === c).length} inbound(s)`, `${t0} [${c}] stats ok`] };
+    const msgs = ['started', `serving ${inbounds.filter((i) => engineOf(i.protocol) === c).length} inbound(s)`, 'stats ok'];
+    return { lines: msgs.map((m) => `${t0} ${m}`), entries: msgs.map((msg, i) => ({ seq: i + 1, t: t0, source: c, level: 'info', msg })) };
   }
   if (path === '/core/logs') {
     const n = 1 + Math.floor(rnd() * 4);
-    for (let i = 0; i < n; i++) logLines.push(logLine());
-    while (logLines.length > 400) logLines.shift();
-    return { lines: logLines.slice(-Number(q.get('lines') || 200)) };
+    for (let i = 0; i < n; i++) addLog(logLine());
+    while (logLines.length > 2000) logLines.shift();
+    const src = q.get('core') || 'all';
+    const list = logLines.filter((e) => src === 'all' || e.source === src).sort((a, b) => (a.t ?? '').localeCompare(b.t ?? '') || a.seq - b.seq).slice(-Number(q.get('lines') || 200));
+    return { lines: list.map((e) => `${e.t} ${e.msg}`), entries: list };
   }
   if (path === '/core/config' && q.get('core') === 'mtg') return '[secret]\n# one section per MTProto inbound\n';
   if (path === '/core/config') {

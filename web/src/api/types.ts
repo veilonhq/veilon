@@ -77,8 +77,12 @@ export interface SystemStats {
   /** 1, 5 and 15 minute load average */
   load_avg: [number, number, number];
   uptime_sec: number;
+  /** measured host network rate, bytes per second (averaged over net_interval_ms) */
   net_up_bps: number;
   net_down_bps: number;
+  /** when the rates were measured (RFC 3339 UTC); a repeated value means no new measurement */
+  net_sampled_at?: string | null;
+  net_interval_ms?: number;
   users_total: number;
   users_active: number;
   users_online: number;

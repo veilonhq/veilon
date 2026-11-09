@@ -1,13 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { ArrowDown, ArrowUp, Plus, ScrollText, Waypoints } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '@/api/client';
 import { useStats, useTraffic } from '@/api/hooks';
 import type { Paged, TrafficRange, User } from '@/api/types';
 import { TrafficChart } from '@/components/TrafficChart';
 import { ErrorState, Skeleton } from '@/components/misc';
-import { ArcGauge, CorePulse, CountUp, OnlineOrbit, Waveform } from '@/components/viz';
+import { ArcGauge, CorePulse, CountUp, OnlineOrbit } from '@/components/viz';
+import { LiveChart, useRateSeries } from '@/components/LiveChart';
 import { splitBytes, useI18n } from '@/i18n';
 import { useSession } from '@/store/session';
 import { useUi } from '@/store/ui';
@@ -15,8 +16,6 @@ import type { CoreInfo } from '@/api/types';
 import { VISIBLE_ENGINES, engineName } from '@/lib/protocols';
 import { CoreActions, CorePowerSwitch, CoreVersionField } from './dashboard/XrayCore';
 import s from './Dashboard.module.css';
-
-const SAMPLES = 42;
 
 const ratio = (used: number, total: number) => (total > 0 ? (used / total) * 100 : 0);
 /** "Intel(R) Xeon(R) Platinum 8259CL CPU @ 2.50GHz" → "Xeon Platinum 8259CL @ 2.50GHz" */
@@ -28,27 +27,6 @@ function shortCpu(m: string) {
     .replace(/\s+(\d+-Core|Processor)\b/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
-}
-
-function useWaveBuffer(up?: number, down?: number) {
-  const [buf, setBuf] = useState<{ up: number[]; down: number[] }>({ up: [], down: [] });
-  const last = useRef<string>('');
-  useEffect(() => {
-    if (up === undefined || down === undefined) return;
-    const k = `${up}:${down}`;
-    if (k === last.current) return;
-    last.current = k;
-    setBuf((b) => {
-      // seed with a gentle synthetic history on first sample so the wave is never empty
-      if (!b.up.length) {
-        const seedU = Array.from({ length: SAMPLES - 1 }, (_, i) => up * (0.7 + 0.3 * Math.sin(i / 3) ** 2));
-        const seedD = Array.from({ length: SAMPLES - 1 }, (_, i) => down * (0.65 + 0.35 * Math.cos(i / 4) ** 2));
-        return { up: [...seedU, up], down: [...seedD, down] };
-      }
-      return { up: [...b.up, up].slice(-SAMPLES), down: [...b.down, down].slice(-SAMPLES) };
-    });
-  }, [up, down]);
-  return buf;
 }
 
 function Big({ bytes }: { bytes: number }) {
@@ -64,7 +42,7 @@ function Big({ bytes }: { bytes: number }) {
 }
 
 export default function DashboardPage() {
-  const { t, n, bps, bytes, duration } = useI18n();
+  const { t, n, bps, bytes, duration, lang } = useI18n();
   const pct = (v: number) => n(v / 100, { style: 'percent', maximumFractionDigits: 0 });
   const admin = useSession((x) => x.admin);
   const theme = useUi((x) => x.theme);
@@ -77,7 +55,7 @@ export default function DashboardPage() {
     refetchInterval: 15_000,
   });
   const d = stats.data;
-  const wave = useWaveBuffer(d?.net_up_bps, d?.net_down_bps);
+  const rates = useRateSeries(d, stats.dataUpdatedAt);
   const onlineNames = (online.data?.items ?? []).filter((u) => u.online).map((u) => u.username);
 
   if (stats.isError && !d) return <ErrorState error={stats.error} onRetry={() => stats.refetch()} />;
@@ -120,7 +98,7 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-          <div className={s.waveWrap}>{d ? <Waveform up={wave.up} down={wave.down} height={200} theme={theme} /> : <Skeleton h={200} r={18} />}</div>
+          <div className={s.waveWrap}>{d ? <LiveChart samples={rates} height={200} theme={theme} lang={lang} /> : <Skeleton h={200} r={18} />}</div>
           <div className={s.heroFoot}>
             <div>
               <span className={s.footLabel}>{t('dash.totalTraffic')}</span>
@@ -316,7 +294,7 @@ export default function DashboardPage() {
               ))}
             </div>
           </div>
-          {traffic.data ? <TrafficChart points={traffic.data.points} range={range} height={230} /> : <Skeleton h={230} r={16} />}
+          {traffic.data ? <TrafficChart points={traffic.data.points} range={range} bucketSec={traffic.data.bucket_sec} height={230} /> : <Skeleton h={230} r={16} />}
         </section>
 
         {/* SHORTCUTS */}

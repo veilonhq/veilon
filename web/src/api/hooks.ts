@@ -1,6 +1,8 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { api } from './client';
 import { useSession } from '@/store/session';
+import { useUi } from '@/store/ui';
 import { can } from '@/lib/perms';
 import type {
   AcmeRequest,
@@ -91,7 +93,6 @@ export function useTraffic(range: TrafficRange) {
   return useQuery({
     queryKey: qk.traffic(range),
     queryFn: () => api<{ points: TrafficPoint[]; bucket_sec?: number }>('/system/traffic', { query: { range } }),
-    placeholderData: keepPreviousData,
     refetchInterval: 60_000,
   });
 }
@@ -102,10 +103,27 @@ export function useRestartCore() {
     onSuccess: () => qc.invalidateQueries({ queryKey: qk.stats }),
   });
 }
+/** One log line (GET /core/logs entries). */
+export interface LogEntry {
+  /** orders lines across sources; 0 when unknown */
+  seq: number;
+  /** RFC 3339 UTC; null when the line carries no time */
+  t: string | null;
+  source: string;
+  level: 'debug' | 'info' | 'warning' | 'error';
+  msg: string;
+}
+/** The most lines the server keeps per source (and returns per request). */
+export const LOG_LINES = 2000;
 export function useCoreLogs(live: boolean, core = 'xray') {
   return useQuery({
     queryKey: qk.logs(core),
-    queryFn: () => api<{ lines: string[] }>('/core/logs', { query: { core, lines: 200 } }),
+    queryFn: async () => {
+      const r = await api<{ lines: string[]; entries?: LogEntry[] }>('/core/logs', { query: { core, lines: LOG_LINES } });
+      // older servers send only plain lines
+      const entries: LogEntry[] = r.entries ?? r.lines.map((msg) => ({ seq: 0, t: null, source: core, level: 'info', msg }));
+      return { entries };
+    },
     refetchInterval: live ? 2000 : false,
   });
 }
@@ -520,7 +538,21 @@ export function useSettings() {
 }
 /** The panel's time zone (settings), used for absolute timestamps. */
 export function usePanelTz(): string | undefined {
-  return useQuery({ queryKey: qk.settings, queryFn: () => api<Settings>('/settings'), staleTime: 5 * 60_000, select: (st) => st.timezone || undefined }).data;
+  const fromSettings = useQuery({ queryKey: qk.settings, queryFn: () => api<Settings>('/settings'), staleTime: 5 * 60_000, select: (st) => st.timezone || undefined }).data;
+  const synced = useUi((x) => x.tz);
+  return synced ?? fromSettings;
+}
+/**
+ * Keeps the UI store's time zone equal to the panel setting, so every
+ * formatter (dates, charts, logs) uses the panel's clock. Mounted once by
+ * the signed-in shell.
+ */
+export function useSyncPanelTz() {
+  const tz = useQuery({ queryKey: qk.settings, queryFn: () => api<Settings>('/settings'), staleTime: 5 * 60_000, select: (st) => st.timezone || 'UTC' }).data;
+  const setTz = useUi((x) => x.setTz);
+  useEffect(() => {
+    if (tz) setTz(tz);
+  }, [tz, setTz]);
 }
 export function useSaveSettings() {
   const qc = useQueryClient();

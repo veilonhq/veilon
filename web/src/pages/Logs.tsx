@@ -1,33 +1,55 @@
 import { FileJson, Pause, Play, RotateCw, Search } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useCoreConfig, useCoreLogs, useRestartCore, useStats } from '@/api/hooks';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { useCoreConfig, useCoreLogs, useRestartCore, useStats, type LogEntry } from '@/api/hooks';
 import type { EngineName } from '@/api/types';
 import { Select } from '@/components/Select';
-import { VISIBLE_ENGINES, engineName } from '@/lib/protocols';
+import { ENGINES, VISIBLE_ENGINES, engineName } from '@/lib/protocols';
 import { useSearchParams } from 'react-router-dom';
 import { Sheet } from '@/components/Overlay';
 import { CopyButton, EmptyState, ErrorState, PageHeader, Skeleton } from '@/components/misc';
-import { useI18n } from '@/i18n';
+import { formatClock, formatIsoDay, useI18n } from '@/i18n';
+import { formatOffset } from '@/lib/timezones';
 import { confirmAction, toast } from '@/store/feedback';
 import s from './pages.module.css';
 
-type Level = 'all' | 'info' | 'warning' | 'error';
+type Source = EngineName | 'all' | 'panel';
 
-function levelOf(line: string): Exclude<Level, 'all'> {
-  if (/\[Error\]|error/i.test(line) && !/accepted/.test(line)) return 'error';
-  if (/\[Warning\]/i.test(line)) return 'warning';
-  return 'info';
+/** "Asia/Tehran (UTC+03:30)" */
+function tzLabel(tz: string | undefined) {
+  const zone = tz || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  try {
+    const name = new Intl.DateTimeFormat('en-US', { timeZone: zone, timeZoneName: 'longOffset' }).formatToParts(new Date()).find((p) => p.type === 'timeZoneName')?.value ?? '';
+    const m = /([+-])(\d{1,2})(?::?(\d{2}))?/.exec(name);
+    const min = m ? (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3] ?? 0)) : 0;
+    return `\u2066${zone} (${formatOffset(min)})\u2069`;
+  } catch {
+    return zone;
+  }
 }
 
-function Line({ text }: { text: string }) {
-  const m = text.match(/^(\S+ \S+)\s(.*)$/);
-  const ts = m?.[1] ?? '';
-  const rest = m?.[2] ?? text;
-  const lvl = levelOf(text);
-  const parts = rest.split(/(accepted|tcp:[^\s]+|udp:[^\s]+|email: \S+|\[[^\]]+\])/g);
+type Level = 'all' | 'info' | 'warning' | 'error';
+
+/** The level filter a line passes (debug lines count as info). */
+const passes = (lvl: LogEntry['level'], f: Level) => f === 'all' || (f === 'info' ? lvl === 'info' || lvl === 'debug' : lvl === f);
+
+// tz is passed so memoized lines re-render when the panel's zone arrives or changes
+const Line = memo(function Line({ e, showSource, today }: { e: LogEntry; showSource: boolean; today: string; tz?: string }) {
+  const day = e.t ? formatIsoDay(e.t) : '';
+  const parts = e.msg.split(/(accepted|tcp:[^\s]+|udp:[^\s]+|email: \S+|\[[^\]]+\])/g);
   return (
-    <div className={`${s.logLine} ${s['lv_' + lvl]}`}>
-      <span className={s.logTs}>{ts.split(' ')[1] ?? ts}</span>
+    <div className={`${s.logLine} ${s['lv_' + (e.level === 'debug' ? 'info' : e.level)]}`}>
+      <span className={s.logTs} title={e.t ? `${day} ${formatClock(e.t, true)}` : undefined}>
+        {e.t ? (
+          <>
+            {day !== today && <span>{day.slice(5)} </span>}
+            {formatClock(e.t)}
+            <span className={s.logMs}>{formatClock(e.t, true).slice(8)}</span>
+          </>
+        ) : (
+          <span aria-hidden="true">{'--:--:--'}</span>
+        )}
+      </span>
+      {showSource && <span className={s.logSrc}>{e.source}</span>}
       <span className={s.logText}>
         {parts.map((p, i) =>
           p === 'accepted' ? (
@@ -53,28 +75,34 @@ function Line({ text }: { text: string }) {
       </span>
     </div>
   );
-}
+});
 
 export default function LogsPage() {
-  const { t, n } = useI18n();
+  const { t, n, tz } = useI18n();
   const [live, setLive] = useState(true);
   const [filter, setFilter] = useState('');
   const [level, setLevel] = useState<Level>('all');
   const [auto, setAuto] = useState(true);
   const [cfgOpen, setCfgOpen] = useState(false);
   const [params, setParams] = useSearchParams();
-  const core = VISIBLE_ENGINES.includes(params.get('core') as EngineName) ? (params.get('core') as EngineName) : 'xray';
-  const setCore = (c: EngineName) => setParams(c === 'xray' ? {} : { core: c }, { replace: true });
   const stats = useStats(10_000);
+  // every engine that has inbounds, plus the panel's own log; "all" merges them by time
+  const engines = ENGINES.filter((e) => VISIBLE_ENGINES.includes(e) || stats.data?.cores?.some((c) => c.name === e && c.enabled !== false));
+  const sources: Source[] = ['all', ...engines, 'panel'];
+  const wanted = params.get('core') as Source | null;
+  const core: Source = wanted && (wanted === 'all' || wanted === 'panel' || ENGINES.includes(wanted as EngineName)) ? wanted : 'all';
+  const setCore = (c: Source) => setParams(c === 'all' ? {} : { core: c }, { replace: true });
   const q = useCoreLogs(live, core);
-  const cfg = useCoreConfig(cfgOpen, core);
+  const cfgCore: EngineName = core === 'all' || core === 'panel' ? 'xray' : core;
+  const cfg = useCoreConfig(cfgOpen, cfgCore);
   const restart = useRestartCore();
   const box = useRef<HTMLDivElement>(null);
 
   const lines = useMemo(() => {
     const f = filter.trim().toLowerCase();
-    return (q.data?.lines ?? []).filter((l) => (level === 'all' || levelOf(l) === level) && (!f || l.toLowerCase().includes(f)));
+    return (q.data?.entries ?? []).filter((e) => passes(e.level, level) && (!f || e.msg.toLowerCase().includes(f) || e.source.includes(f)));
   }, [q.data, filter, level]);
+  const today = formatIsoDay(new Date());
 
   useEffect(() => {
     if (auto && box.current) box.current.scrollTop = box.current.scrollHeight;
@@ -85,7 +113,9 @@ export default function LogsPage() {
     restart.mutate(undefined, { onSuccess: () => toast.success(t('dash.restarted')), onError: (e) => toast.error(t('common.error'), (e as Error).message) });
   };
   const cfgText = cfg.data ? (typeof cfg.data === 'string' ? cfg.data : JSON.stringify(cfg.data, null, 2)) : '';
-  const engineOpts = VISIBLE_ENGINES.map((e) => {
+  const engineOpts = sources.map((e) => {
+    if (e === 'all') return { value: e, label: t('logs.src.all') };
+    if (e === 'panel') return { value: e, label: t('logs.src.panel'), hint: 'Veilon' };
     const c = stats.data?.cores?.find((x) => x.name === e);
     return { value: e, label: engineName(e), hint: c ? (c.enabled === false ? t('dash.engineIdle') : c.running ? t('dash.coreRunning') : t('dash.coreStopped')) : undefined };
   });
@@ -96,11 +126,9 @@ export default function LogsPage() {
         title={t('logs.title')}
         actions={
           <>
-            {engineOpts.length > 1 && (
-              <div className={s.enginePick}>
-                <Select<EngineName> value={core} onChange={setCore} options={engineOpts} ariaLabel={t('logs.engine')} />
-              </div>
-            )}
+            <div className={s.enginePick}>
+              <Select<Source> value={core} onChange={setCore} options={engineOpts} ariaLabel={t('logs.source')} />
+            </div>
             <button className="btn" onClick={() => setCfgOpen(true)}>
               <FileJson size={17} />
               {t('logs.config')}
@@ -151,17 +179,17 @@ export default function LogsPage() {
           ) : lines.length === 0 ? (
             <EmptyState kind="logs" title={t('logs.empty')} />
           ) : (
-            lines.map((l, i) => <Line key={i + l.slice(0, 30)} text={l} />)
+            lines.map((e, i) => <Line key={e.seq || `${i}:${e.t}`} e={e} showSource={core === 'all'} today={today} tz={tz} />)
           )}
           {live && <span className={s.cursor} aria-hidden="true" />}
         </div>
         <div className={s.termFoot}>
           <span>{t('logs.lines', { n: n(lines.length) })}</span>
-          <span className="mono ltr">GET /core/logs?core={core}&amp;lines=200</span>
+          <span>{t('logs.tz', { tz: tzLabel(tz) })}</span>
         </div>
       </div>
 
-      <Sheet open={cfgOpen} onClose={() => setCfgOpen(false)} title={`${t('logs.config')} · ${engineName(core)}`} width={720} headerExtra={cfgText ? <CopyButton text={cfgText} compact /> : null}>
+      <Sheet open={cfgOpen} onClose={() => setCfgOpen(false)} title={`${t('logs.config')} · ${engineName(cfgCore)}`} width={720} headerExtra={cfgText ? <CopyButton text={cfgText} compact /> : null}>
         {cfg.isPending ? <Skeleton h={400} r={16} /> : cfg.isError ? <ErrorState error={cfg.error} /> : <pre className={`${s.json} mono`} dir="ltr">{cfgText}</pre>}
       </Sheet>
     </div>

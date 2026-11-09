@@ -69,29 +69,75 @@ export function locale(lang: Lang) {
   return lang === 'fa' ? 'fa-IR-u-ca-persian' : 'en-GB';
 }
 
+/** The panel's time zone (settings), or undefined for the browser's own. */
+export function panelTz(): string | undefined {
+  return useUi.getState().tz;
+}
+
+const dfCache = new Map<string, Intl.DateTimeFormat>();
+function df(loc: string, opts: Intl.DateTimeFormatOptions) {
+  const k = loc + JSON.stringify(opts);
+  let f = dfCache.get(k);
+  if (!f) {
+    f = new Intl.DateTimeFormat(loc, opts);
+    dfCache.set(k, f);
+  }
+  return f;
+}
+
+/**
+ * Formats an absolute time. Unless opts names a timeZone, the panel's time
+ * zone (settings) is used, so every page shows the same clock whatever the
+ * browser's zone is.
+ */
 export function formatDate(lang: Lang, iso: string | Date, opts: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric' }) {
   const d = typeof iso === 'string' ? new Date(iso) : iso;
-  return plain(new Intl.DateTimeFormat(locale(lang), opts).format(d));
+  if (Number.isNaN(d.getTime())) return '—';
+  const o = 'timeZone' in opts ? opts : { ...opts, timeZone: panelTz() };
+  try {
+    return plain(df(locale(lang), o).format(d));
+  } catch {
+    return plain(df(locale(lang), { ...opts, timeZone: undefined }).format(d)); // unknown zone name: browser zone
+  }
 }
 export function formatDateTime(lang: Lang, iso: string | Date) {
-  return formatDate(lang, iso, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return formatDate(lang, iso, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 }
 export function formatTime(lang: Lang, iso: string | Date) {
-  return formatDate(lang, iso, { hour: '2-digit', minute: '2-digit' });
+  return formatDate(lang, iso, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+}
+/** "14:05:09" (or with milliseconds "14:05:09.123") in the panel's zone, Latin digits. */
+export function formatClock(iso: string | Date, ms = false, timeZone = panelTz()) {
+  const d = typeof iso === 'string' ? new Date(iso) : iso;
+  if (Number.isNaN(d.getTime())) return '';
+  const o: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZone };
+  if (ms) o.fractionalSecondDigits = 3;
+  try {
+    return df('en-GB', o).format(d);
+  } catch {
+    return df('en-GB', { ...o, timeZone: undefined }).format(d);
+  }
+}
+/** "2026-11-09" in the panel's zone (Gregorian, Latin digits; for logs). */
+export function formatIsoDay(iso: string | Date, timeZone = panelTz()) {
+  const d = typeof iso === 'string' ? new Date(iso) : iso;
+  const o: Intl.DateTimeFormatOptions = { year: 'numeric', month: '2-digit', day: '2-digit', timeZone };
+  try {
+    return df('en-CA', o).format(d);
+  } catch {
+    return df('en-CA', { ...o, timeZone: undefined }).format(d);
+  }
 }
 
 /**
  * Full date and time in the panel's time zone: "۱۷ آبان ۱۴۰۵ · ۲۲:۱۵" /
  * "17 November 2026 · 22:15".
  */
-export function formatStampParts(lang: Lang, iso: string | Date, timeZone?: string): [string, string] {
-  const day = (tz?: string) => formatDate(lang, iso, { year: 'numeric', month: 'long', day: 'numeric', timeZone: tz });
-  const hm = (tz?: string) => formatDate(lang, iso, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: tz });
-  try {
-    return [day(timeZone), hm(timeZone)];
-  } catch {
-    return [day(), hm()]; // unknown zone name: browser zone
-  }
+export function formatStampParts(lang: Lang, iso: string | Date, timeZone: string | undefined = panelTz()): [string, string] {
+  return [
+    formatDate(lang, iso, { year: 'numeric', month: 'long', day: 'numeric', timeZone }),
+    formatDate(lang, iso, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone }),
+  ];
 }
 export function formatStamp(lang: Lang, iso: string | Date, timeZone?: string) {
   return formatStampParts(lang, iso, timeZone).join(' · ');
@@ -122,6 +168,8 @@ export function formatRelative(lang: Lang, iso: string) {
 
 export function useI18n() {
   const lang = useUi((s) => s.lang);
+  // re-render (and re-format) when the panel's time zone changes
+  const tz = useUi((s) => s.tz);
   const t = useCallback<TFn>((key, vars) => translate(lang, key, vars), [lang]);
   return useMemo(
     () => ({
@@ -136,9 +184,11 @@ export function useI18n() {
       time: (v: string | Date) => formatTime(lang, v),
       duration: (ms: number) => formatDuration(lang, ms),
       relative: (iso: string) => formatRelative(lang, iso),
-      stamp: (v: string | Date, tz?: string) => formatStamp(lang, v, tz),
-      stampParts: (v: string | Date, tz?: string) => formatStampParts(lang, v, tz),
+      stamp: (v: string | Date, zone?: string) => formatStamp(lang, v, zone),
+      stampParts: (v: string | Date, zone?: string) => formatStampParts(lang, v, zone),
+      clock: (v: string | Date, ms?: boolean) => formatClock(v, ms),
+      tz,
     }),
-    [lang, t],
+    [lang, t, tz],
   );
 }

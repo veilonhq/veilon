@@ -44,6 +44,9 @@ interface UiState {
   usersView: UsersView;
   density: Density;
   paletteOpen: boolean;
+  /** The panel's time zone (settings); every absolute time is shown in it. */
+  tz: string | undefined;
+  setTz: (tz: string | undefined) => void;
   setTheme: (t: Theme) => void;
   toggleTheme: () => void;
   setLang: (l: Lang) => void;
@@ -71,6 +74,17 @@ function applyLang(l: Lang) {
   document.documentElement.dir = l === 'fa' ? 'rtl' : 'ltr';
 }
 
+/** The zone if the browser knows it, otherwise undefined (browser zone). */
+function validTz(tz: string | undefined) {
+  if (!tz) return undefined;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return tz;
+  } catch {
+    return undefined;
+  }
+}
+
 export const useUi = create<UiState>((set, getState) => {
   const theme = get('veilon.theme', 'dark') as Theme;
   const lang = initialLang();
@@ -82,6 +96,10 @@ export const useUi = create<UiState>((set, getState) => {
     usersView: get('veilon.usersView', 'cards') as UsersView,
     density: get('veilon.density', 'compact') === 'comfortable' ? 'comfortable' : 'compact',
     paletteOpen: false,
+    tz: undefined,
+    setTz: (tz) => {
+      if (tz !== getState().tz) set({ tz: validTz(tz) });
+    },
     setTheme: (t) => {
       localStorage.setItem('veilon.theme', t);
       applyTheme(t);

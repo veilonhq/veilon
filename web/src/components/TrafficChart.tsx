@@ -1,18 +1,33 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import uPlot from 'uplot';
 import type { TrafficPoint, TrafficRange } from '@/api/types';
-import { formatBytes, formatDate, formatTime } from '@/i18n';
+import { formatBytes, formatDate, formatTime, translate } from '@/i18n';
 import { useUi } from '@/store/ui';
 
 function cssVar(name: string) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-/** Stacked area history chart (download + upload) using uPlot. Always LTR: time flows left→right. */
-export function TrafficChart({ points, range, height = 240 }: { points: TrafficPoint[]; range: TrafficRange; height?: number }) {
+/** One hovered bucket: its start, end and the bytes counted in it. */
+interface Readout {
+  t: number;
+  end: number;
+  down: number;
+  up: number;
+}
+
+/**
+ * Traffic history (download and upload) with uPlot. Each point is the volume
+ * counted in one bucket (bytes), as the server returns it; buckets start on
+ * the panel's clock and the axis is drawn in the panel's time zone. Always
+ * LTR: time flows left→right.
+ */
+export function TrafficChart({ points, range, bucketSec, height = 240 }: { points: TrafficPoint[]; range: TrafficRange; bucketSec?: number; height?: number }) {
   const wrap = useRef<HTMLDivElement>(null);
   const plot = useRef<uPlot | null>(null);
-  const { lang, theme } = useUi();
+  const { lang, theme, tz } = useUi();
+  const [hover, setHover] = useState<Readout | null>(null);
+  const step = bucketSec || (points.length > 1 ? (new Date(points[1].t).getTime() - new Date(points[0].t).getTime()) / 1000 : 900);
 
   useEffect(() => {
     const el = wrap.current;
@@ -25,6 +40,7 @@ export function TrafficChart({ points, range, height = 240 }: { points: TrafficP
     const muted = cssVar('--muted');
     const line = cssVar('--line');
     const font = `12px ${lang === 'fa' ? 'Vazirmatn Variable' : 'Inter Variable'}`;
+    const daily = step >= 86_400 || range !== '24h';
 
     const fill = (u: uPlot, color: string) => {
       const g = u.ctx.createLinearGradient(0, u.bbox.top, 0, u.bbox.top + u.bbox.height);
@@ -38,8 +54,10 @@ export function TrafficChart({ points, range, height = 240 }: { points: TrafficP
       height,
       padding: [12, 8, 0, 0],
       legend: { show: false },
+      // ticks fall on the panel's clock (hours/midnights there), not the browser's
+      tzDate: tz ? (ts) => uPlot.tzDate(new Date(ts * 1000), tz) : undefined,
       cursor: { points: { size: 9, fill: (_u, i) => (i === 1 ? accent : violet) as string }, drag: { x: false, y: false } },
-      scales: { x: { time: true } },
+      scales: { x: { time: true }, y: { range: (_u, _min, max) => [0, max > 0 ? max * 1.08 : 1024] } },
       axes: [
         {
           stroke: muted,
@@ -48,7 +66,7 @@ export function TrafficChart({ points, range, height = 240 }: { points: TrafficP
           ticks: { show: false },
           gap: 8,
           size: 34,
-          values: (_u, splits) => splits.map((v) => (range === '24h' ? formatTime(lang, new Date(v * 1000)) : formatDate(lang, new Date(v * 1000), { month: 'short', day: 'numeric' }))),
+          values: (_u, splits) => splits.map((v) => (daily ? formatDate(lang, new Date(v * 1000), { month: 'short', day: 'numeric' }) : formatTime(lang, new Date(v * 1000)))),
         },
         {
           stroke: muted,
@@ -57,7 +75,7 @@ export function TrafficChart({ points, range, height = 240 }: { points: TrafficP
           gap: 6,
           grid: { stroke: line, width: 1, dash: [3, 5] },
           ticks: { show: false },
-          values: (_u, splits) => splits.map((v) => formatBytes(lang, v, 0)),
+          values: (_u, splits) => splits.map((v) => formatBytes(lang, v, v > 0 && v < 10 * 1024 ** 3 ? 1 : 0)),
         },
       ],
       series: [
@@ -65,17 +83,50 @@ export function TrafficChart({ points, range, height = 240 }: { points: TrafficP
         { label: 'down', stroke: accent, width: 2, fill: (u) => fill(u, accent), points: { show: false } },
         { label: 'up', stroke: violet, width: 2, fill: (u) => fill(u, violet), points: { show: false } },
       ],
+      hooks: {
+        setCursor: [
+          (u) => {
+            const i = u.cursor.idx;
+            if (i == null || i < 0 || i >= xs.length) return setHover(null);
+            setHover({ t: xs[i] * 1000, end: (xs[i] + step) * 1000, down: down[i], up: up[i] });
+          },
+        ],
+      },
     };
     plot.current?.destroy();
     plot.current = new uPlot(opts, [xs, down, up], el);
     const ro = new ResizeObserver(() => plot.current?.setSize({ width: el.clientWidth, height }));
     ro.observe(el);
+    const leave = () => setHover(null);
+    el.addEventListener('mouseleave', leave);
     return () => {
       ro.disconnect();
+      el.removeEventListener('mouseleave', leave);
       plot.current?.destroy();
       plot.current = null;
     };
-  }, [points, range, height, lang, theme]);
+  }, [points, range, height, lang, theme, tz, step]);
 
-  return <div ref={wrap} dir="ltr" style={{ width: '100%', minHeight: height }} role="img" aria-label="Traffic history chart" />;
+  const sum = points.reduce((a, p) => [a[0] + p.down, a[1] + p.up], [0, 0]);
+  // "18 Aban, 09:30–10:00" (time range isolated LTR so it reads the same in RTL)
+  const when = (r: Readout) => {
+    const day = formatDate(lang, new Date(r.t), { month: 'short', day: 'numeric' });
+    if (step >= 86_400) return day;
+    return `${day}، \u2066${formatTime(lang, new Date(r.t))}–${formatTime(lang, new Date(r.end))}\u2069`;
+  };
+
+  return (
+    <div>
+      <div className="num" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', fontSize: 12.5, color: 'var(--muted)', minHeight: 20, marginBottom: 6 }} aria-live="polite">
+        <span>{hover ? (lang === 'fa' ? when(hover) : when(hover).replace('،', ',')) : translate(lang, 'dash.rangeTotal')}</span>
+        <span style={{ color: 'var(--accent)' }}>
+          ↓ <bdi>{formatBytes(lang, hover ? hover.down : sum[0])}</bdi>
+        </span>
+        <span style={{ color: 'var(--violet)' }}>
+          ↑ <bdi>{formatBytes(lang, hover ? hover.up : sum[1])}</bdi>
+        </span>
+      </div>
+      <div ref={wrap} dir="ltr" style={{ width: '100%', minHeight: height }} role="img" aria-label="Traffic history chart" />
+    </div>
+  );
 }

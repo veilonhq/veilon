@@ -110,6 +110,7 @@ const en: Record<MessageKey, string> = {
   'dash.range.24h': '24h',
   'dash.range.7d': '7 days',
   'dash.range.30d': '30 days',
+  'dash.rangeTotal': 'Total in range',
   'dash.quick': 'Shortcuts',
   'dash.newUser': 'New user',
   'dash.newInbound': 'New inbound',
@@ -390,6 +391,10 @@ const en: Record<MessageKey, string> = {
   'logs.level.info': 'Info',
   'logs.level.warning': 'Warning',
   'logs.level.error': 'Error',
+  'logs.source': 'Source',
+  'logs.src.all': 'All sources',
+  'logs.src.panel': 'Panel',
+  'logs.tz': 'Times in {tz}',
 
   'cmd.placeholder': 'Type a command or a username…',
   'cmd.pages': 'Pages',

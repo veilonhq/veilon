@@ -3,7 +3,7 @@ import { Languages, LogOut, Moon, MoreHorizontal, Search, Sun, UserRound } from 
 import { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { useStats } from '@/api/hooks';
+import { useStats, useSyncPanelTz } from '@/api/hooks';
 import { useI18n } from '@/i18n';
 import { useSession } from '@/store/session';
 import { useUi } from '@/store/ui';
@@ -289,6 +289,7 @@ export function Shell({ onReady, fallback }: { onReady?: () => void; fallback?: 
   const { t } = useI18n();
   const loc = useLocation();
   const setPalette = useUi((x) => x.setPalette);
+  useSyncPanelTz();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {

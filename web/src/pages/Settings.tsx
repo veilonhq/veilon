@@ -1,5 +1,5 @@
 import { AlertTriangle, AtSign, Check, KeyRound, Loader2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useCerts, useChangePassword, useSaveSettings, useSettings, useUpdateMe } from '@/api/hooks';
 import { ApiError } from '@/api/client';
@@ -8,7 +8,7 @@ import type { Settings } from '@/api/types';
 import { ThemeLangToggles } from '@/components/Shell';
 import { ErrorState, Field, PageHeader, PasswordInput, Section, Skeleton, Switch } from '@/components/misc';
 import { can } from '@/lib/perms';
-import { useI18n } from '@/i18n';
+import { translate, useI18n } from '@/i18n';
 import { toast } from '@/store/feedback';
 import { useUi } from '@/store/ui';
 import { IS_MOCK } from '@/app/base';
@@ -48,13 +48,27 @@ export default function SettingsPage() {
   const q = useSettings();
   const certs = useCerts();
   const save = useSaveSettings();
-  const applyDefaultLang = useUi((x) => x.applyDefaultLang);
+  const setLang = useUi((x) => x.setLang);
+  const setTz = useUi((x) => x.setTz);
   const [draft, setDraft] = useState<Settings | null>(null);
+  const base = useRef<Settings | null>(null);
   const tzOptions = useTzOptions(draft?.timezone);
   const mayEdit = can(useSession((x) => x.admin), 'settings');
 
+  // New server values replace the draft field by field; a field the admin
+  // is still editing (changed from the previous server value) is kept.
   useEffect(() => {
-    if (q.data) setDraft(q.data);
+    if (!q.data) return;
+    const prev = base.current;
+    base.current = q.data;
+    setDraft((d) => {
+      if (!d || !prev) return q.data!;
+      const out = { ...q.data! };
+      (Object.keys(d) as Array<keyof Settings>).forEach((k) => {
+        if (d[k] !== prev[k]) (out as Record<string, unknown>)[k] = d[k];
+      });
+      return out;
+    });
   }, [q.data]);
   const loc = useLocation();
   const ready = !!draft;
@@ -75,12 +89,32 @@ export default function SettingsPage() {
     save.mutate(patch, {
       onSuccess: (st) => {
         toast.success(t('set.saved'));
-        if (patch.language && (st.language === 'fa' || st.language === 'en')) applyDefaultLang(st.language);
+        if (patch.language && (st.language === 'fa' || st.language === 'en')) setLang(st.language);
+        if (patch.timezone) setTz(st.timezone || 'UTC');
         // a panel_path change applies immediately: the UI must move to the new path
         if (patch.panel_path && st.panel_path && !IS_MOCK) window.location.assign(`/${st.panel_path}/settings`);
       },
       onError: (x) => toast.error(t('common.error'), (x as Error).message),
     });
+  };
+
+  // The default language applies at once: the UI switches now (this browser
+  // keeps it) and the panel default is saved without waiting for Save.
+  const pickLanguage = (v: 'fa' | 'en') => {
+    set('language', v);
+    setLang(v);
+    if (!q.data || q.data.language === v) return;
+    save.mutate(
+      { language: v },
+      {
+        onSuccess: () => toast.success(translate(v, 'set.saved')),
+        onError: (x) => {
+          set('language', q.data!.language);
+          setLang(q.data!.language);
+          toast.error(translate(q.data!.language, 'common.error'), (x as Error).message);
+        },
+      },
+    );
   };
 
   if (q.isError) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
@@ -177,7 +211,7 @@ export default function SettingsPage() {
                 <Field label={t('set.language')} hint={t('set.languageHint')}>
                   <Select<'fa' | 'en'>
                     value={draft.language}
-                    onChange={(v) => set('language', v)}
+                    onChange={pickLanguage}
                     ariaLabel={t('set.language')}
                     options={[
                       { value: 'fa', label: 'فارسی' },

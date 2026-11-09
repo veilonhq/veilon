@@ -109,6 +109,7 @@ const fa = {
   'dash.range.24h': '۲۴ ساعت',
   'dash.range.7d': '۷ روز',
   'dash.range.30d': '۳۰ روز',
+  'dash.rangeTotal': 'کل این بازه',
   'dash.quick': 'میان بُرها',
   'dash.newUser': 'کاربر جدید',
   'dash.newInbound': 'ورودی جدید',
@@ -389,6 +390,10 @@ const fa = {
   'logs.level.info': 'اطلاعات',
   'logs.level.warning': 'هشدار',
   'logs.level.error': 'خطا',
+  'logs.source': 'منبع',
+  'logs.src.all': 'همه منابع',
+  'logs.src.panel': 'پنل',
+  'logs.tz': 'زمان ها به وقت {tz}',
 
   'cmd.placeholder': 'دستور یا نام کاربر را بنویسید…',
   'cmd.pages': 'صفحه ها',

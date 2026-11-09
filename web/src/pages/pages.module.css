@@ -980,20 +980,22 @@ html[lang='fa'] .termSearch input:placeholder-shown {
     line-height: 1.6;
     padding: 10px 8px;
   }
+  /* time and source on one row, the message below */
   .logLine {
-    flex-direction: column;
-    gap: 0;
+    flex-wrap: wrap;
+    column-gap: 10px;
+    row-gap: 0;
     padding-block: 3px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   }
-  .logLine {
-    gap: 8px;
+  .logText {
+    flex-basis: 100%;
   }
   .levels {
     order: 5;
   }
-  .termFoot span:last-child {
-    display: none;
+  .termFoot {
+    flex-wrap: wrap;
   }
 }
 
@@ -1235,4 +1237,13 @@ html[lang='fa'] .termSearch input:placeholder-shown {
 .permList > .switchCard {
   padding: 11px 14px;
   border-radius: 16px;
+}
+.logMs {
+  opacity: 0.55;
+}
+.logSrc {
+  flex: none;
+  min-width: 5.5ch;
+  color: #7fd4ff;
+  opacity: 0.8;
 }
