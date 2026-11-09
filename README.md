@@ -28,8 +28,11 @@ Veilon یک پنل مدیریت پروکسی رایگان و متن باز اس�
 - **مدیریت کاربران:** سقف حجم، تاریخ انقضا، شروع انقضا از اولین اتصال، ریست دوره ای حجم (روزانه، هفتگی، ماهانه)، وضعیت آنلاین و آخرین اتصال، عملیات گروهی
 - **لینک اشتراک** برای v2rayNG، Hiddify، Streisand، sing-box و Clash، به همراه کد QR و فایل `.conf` برای WireGuard و AmneziaWG
 - **ورودی ها (Inbounds):** ساخت با راهنمای مرحله به مرحله؛ پورت و نام هر ورودی یکتاست و پنل همان لحظه هشدار می دهد
-- **داشبورد زنده:** ترافیک لحظه ای، کاربران آنلاین، مصرف CPU، حافظه و دیسک، وضعیت هسته Xray
-- **محدودیت های هر کاربر:** تعداد IP همزمان، تعداد دستگاه (HWID)، سرعت دانلود و آپلود جدا، سقف حجم روزانه، ضریب مصرف، مسدود کردن تورنت، بازه زمانی مجاز (ساعت و روزهای هفته به وقت تهران)؛ برای TUIC هم کار می کند
+- **داشبورد زنده:** ترافیک لحظه ای واقعی کارت شبکه، کاربران آنلاین، مصرف CPU، حافظه و دیسک؛ مجموع ترافیک برابر با جمع مصرف کاربران است
+- **کنترل هسته Xray از داشبورد:** روشن و خاموش کردن هسته (خاموش بودن بعد از ری استارت پنل هم می ماند)، انتخاب و نصب هر نسخه Xray از لیست نسخه های رسمی (با بررسی فایل و برگشت خودکار در صورت خطا) و به روزرسانی فایل های geo
+- **منطقه زمانی پنل:** همه تاریخ ها، نمودارها، ریست های دوره ای و بازه های زمانی کاربران به وقت منطقه زمانی انتخابی در تنظیمات (مثلا تهران؛ پیش فرض UTC)
+- **لاگ ها:** لاگ Xray، هسته های دیگر و خود پنل، جدا یا همه با هم، با زمان دقیق هر خط و سطح (info، warning، error)
+- **محدودیت های هر کاربر:** تعداد IP همزمان، تعداد دستگاه (HWID)، سرعت دانلود و آپلود جدا، سقف حجم روزانه، ضریب مصرف، مسدود کردن تورنت، بازه زمانی مجاز (ساعت و روزهای هفته به وقت منطقه زمانی پنل)؛ برای TUIC هم کار می کند
 - **گزارش اتصال ها:** IP ها و دستگاه های هر کاربر با اولین و آخرین زمان دیده شدن، و مسدود یا آزاد کردن هر IP یا دستگاه
 - **گروه ها:** گروه بسازید، کاربران را در گروه بگذارید، برای گروه ورودی ها و مقادیر پیش فرض تعیین کنید و مسدودسازی تبلیغات را روشن کنید
 - **چند مدیر با دسترسی جدا:** مدیر اصلی و مدیران زیرمجموعه؛ برای هر مدیر دیدن، ساختن، ویرایش و حذف کاربران و دسترسی به بخش ها جدا روشن یا خاموش می شود، به همراه سقف تعداد کاربر و حجم؛ ثبت رویدادها (Audit log)
@@ -99,7 +102,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer
 برای نصب یک نسخه مشخص:
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer/install.sh) v0.1.0
+bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer/install.sh) v0.2.0
 ```
 
 اگر `curl` نصب نیست:
@@ -210,6 +213,9 @@ veilon cert list
 6. **گروه ها (اختیاری):** در بخش **گروه ها** یک گروه بسازید، ورودی ها و مقادیر پیش فرض آن را تعیین کنید و هنگام ساخت کاربر، گروه را انتخاب کنید.
 7. **مدیران (اختیاری):** در بخش **مدیران** مدیر جدید بسازید و برای او مشخص کنید چه کارهایی مجاز است (مثلا فقط دیدن کاربران). دکمه هایی که مدیر اجازه آن را ندارد در پنل نمایش داده نمی شوند.
 8. **TUIC:** در ورودی جدید پروتکل TUIC را انتخاب کنید (به گواهی TLS نیاز دارد، بخش SSL را ببینید). محدودیت های کاربر برای TUIC هم اعمال می شوند.
+9. **هسته Xray:** در کارت هسته در **داشبورد** می توانید هسته را خاموش و روشن کنید، روی شماره نسخه بزنید و نسخه دیگری نصب کنید، یا فایل های geo را به روز کنید.
+10. **منطقه زمانی:** در **تنظیمات** منطقه زمانی پنل را انتخاب کنید (مثلا تهران؛ پیش فرض UTC). زمان لاگ ها، نمودار ترافیک و ریست های روزانه، هفتگی و ماهانه طبق آن است.
+11. **لاگ ها:** در بخش **لاگ ها** منبع را انتخاب کنید (Xray، پنل یا همه) تا هر خط را با زمان دقیق ببینید.
 
 ## اتصال با برنامه های کلاینت
 
@@ -343,8 +349,11 @@ Veilon is a free, open-source proxy panel. One Go binary serves the web UI, the 
 - **Users:** data cap, expiry, expiry starting at first connection, periodic data reset (daily, weekly, monthly), online status and last connection, bulk actions
 - **Subscriptions** for v2rayNG, Hiddify, Streisand, sing-box and Clash, with QR codes and `.conf` files for WireGuard and AmneziaWG
 - **Inbounds:** step-by-step wizard; inbound ports and names are unique and checked live
-- **Live dashboard:** real-time traffic, online users, CPU, memory and disk, Xray core status
-- **Per-user limits:** concurrent IPs, devices (HWID), separate download and upload speed, daily data cap, traffic multiplier, torrent blocking, allowed time window (hours and weekdays, Tehran time); TUIC included
+- **Live dashboard:** real network traffic of the server, online users, CPU, memory and disk; the traffic total equals the sum of user usage
+- **Xray core control from the dashboard:** switch the core on or off (stays off across panel restarts), pick and install any official Xray release (verified download, automatic rollback on failure), update geo files
+- **Panel timezone:** every date, chart, periodic reset and user time window follows the timezone chosen in Settings (e.g. Tehran; default UTC)
+- **Logs:** Xray, the other engines and the panel itself, one source or all merged, with the exact time and level (info, warning, error) of every line
+- **Per-user limits:** concurrent IPs, devices (HWID), separate download and upload speed, daily data cap, traffic multiplier, torrent blocking, allowed time window (hours and weekdays, in the panel timezone); TUIC included
 - **Connection log:** each user's IPs and devices with first and last seen, block or unblock any IP or device
 - **Groups:** create groups, put users in them, set a group's inbounds and defaults, turn on ad blocking
 - **Multiple admins with permissions:** per sub-admin toggles for viewing, creating, editing and deleting users and for each panel area, plus user and traffic quotas; audit log
@@ -399,7 +408,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer
 A specific release:
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer/install.sh) v0.1.0
+bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer/install.sh) v0.2.0
 ```
 
 5. Answer the questions (Enter accepts the default): panel port (random free port), admin username (`admin`), admin password (random), panel path (random), then the certificate: `1` domain, `2` server IP (recommended without a domain), `3` skip (plain HTTP).
@@ -463,6 +472,9 @@ veilon cert issue --ip auto --panel
 6. **Groups (optional):** create a group under **Groups**, set its inbounds and defaults, and pick it when creating users.
 7. **Admins (optional):** create a sub-admin under **Admins** and choose what it may do (e.g. only view users). Buttons an admin may not use are hidden.
 8. **TUIC:** pick TUIC in the inbound wizard (needs a TLS certificate, see SSL). User limits apply to TUIC as well.
+9. **Xray core:** the core card on the **Dashboard** switches the core on or off, installs another version (tap the version number) and updates the geo files.
+10. **Timezone:** choose the panel timezone in **Settings** (e.g. Tehran; default UTC). Log times, the traffic chart and daily, weekly and monthly resets follow it.
+11. **Logs:** pick a source (Xray, panel or all) under **Logs** to see every line with its exact time.
 
 ## Client apps
 

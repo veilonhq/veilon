@@ -315,7 +315,7 @@ function logLine() {
   return `${ts}[Error] [${Math.floor(rnd() * 4e9)}] proxy/vless/inbound: invalid request from ${ip}: invalid user > not found`;
 }
 for (let i = 0; i < 120; i++) addLog(logLine(), 'xray', now() - (120 - i) * 1700 - Math.floor(rnd() * 900));
-addLog('Veilon 0.1.0 listening on :2053', 'panel', now() - 210_000);
+addLog('Veilon 0.2.0 listening on :2053', 'panel', now() - 210_000);
 
 function addAudit(action: string, target: string) {
   audit.unshift({ id: (audit[0]?.id ?? 0) + 1, admin: 'root', action, target, ip: '127.0.0.1', created_at: iso(now()) });
