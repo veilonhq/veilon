@@ -287,6 +287,8 @@ let settings: Settings = {
 
 let coreStarted = now() - 3 * DAY - 4 * 3_600_000;
 let coreRunning = true;
+let xrayStopped = false;
+let xrayVersion = '26.10.31';
 let totalUp = 412 * GB;
 let totalDown = 3.86 * 1024 * GB;
 let lastUp = 2_400_000;
@@ -319,13 +321,14 @@ function recount() {
 recount();
 
 function coresInfo() {
-  const versions: Record<string, string> = { xray: '26.10.31', 'sing-box': '1.14.4', mtg: '1.15.0', amneziawg: '0.2.15' };
+  const versions: Record<string, string> = { xray: xrayVersion, 'sing-box': '1.14.4', mtg: '1.15.0', amneziawg: '0.2.15' };
   return (['xray', 'sing-box', 'mtg', 'amneziawg'] as const).map((name) => {
     const ibs = inbounds.filter((i) => i.enabled && engineOf(i.protocol) === name);
     const enabled = name === 'xray' || ibs.length > 0;
     const warnings = name === 'xray' && inbounds.some((i) => i.protocol === 'tun' && i.enabled) ? ['TUN · Office subnets: CAP_NET_ADMIN is missing; inbound skipped'] : [];
     return {
-      name, version: versions[name], running: enabled && coreRunning, started_at: enabled && coreRunning ? iso(coreStarted) : null, enabled,
+      name, version: versions[name], running: enabled && coreRunning && !(name === 'xray' && xrayStopped), started_at: enabled && coreRunning && !(name === 'xray' && xrayStopped) ? iso(coreStarted) : null, enabled,
+      stopped: name === 'xray' && xrayStopped,
       protocols: [...new Set(ibs.map((i) => i.protocol))], instances: name === 'mtg' ? ibs.length : enabled ? 1 : 0, warnings,
     };
   });
@@ -519,6 +522,30 @@ function route(method: string, path: string, q: URLSearchParams, body: Body): un
     addAudit('core.restart', '—');
     logLines.push(`${new Date().toISOString()} [Warning] core: Xray 25.10.15 started`);
     return { ok: true };
+  }
+  if (path === '/core/start' || path === '/core/stop') {
+    xrayStopped = path === '/core/stop';
+    coreStarted = now();
+    addAudit(xrayStopped ? 'core.stop' : 'core.start', 'xray');
+    return { ok: true, status: coresInfo()[0] };
+  }
+  if (path === '/core/xray') {
+    return { status: coresInfo()[0], job: null, geo: [{ name: 'geoip.dat', size: 19_800_000, updated_at: iso(now() - 9 * DAY) }, { name: 'geosite.dat', size: 9_100_000, updated_at: iso(now() - 9 * DAY) }] };
+  }
+  if (path === '/core/xray/releases') {
+    const tags = ['v26.11.9', 'v26.10.31', 'v26.10.21', 'v26.9.30', 'v26.9.9', 'v26.7.28', 'v26.7.11', 'v26.6.27'];
+    return { releases: tags.map((tag, i) => ({ tag, prerelease: false, published_at: iso(now() - (i * 12 + 1) * DAY) })), fetched_at: iso(now()), stale: false };
+  }
+  if (path === '/core/xray/install') {
+    const v = String((body as { version?: string } | undefined)?.version ?? '');
+    xrayVersion = v.replace(/^v/, '');
+    coreStarted = now();
+    addAudit('core.install', 'xray ' + v);
+    return { ok: true, job: { kind: 'install', version: v, running: false, started_at: iso(now()), finished_at: iso(now()) } };
+  }
+  if (path === '/core/xray/geo') {
+    addAudit('core.geo_update', 'xray');
+    return { ok: true, job: { kind: 'geo', running: false, started_at: iso(now()), finished_at: iso(now()) } };
   }
   if (path === '/core/logs' && q.get('core') && q.get('core') !== 'xray') {
     const c = q.get('core')!;

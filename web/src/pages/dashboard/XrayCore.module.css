@@ -1,0 +1,43 @@
+.power {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  margin-block: 2px 4px;
+  cursor: pointer;
+}
+.power :global(.switch):disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.version {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.versionLabel {
+  flex: none;
+}
+.versionLabel {
+  white-space: nowrap;
+}
+.versionSelect {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 0;
+  max-width: 170px;
+}
+.note {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--muted);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

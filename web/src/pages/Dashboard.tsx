@@ -1,19 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArrowDown, ArrowUp, Plus, RotateCw, ScrollText, Waypoints } from 'lucide-react';
+import { ArrowDown, ArrowUp, Plus, ScrollText, Waypoints } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '@/api/client';
-import { useRestartCore, useStats, useTraffic } from '@/api/hooks';
+import { useStats, useTraffic } from '@/api/hooks';
 import type { Paged, TrafficRange, User } from '@/api/types';
 import { TrafficChart } from '@/components/TrafficChart';
 import { ErrorState, Skeleton } from '@/components/misc';
 import { ArcGauge, CorePulse, CountUp, OnlineOrbit, Waveform } from '@/components/viz';
 import { splitBytes, useI18n } from '@/i18n';
-import { confirmAction, toast } from '@/store/feedback';
 import { useSession } from '@/store/session';
 import { useUi } from '@/store/ui';
 import type { CoreInfo } from '@/api/types';
 import { VISIBLE_ENGINES, engineName } from '@/lib/protocols';
+import { CoreActions, CorePowerSwitch, CoreVersionField } from './dashboard/XrayCore';
 import s from './Dashboard.module.css';
 
 const SAMPLES = 42;
@@ -71,7 +71,6 @@ export default function DashboardPage() {
   const stats = useStats(2000);
   const [range, setRange] = useState<TrafficRange>('24h');
   const traffic = useTraffic(range);
-  const restart = useRestartCore();
   const online = useQuery({
     queryKey: ['users', 'online-sample'],
     queryFn: () => api<Paged<User>>('/users', { query: { status: 'active', per_page: 80, sort: '-used_traffic' } }),
@@ -80,15 +79,6 @@ export default function DashboardPage() {
   const d = stats.data;
   const wave = useWaveBuffer(d?.net_up_bps, d?.net_down_bps);
   const onlineNames = (online.data?.items ?? []).filter((u) => u.online).map((u) => u.username);
-
-  const doRestart = async () => {
-    const ok = await confirmAction({ title: t('dash.restartConfirm'), body: t('dash.restartBody'), confirmLabel: t('dash.restart') });
-    if (!ok) return;
-    restart.mutate(undefined, {
-      onSuccess: () => toast.success(t('dash.restarted')),
-      onError: (e) => toast.error(t('common.error'), (e as Error).message),
-    });
-  };
 
   if (stats.isError && !d) return <ErrorState error={stats.error} onRetry={() => stats.refetch()} />;
 
@@ -166,11 +156,10 @@ export default function DashboardPage() {
                 {t('dash.core')}
               </h2>
               <strong className={`display ${s.coreState} ${d?.core.running ? s.on : s.off}`}>
-                {d ? (d.core.running ? t('dash.coreRunning') : t('dash.coreStopped')) : '—'}
+                {d ? (d.core.running ? t('dash.coreRunning') : d.core.stopped ? t('xray.off') : t('dash.coreStopped')) : '—'}
               </strong>
-              <span className={s.meta}>
-                {t('dash.version')} <span className="num ltr">{d?.core.version ?? '—'}</span>
-              </span>
+              <CorePowerSwitch core={d?.core} />
+              <CoreVersionField core={d?.core} />
               {d?.core.running && d.core.started_at && <span className={s.meta}>{t('dash.coreSince', { time: duration(Date.now() - new Date(d.core.started_at).getTime()) })}</span>}
               {d?.core.error && (
                 <span className={s.coreErr} title={d.core.error}>
@@ -196,10 +185,7 @@ export default function DashboardPage() {
               );
             })}
           </ul>
-          <button className="btn btn--sm" onClick={doRestart} disabled={restart.isPending}>
-            <RotateCw size={15} className={restart.isPending ? 'spin' : undefined} />
-            {restart.isPending ? t('dash.restarting') : t('dash.restart')}
-          </button>
+          <CoreActions core={d?.core} />
         </section>
 
         {/* ONLINE ORBIT */}

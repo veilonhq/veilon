@@ -1,0 +1,185 @@
+import { Globe, Power, RotateCw } from 'lucide-react';
+import { useEffect, useMemo, useRef } from 'react';
+import { useRestartCore } from '@/api/hooks';
+import type { CoreInfo } from '@/api/types';
+import { useCorePower, useInstallXray, useUpdateGeo, useXrayInfo, useXrayReleases } from '@/api/xray';
+import { Select, type SelectOption } from '@/components/Select';
+import { useI18n } from '@/i18n';
+import { confirmAction, toast } from '@/store/feedback';
+import s from './XrayCore.module.css';
+
+/** "v26.10.31" → [26, 10, 31] */
+function verParts(v: string) {
+  return v
+    .replace(/^v/, '')
+    .split(/[.-]/)
+    .map((x) => parseInt(x, 10))
+    .filter((x) => !Number.isNaN(x));
+}
+function cmpVer(a: string, b: string) {
+  const x = verParts(a);
+  const y = verParts(b);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const d = (x[i] ?? 0) - (y[i] ?? 0);
+    if (d) return d;
+  }
+  return 0;
+}
+const tagOf = (v?: string) => (v ? (v.startsWith('v') ? v : `v${v}`) : '');
+
+/** On/off switch for the Xray core. A switched-off core stays off until switched on. */
+export function CorePowerSwitch({ core }: { core?: CoreInfo }) {
+  const { t } = useI18n();
+  const power = useCorePower();
+  const on = !!core && !core.stopped;
+  const toggle = async () => {
+    if (!core) return;
+    if (on) {
+      const ok = await confirmAction({ title: t('xray.stopConfirm'), body: t('xray.stopBody'), confirmLabel: t('xray.stop'), danger: true });
+      if (!ok) return;
+    }
+    power.mutate(!on, {
+      onSuccess: () => toast.success(on ? t('xray.stopped') : t('xray.started')),
+      onError: (e) => toast.error(t('common.error'), (e as Error).message),
+    });
+  };
+  return (
+    <label className={s.power}>
+      <Power size={14} aria-hidden="true" />
+      <span>{on ? t('xray.on') : t('xray.off')}</span>
+      <button
+        type="button"
+        role="switch"
+        className="switch"
+        aria-checked={on}
+        aria-label={t('xray.power')}
+        disabled={!core || power.isPending || !!core.busy}
+        onClick={toggle}
+      />
+    </label>
+  );
+}
+
+/** The version line as a picker: choosing a release installs it. */
+export function CoreVersionField({ core }: { core?: CoreInfo }) {
+  const { t, duration } = useI18n();
+  const releases = useXrayReleases();
+  const info = useXrayInfo(!!core?.busy);
+  const install = useInstallXray();
+  const current = tagOf(core?.version);
+  const job = info.data?.job;
+  const installing = (job?.running && job.kind === 'install') || core?.busy === 'install';
+
+  const options = useMemo<SelectOption<string>[]>(() => {
+    const list = releases.data?.releases ?? [];
+    const opts: SelectOption<string>[] = list.map((r) => ({
+      value: r.tag,
+      label: r.tag,
+      text: r.tag,
+      // the current version is marked by the list's check; a hint here would also crowd the trigger
+      hint: r.prerelease && r.tag !== current ? t('xray.prerelease') : undefined,
+    }));
+    if (current && !list.some((r) => r.tag === current)) opts.unshift({ value: current, label: current, text: current });
+    return opts;
+  }, [releases.data, current, t]);
+
+  const choose = async (tag: string) => {
+    if (!tag || tag === current) return;
+    const older = !!current && cmpVer(tag, current) < 0;
+    const ok = await confirmAction({
+      title: t('xray.installConfirm', { v: tag }),
+      body: older ? t('xray.installOlder') : t('xray.installBody'),
+      confirmLabel: t('xray.install'),
+      danger: older,
+    });
+    if (!ok) return;
+    install.mutate(tag, {
+      onSuccess: () => toast.info(t('xray.installing', { v: tag })),
+      onError: (e) => toast.error(t('common.error'), (e as Error).message),
+    });
+  };
+
+  const limitedFor = releases.data?.rate_limited_until ? new Date(releases.data.rate_limited_until).getTime() - Date.now() : 0;
+  let note: string | null = null;
+  if (installing) note = t('xray.installing', { v: job?.version ?? '' });
+  else if (limitedFor > 0) note = t('xray.rateLimited', { time: duration(limitedFor) });
+  else if (releases.isError) note = t('xray.releasesError');
+
+  return (
+    <div className={s.version}>
+      <span className={s.versionLabel}>{t('dash.version')}</span>
+      <Select<string>
+        ltr
+        mono
+        className={s.versionSelect}
+        value={current || null}
+        placeholder="—"
+        onChange={choose}
+        options={options}
+        ariaLabel={t('xray.chooseVersion')}
+        disabled={!core || installing || install.isPending}
+      />
+      {note && <span className={s.note}>{note}</span>}
+    </div>
+  );
+}
+
+/** Restart and geo-file update buttons, plus toasts when a background job ends. */
+export function CoreActions({ core }: { core?: CoreInfo }) {
+  const { t, date } = useI18n();
+  const restart = useRestartCore();
+  const geo = useUpdateGeo();
+  const info = useXrayInfo(!!core?.busy);
+  const job = info.data?.job;
+  const geoRunning = (job?.running && job.kind === 'geo') || core?.busy === 'geo';
+  const stopped = !!core?.stopped;
+
+  // Announce the outcome of a job that was seen running.
+  const seen = useRef<string | null>(null);
+  useEffect(() => {
+    if (!job) return;
+    const key = `${job.kind}:${job.started_at}`;
+    if (job.running) {
+      seen.current = key;
+      return;
+    }
+    if (seen.current !== key) return;
+    seen.current = null;
+    if (job.error) {
+      toast.error(job.kind === 'install' ? t('xray.installFailed') : t('xray.geoFailed'), job.rolled_back ? `${job.error} — ${t('xray.rolledBack')}` : job.error);
+    } else {
+      toast.success(job.kind === 'install' ? t('xray.installed', { v: job.version ?? '' }) : t('xray.geoUpdated'));
+    }
+  }, [job, t]);
+
+  const doRestart = async () => {
+    const ok = await confirmAction({ title: t('dash.restartConfirm'), body: t('dash.restartBody'), confirmLabel: t('dash.restart') });
+    if (!ok) return;
+    restart.mutate(undefined, {
+      onSuccess: () => toast.success(t('dash.restarted')),
+      onError: (e) => toast.error(t('common.error'), (e as Error).message),
+    });
+  };
+  const doGeo = async () => {
+    const ok = await confirmAction({ title: t('xray.geoConfirm'), body: t('xray.geoBody'), confirmLabel: t('xray.geoUpdate') });
+    if (!ok) return;
+    geo.mutate(undefined, {
+      onSuccess: () => toast.info(t('xray.geoUpdating')),
+      onError: (e) => toast.error(t('common.error'), (e as Error).message),
+    });
+  };
+  const geoDate = info.data?.geo?.find((g) => g.name === 'geosite.dat')?.updated_at;
+
+  return (
+    <div className={s.actions}>
+      <button className="btn btn--sm" onClick={doRestart} disabled={restart.isPending || stopped || !!core?.busy} title={stopped ? t('xray.restartOff') : undefined}>
+        <RotateCw size={15} className={restart.isPending ? 'spin' : undefined} />
+        {restart.isPending ? t('dash.restarting') : t('dash.restart')}
+      </button>
+      <button className="btn btn--sm" onClick={doGeo} disabled={geo.isPending || geoRunning || !!core?.busy} title={geoDate ? t('xray.geoDate', { date: date(geoDate) }) : undefined}>
+        <Globe size={15} className={geoRunning ? 'spin' : undefined} />
+        {geoRunning ? t('xray.geoUpdating') : t('xray.geoUpdate')}
+      </button>
+    </div>
+  );
+}

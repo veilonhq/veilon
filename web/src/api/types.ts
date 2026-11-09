@@ -57,6 +57,10 @@ export interface CoreInfo {
   instances?: number;
   /** inbounds the engine had to leave out (e.g. TUN without CAP_NET_ADMIN) */
   warnings?: string[];
+  /** switched off by an admin; stays off until switched on */
+  stopped?: boolean;
+  /** a running maintenance job ("install" | "geo") */
+  busy?: string;
 }
 
 export interface SystemStats {
