@@ -99,6 +99,9 @@ func (e *ConflictError) Error() string { return e.Msg }
 
 func verr(format string, a ...any) error { return &ValidationError{Msg: fmt.Sprintf(format, a...)} }
 
+// RealityFingerprints are the client fingerprints that work with Reality.
+var RealityFingerprints = []string{"chrome", "firefox", "safari"}
+
 func in(s string, list []string) bool {
 	for _, x := range list {
 		if x == s {
@@ -343,6 +346,9 @@ func Normalize(v *View) error {
 		r.ShortIDs = sids
 		if r.Fingerprint == "" {
 			r.Fingerprint = "chrome"
+		}
+		if !in(r.Fingerprint, RealityFingerprints) {
+			return verr("reality.fingerprint must be one of %s", strings.Join(RealityFingerprints, ", "))
 		}
 		if r.SpiderX == "" {
 			r.SpiderX = "/"

@@ -12,7 +12,9 @@ type obj = map[string]any
 func SingboxSupported(p *Proxy) bool {
 	switch p.Protocol {
 	case "vless", "vmess", "trojan", "shadowsocks":
-		return p.Network != "xhttp"
+		// sing-box cannot complete a handshake with current Xray Reality
+		// servers, so Reality entries are left out of its config.
+		return p.Network != "xhttp" && p.Security != "reality"
 	case inbounds.Hysteria, inbounds.TUIC, inbounds.HTTP, inbounds.Mixed, inbounds.WireGuard:
 		return true
 	}

@@ -171,11 +171,8 @@ func TestSingbox(t *testing.T) {
 	if _, ok := byTag["VL XHTTP"]; ok {
 		t.Fatal("xhttp should be skipped for sing-box")
 	}
-	vl := byTag["VL Reality"]
-	tls := vl["tls"].(map[string]any)
-	reality := tls["reality"].(map[string]any)
-	if vl["type"] != "vless" || vl["flow"] != "xtls-rprx-vision" || reality["public_key"] != "PUBKEY" || reality["short_id"] != "abcd" || tls["server_name"] != "www.example.com" {
-		t.Fatalf("bad vless outbound %v", vl)
+	if _, ok := byTag["VL Reality"]; ok {
+		t.Fatal("reality should be skipped for sing-box")
 	}
 	if byTag["VL HU"]["transport"].(map[string]any)["type"] != "httpupgrade" {
 		t.Fatal("httpupgrade transport missing")
@@ -184,7 +181,7 @@ func TestSingbox(t *testing.T) {
 		t.Fatal("ss2022 password wrong")
 	}
 	sel := byTag["proxy"]["outbounds"].([]any)
-	if sel[0] != "auto" || len(sel) != 7 { // auto + 6 supported
+	if sel[0] != "auto" || len(sel) != 6 { // auto + 5 supported
 		t.Fatalf("selector %v", sel)
 	}
 }
@@ -207,7 +204,7 @@ func TestClash(t *testing.T) {
 	}
 	vl := cfg.Proxies[0]
 	ro := vl["reality-opts"].(map[string]any)
-	if vl["type"] != "vless" || vl["tls"] != true || vl["servername"] != "www.example.com" || ro["public-key"] != "PUBKEY" || vl["client-fingerprint"] != "firefox" {
+	if vl["type"] != "vless" || vl["tls"] != true || vl["servername"] != "www.example.com" || ro["public-key"] != "PUBKEY" || ro["support-x25519mlkem768"] != true || vl["client-fingerprint"] != "chrome" {
 		t.Fatalf("bad vless %v", vl)
 	}
 	tr := cfg.Proxies[2]

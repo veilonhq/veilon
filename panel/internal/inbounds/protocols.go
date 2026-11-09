@@ -392,6 +392,9 @@ func normalizeProtocol(v *View) error {
 		if !ifaceRe.MatchString(s.TunName) {
 			return verr("settings.tun_name must be 1-15 letters, digits, - or _")
 		}
+		if reservedTunName(s.TunName) {
+			return verr("settings.tun_name must not start with vt-, ve-, vb-, vz- or be host0 (reserved by the host)")
+		}
 		s.MTU = src.MTU
 		if s.MTU == 0 {
 			s.MTU = 1500
@@ -520,4 +523,19 @@ func normalizeProtocol(v *View) error {
 	}
 	v.Settings = s
 	return nil
+}
+
+// reservedTunName reports interface names the host's container and
+// virtualization tooling owns.
+func reservedTunName(n string) bool {
+	l := strings.ToLower(n)
+	if l == "host0" {
+		return true
+	}
+	for _, p := range []string{"vt-", "ve-", "vb-", "vz-"} {
+		if strings.HasPrefix(l, p) {
+			return true
+		}
+	}
+	return false
 }

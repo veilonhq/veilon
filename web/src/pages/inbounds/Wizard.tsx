@@ -32,6 +32,8 @@ import s from './Inbounds.module.css';
 const NETWORKS: Network[] = ['tcp', 'ws', 'grpc', 'httpupgrade', 'xhttp'];
 const SECURITIES: Security[] = ['none', 'tls', 'reality'];
 const FPS = ['chrome', 'firefox', 'safari', 'edge', 'ios', 'android', 'random', 'randomized'];
+// Reality only works with these client fingerprints.
+const REALITY_FPS = ['chrome', 'firefox', 'safari'];
 const SS_METHODS = ['2022-blake3-aes-128-gcm', '2022-blake3-aes-256-gcm', 'aes-128-gcm', 'aes-256-gcm', 'chacha20-ietf-poly1305'];
 const ALPNS = ['h3', 'h2', 'http/1.1'];
 const MASQUE_PATH = '/.well-known/masque/ip/{target}/{ipproto}/';
@@ -116,7 +118,10 @@ function toInput(ib: Inbound): InboundInput {
 /** Strip fields that do not apply to the protocol before sending. */
 function toBody(d: InboundInput): InboundInput {
   const p = d.protocol;
-  if (isV2(p)) return { ...d, settings: emptySettings() };
+  if (isV2(p)) {
+    const r = d.reality && !REALITY_FPS.includes(d.reality.fingerprint) ? { ...d.reality, fingerprint: 'chrome' } : d.reality;
+    return { ...d, reality: r, settings: emptySettings() };
+  }
   const b: InboundInput = { ...d, network: 'tcp', transport: { path: '', host: '', service_name: '', mode: '' }, flow: '', ss_method: '', reality: null };
   if (isQuic(p)) b.security = 'tls';
   else if (p === 'http') {
@@ -904,7 +909,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
                     {!d.reality.private_key && <span className="field__hint">{t('inb.keysAuto')}</span>}
                   </div>
                   <Field label={t('inb.fingerprint')}>
-                    <Select<string> ltr mono value={d.reality.fingerprint || 'chrome'} onChange={(v) => patchReality({ fingerprint: v })} ariaLabel={t('inb.fingerprint')} options={FPS.map((f) => ({ value: f, label: f }))} />
+                    <Select<string> ltr mono value={REALITY_FPS.includes(d.reality.fingerprint) ? d.reality.fingerprint : 'chrome'} onChange={(v) => patchReality({ fingerprint: v })} ariaLabel={t('inb.fingerprint')} options={REALITY_FPS.map((f) => ({ value: f, label: f }))} />
                   </Field>
                   <Field label={t('inb.spiderX')}>
                     <input className="input ltr mono" value={d.reality.spider_x} onChange={(e) => patchReality({ spider_x: e.target.value })} />

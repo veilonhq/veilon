@@ -177,7 +177,11 @@ func clashOf(p *Proxy) clashProxy {
 		c.SkipCertVerify = p.Insecure
 	}
 	if p.Security == "reality" {
-		c.RealityOpts = map[string]any{"public-key": p.PublicKey, "short-id": p.ShortID}
+		// Current Xray Reality servers negotiate the post-quantum
+		// X25519MLKEM768 key share, and the chrome uTLS hello is the one
+		// mihomo sends it with.
+		c.RealityOpts = map[string]any{"public-key": p.PublicKey, "short-id": p.ShortID, "support-x25519mlkem768": true}
+		c.ClientFingerprint = "chrome"
 	}
 	return c
 }
