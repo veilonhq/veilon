@@ -23,6 +23,12 @@ func (s *Server) routes() http.Handler {
 	m.HandleFunc("GET /system/stats", s.authn(s.systemStats))
 	m.HandleFunc("GET /system/traffic", s.authn(s.systemTraffic))
 	m.HandleFunc("POST /core/restart", s.perm(auth.PermSettings, s.coreRestart))
+	m.HandleFunc("GET /core/xray", s.perm(auth.PermSettings, s.coreXray))
+	m.HandleFunc("POST /core/start", s.perm(auth.PermSettings, s.corePower(true)))
+	m.HandleFunc("POST /core/stop", s.perm(auth.PermSettings, s.corePower(false)))
+	m.HandleFunc("GET /core/xray/releases", s.perm(auth.PermSettings, s.coreReleases))
+	m.HandleFunc("POST /core/xray/install", s.perm(auth.PermSettings, s.coreInstall))
+	m.HandleFunc("POST /core/xray/geo", s.perm(auth.PermSettings, s.coreGeoUpdate))
 	m.HandleFunc("GET /core/logs", s.perm(auth.PermLogs, s.coreLogs))
 	m.HandleFunc("GET /core/config", s.perm(auth.PermLogs, s.coreConfig))
 

@@ -40,6 +40,11 @@ type Status struct {
 	Protocols []string `json:"protocols"`
 	// Instances is the number of processes (one per inbound for some engines).
 	Instances int `json:"instances"`
+	// Stopped is true when an admin switched the engine off; it then stays
+	// off (also across panel restarts) until switched on again.
+	Stopped bool `json:"stopped"`
+	// Busy names a running maintenance job ("install", "geo"), if any.
+	Busy string `json:"busy,omitempty"`
 }
 
 // Options configures a Manager.
@@ -73,6 +78,11 @@ type Manager struct {
 	lastConfig []byte
 
 	reloadCh chan bool // true = force restart
+	ctlCh    chan ctlReq
+	stopped  bool // desired state: switched off by an admin
+	job      jobState
+	jobMu    sync.Mutex // serialises install / geo update jobs
+	releases releaseCache
 	logs     *ring
 	sysUp    atomic.Int64
 	sysDown  atomic.Int64
@@ -93,7 +103,7 @@ func NewManager(opt Options) *Manager {
 	if opt.StatsEvery == 0 {
 		opt.StatsEvery = 10 * time.Second
 	}
-	return &Manager{opt: opt, reloadCh: make(chan bool, 1), logs: newRing(2000)}
+	return &Manager{opt: opt, reloadCh: make(chan bool, 1), ctlCh: make(chan ctlReq), logs: newRing(2000)}
 }
 
 // ConfigPath is where the generated config is written.
@@ -139,7 +149,10 @@ func (m *Manager) Restart() {
 func (m *Manager) Status() Status {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	s := Status{Name: "xray", Version: m.version, Running: m.running, Error: m.lastErr, Enabled: true, Protocols: XrayProtocols, Instances: 1, Warnings: append([]string{}, m.warnings...)}
+	s := Status{Name: "xray", Version: m.version, Running: m.running, Error: m.lastErr, Enabled: true, Protocols: XrayProtocols, Instances: 1, Warnings: append([]string{}, m.warnings...), Stopped: m.stopped}
+	if m.job.Running {
+		s.Busy = m.job.Kind
+	}
 	if m.running {
 		t := m.startedAt
 		s.StartedAt = &t
@@ -157,6 +170,14 @@ func (m *Manager) TakeSystemDelta() (up, down int64) {
 
 // Run supervises Xray until ctx is cancelled.
 func (m *Manager) Run(ctx context.Context) {
+	m.loadDesiredState()
+	if m.version == "" {
+		if v := detectVersion(m.opt.BinPath); v != "" {
+			m.mu.Lock()
+			m.version = v
+			m.mu.Unlock()
+		}
+	}
 	if err := m.ensureBinary(ctx); err != nil {
 		m.setErr(err.Error())
 		slog.Warn("xray binary unavailable; core will not run", "err", err)
@@ -199,9 +220,17 @@ func (m *Manager) Run(ctx context.Context) {
 			restartAt = time.After(5 * time.Second)
 		case <-restartAt:
 			restartAt = nil
-			m.apply(true)
+			// Something else (switch on, update) may have started it meanwhile.
+			if !m.isRunning() {
+				m.apply(true)
+			}
 		case <-statsT.C:
 			m.collect(ctx)
+		case req := <-m.ctlCh:
+			if !util.Safe("xray control", req.fn) {
+				m.setErr("internal error (see the service log)")
+			}
+			close(req.done)
 		}
 	}
 }
@@ -245,7 +274,21 @@ func (m *Manager) apply(force bool) {
 	}
 	m.mu.Lock()
 	same := bytes.Equal(cfg, m.lastConfig) && m.running
+	stopped := m.stopped
 	m.mu.Unlock()
+	if stopped {
+		// Switched off: keep the rendered config on disk for inspection but
+		// do not run the process.
+		if m.isRunning() {
+			m.collect(context.Background())
+			m.stop()
+		}
+		m.mu.Lock()
+		m.lastConfig = nil
+		m.lastErr = ""
+		m.mu.Unlock()
+		return
+	}
 	if same && !force {
 		return
 	}

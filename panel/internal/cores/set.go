@@ -102,3 +102,15 @@ func (s *Set) TakeSystemDelta() (up, down int64) {
 	}
 	return
 }
+
+// XrayController returns the Xray-core engine's maintenance controls (nil
+// if the primary engine is not Xray-core).
+func (s *Set) XrayController() xray.Controller {
+	if len(s.Engines) == 0 {
+		return nil
+	}
+	if m, ok := s.Engines[0].(*xray.Manager); ok {
+		return m
+	}
+	return nil
+}

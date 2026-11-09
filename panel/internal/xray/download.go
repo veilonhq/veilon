@@ -39,18 +39,32 @@ func AssetName(goos, goarch string) (string, error) {
 // verifies the published SHA-256 digest when available and extracts the
 // binary and geo data files.
 func Download(ctx context.Context, dir, version string) error {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return err
+	}
+	return downloadRelease(ctx, &http.Client{Timeout: 5 * time.Minute}, releaseBase(version), dir, false,
+		map[string]os.FileMode{"xray": 0o755, "geoip.dat": 0o644, "geosite.dat": 0o644})
+}
+
+// releaseBase is the download URL prefix of a release ("" or "latest" =
+// newest release).
+func releaseBase(version string) string {
+	if version == "" || version == "latest" {
+		return "https://github.com/XTLS/Xray-core/releases/latest/download/"
+	}
+	return "https://github.com/XTLS/Xray-core/releases/download/" + version + "/"
+}
+
+func httpClient() *http.Client { return &http.Client{Timeout: 5 * time.Minute} }
+
+// downloadRelease downloads this host's release zip from base, checks its
+// digest (mandatory when requireDigest) and extracts the wanted files into
+// dir. The xray binary must be among them.
+func downloadRelease(ctx context.Context, client *http.Client, base, dir string, requireDigest bool, wanted map[string]os.FileMode) error {
 	asset, err := AssetName(runtime.GOOS, runtime.GOARCH)
 	if err != nil {
 		return err
 	}
-	base := "https://github.com/XTLS/Xray-core/releases/latest/download/"
-	if version != "" && version != "latest" {
-		base = "https://github.com/XTLS/Xray-core/releases/download/" + version + "/"
-	}
-	if err := os.MkdirAll(dir, 0o750); err != nil {
-		return err
-	}
-	client := &http.Client{Timeout: 5 * time.Minute}
 	tmp, err := os.CreateTemp(dir, "xray-*.zip")
 	if err != nil {
 		return err
@@ -66,21 +80,28 @@ func Download(ctx context.Context, dir, version string) error {
 	var dg strings.Builder
 	if err := fetch(ctx, client, base+asset+".dgst", &dg); err == nil {
 		want := parseDigest(dg.String())
+		if want == "" && requireDigest {
+			return fmt.Errorf("xray digest file has no SHA-256 entry")
+		}
 		if want != "" && !strings.EqualFold(want, sum) {
 			return fmt.Errorf("xray digest mismatch: got %s want %s", sum, want)
 		}
+	} else if requireDigest {
+		return fmt.Errorf("xray digest unavailable: %w", err)
 	} else {
 		slog.Warn("xray digest unavailable, skipping verification", "err", err)
 	}
 	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
 		return err
 	}
-	st, _ := tmp.Stat()
+	st, err := tmp.Stat()
+	if err != nil {
+		return err
+	}
 	zr, err := zip.NewReader(tmp, st.Size())
 	if err != nil {
 		return err
 	}
-	wanted := map[string]os.FileMode{"xray": 0o755, "geoip.dat": 0o644, "geosite.dat": 0o644}
 	found := false
 	for _, f := range zr.File {
 		mode, ok := wanted[filepath.Base(f.Name)]
