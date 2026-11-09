@@ -1,16 +1,67 @@
+<p align="center">
+  <img src="docs/assets/banner.svg" alt="Veilon" width="100%">
+</p>
+
+<p align="center">
+  <a href="https://github.com/veilonhq/veilon/releases/latest"><img src="https://img.shields.io/github/v/release/veilonhq/veilon?style=flat-square&labelColor=0B0D12&color=C6FF3D&label=release" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/veilonhq/veilon?style=flat-square&labelColor=0B0D12&color=8B7CFF" alt="License"></a>
+  <a href="go.mod"><img src="https://img.shields.io/github/go-mod/go-version/veilonhq/veilon?style=flat-square&labelColor=0B0D12&color=00ADD8&logo=go&logoColor=white" alt="Go version"></a>
+  <img src="https://img.shields.io/badge/platform-amd64%20%7C%20arm64-3D4250?style=flat-square&labelColor=0B0D12&logo=linux&logoColor=white" alt="Platforms: amd64, arm64">
+  <a href="https://github.com/veilonhq/veilon/releases"><img src="https://img.shields.io/github/downloads/veilonhq/veilon/total?style=flat-square&labelColor=0B0D12&color=2EA44F" alt="Downloads"></a>
+</p>
+
+<p align="center">
+  <a href="#fa"><b>فارسی</b></a>
+  &nbsp;·&nbsp;
+  <a href="#english"><b>English</b></a>
+</p>
+
+---
+
+<a id="fa"></a>
+
 <div dir="rtl">
+
+<div align="center">
 
 # Veilon
 
-**توسعه داده شده توسط [@lxhosein](https://t.me/lxhosein)**
+**توسعه داده شده توسط &lrm;[@lxhosein](https://t.me/lxhosein)**
+
+پنل مدیریت پروکسی رایگان و متن باز؛ یک فایل اجرایی، نصب با یک دستور
+
+</div>
 
 Veilon یک پنل مدیریت پروکسی رایگان و متن باز است. یک فایل اجرایی Go همه کار را انجام می دهد: رابط وب، API، لینک اشتراک (Subscription) و مدیریت هسته های پروکسی. نصب با یک دستور انجام می شود و رابط کاربری فارسی و انگلیسی دارد.
 
-[English version below](#english)
+<table>
+  <tr>
+    <td width="50%" valign="top">⚡ <b>یک فایل اجرایی</b><br><sub>رابط وب، API، لینک اشتراک و هسته ها در یک برنامه Go</sub></td>
+    <td width="50%" valign="top">🚀 <b>نصب با یک دستور</b><br><sub>روی Ubuntu، Debian، CentOS Stream، AlmaLinux، Rocky Linux، Fedora و Arch</sub></td>
+  </tr>
+  <tr>
+    <td valign="top">🧩 <b>۱۴ پروتکل</b><br><sub>از VLESS و Reality تا Hysteria2، TUIC، WireGuard و AmneziaWG</sub></td>
+    <td valign="top">🔒 <b>SSL رایگان</b><br><sub>Let's Encrypt برای دامنه یا مستقیم برای IP سرور، با تمدید خودکار</sub></td>
+  </tr>
+  <tr>
+    <td valign="top">👥 <b>مدیریت کامل کاربران</b><br><sub>سقف حجم، انقضا، محدودیت IP و دستگاه، گروه ها و چند مدیر</sub></td>
+    <td valign="top">🌗 <b>فارسی و انگلیسی</b><br><sub>رابط واکنش گرا برای موبایل و دسکتاپ، تم تیره و روشن</sub></td>
+  </tr>
+</table>
+
+### ⚡ نصب سریع
+
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer/install.sh)
+```
+
+<sub>تازه کار هستید؟ <a href="#نصب-قدم-به-قدم-برای-تازه-کارها">راهنمای نصب قدم به قدم</a> را ببینید.</sub>
 
 ## فهرست
 
+- [نمای پنل](#نمای-پنل)
 - [امکانات](#امکانات)
+- [پروتکل ها](#پروتکل-ها)
 - [پیش نیازها](#پیش-نیازها)
 - [نصب قدم به قدم برای تازه کارها](#نصب-قدم-به-قدم-برای-تازه-کارها)
 - [باز کردن پورت ها در فایروال](#باز-کردن-پورت-ها-در-فایروال)
@@ -22,34 +73,59 @@ Veilon یک پنل مدیریت پروکسی رایگان و متن باز اس�
 - [حمایت از توسعه دهنده](#حمایت-از-توسعه-دهنده)
 - [مجوز](#مجوز)
 
+---
+
+## نمای پنل
+
+<p align="center">
+  <img src="docs/assets/screen-dashboard.jpg" alt="داشبورد Veilon" width="100%">
+</p>
+
+<p align="center"><img src="docs/assets/m-dashboard.jpg" alt="داشبورد در موبایل" width="23.5%"> <img src="docs/assets/m-users.jpg" alt="لیست کاربران" width="23.5%"> <img src="docs/assets/m-user.jpg" alt="صفحه کاربر و کد QR" width="23.5%"> <img src="docs/assets/m-wizard.jpg" alt="ساخت ورودی" width="23.5%"></p>
+
 ## امکانات
 
-- **پروتکل ها:** VLESS، VMess، Trojan، Shadowsocks (شامل 2022)، Hysteria2، TUIC، WireGuard، AmneziaWG، HTTP، Mixed (HTTP + SOCKS)، Tunnel، TUN، MTProto و MASQUE
-- **امنیت اتصال:** Reality و TLS، انتقال TCP، WebSocket، gRPC، HTTPUpgrade و XHTTP
-- **گواهی رایگان Let's Encrypt** برای دامنه (۹۰ روزه) یا مستقیم برای IP سرور (کوتاه مدت)، با تمدید خودکار
-- **مدیریت کاربران:** سقف حجم، تاریخ انقضا، شروع انقضا از اولین اتصال، ریست دوره ای حجم (روزانه، هفتگی، ماهانه)، وضعیت آنلاین و آخرین اتصال، عملیات گروهی
-- **لینک اشتراک** برای v2rayNG، Hiddify، Streisand، sing-box و Clash، به همراه کد QR و فایل `.conf` برای WireGuard و AmneziaWG
-- **ورودی ها (Inbounds):** ساخت با راهنمای مرحله به مرحله؛ پورت و نام هر ورودی یکتاست و پنل همان لحظه هشدار می دهد
-- **داشبورد زنده:** ترافیک لحظه ای واقعی کارت شبکه، کاربران آنلاین، مصرف CPU، حافظه و دیسک؛ مجموع ترافیک برابر با جمع مصرف کاربران است
-- **کنترل هسته Xray از داشبورد:** روشن و خاموش کردن هسته (خاموش بودن بعد از ری استارت پنل هم می ماند)، انتخاب و نصب هر نسخه Xray از لیست نسخه های رسمی (با بررسی فایل و برگشت خودکار در صورت خطا) و به روزرسانی فایل های geo
-- **منطقه زمانی پنل:** همه تاریخ ها، نمودارها، ریست های دوره ای و بازه های زمانی کاربران به وقت منطقه زمانی انتخابی در تنظیمات (مثلا تهران؛ پیش فرض UTC)
-- **لاگ ها:** لاگ Xray، هسته های دیگر و خود پنل، جدا یا همه با هم، با زمان دقیق هر خط و سطح (info، warning، error)
-- **محدودیت های هر کاربر:** تعداد IP همزمان، تعداد دستگاه (HWID)، سرعت دانلود و آپلود جدا، سقف حجم روزانه، ضریب مصرف، مسدود کردن تورنت، بازه زمانی مجاز (ساعت و روزهای هفته به وقت منطقه زمانی پنل)؛ برای TUIC هم کار می کند
-- **گزارش اتصال ها:** IP ها و دستگاه های هر کاربر با اولین و آخرین زمان دیده شدن، و مسدود یا آزاد کردن هر IP یا دستگاه
-- **گروه ها:** گروه بسازید، کاربران را در گروه بگذارید، برای گروه ورودی ها و مقادیر پیش فرض تعیین کنید و مسدودسازی تبلیغات را روشن کنید
-- **چند مدیر با دسترسی جدا:** مدیر اصلی و مدیران زیرمجموعه؛ برای هر مدیر دیدن، ساختن، ویرایش و حذف کاربران و دسترسی به بخش ها جدا روشن یا خاموش می شود، به همراه سقف تعداد کاربر و حجم؛ ثبت رویدادها (Audit log)
-- **پایگاه داده:** PostgreSQL (پیش فرض) یا SQLite
-- **منوی خط فرمان `veilon`** برای به روزرسانی، ری استارت، لاگ ها، تغییر رمز، پورت، مسیر، SSL، BBR و فایروال
-- رابط کاربری واکنش گرا برای موبایل و دسکتاپ، تم تیره و روشن، فارسی (پیش فرض) و انگلیسی
+- 🧩 **پروتکل ها:** VLESS، VMess، Trojan، Shadowsocks (شامل 2022)، Hysteria2، TUIC، WireGuard، AmneziaWG، HTTP، Mixed (HTTP + SOCKS)، Tunnel، TUN، MTProto و MASQUE
+- 🛡️ **امنیت اتصال:** Reality و TLS، انتقال TCP، WebSocket، gRPC، HTTPUpgrade و XHTTP
+- 🔒 **گواهی رایگان Let's Encrypt:** برای دامنه (۹۰ روزه) یا مستقیم برای IP سرور (کوتاه مدت)، با تمدید خودکار
+- 👥 **مدیریت کاربران:** سقف حجم، تاریخ انقضا، شروع انقضا از اولین اتصال، ریست دوره ای حجم (روزانه، هفتگی، ماهانه)، وضعیت آنلاین و آخرین اتصال، عملیات گروهی
+- 🔗 **لینک اشتراک:** برای v2rayNG، Hiddify، Streisand، sing-box و Clash، به همراه کد QR و فایل `.conf` برای WireGuard و AmneziaWG
+- 🧭 **ورودی ها (Inbounds):** ساخت با راهنمای مرحله به مرحله؛ پورت و نام هر ورودی یکتاست و پنل همان لحظه هشدار می دهد
+- 📊 **داشبورد زنده:** ترافیک لحظه ای واقعی کارت شبکه، کاربران آنلاین، مصرف CPU، حافظه و دیسک؛ مجموع ترافیک برابر با جمع مصرف کاربران است
+- ⚙️ **کنترل هسته Xray از داشبورد:** روشن و خاموش کردن هسته (خاموش بودن بعد از ری استارت پنل هم می ماند)، انتخاب و نصب هر نسخه Xray از لیست نسخه های رسمی (با بررسی فایل و برگشت خودکار در صورت خطا) و به روزرسانی فایل های geo
+- 🕒 **منطقه زمانی پنل:** همه تاریخ ها، نمودارها، ریست های دوره ای و بازه های زمانی کاربران به وقت منطقه زمانی انتخابی در تنظیمات (مثلا تهران؛ پیش فرض UTC)
+- 📜 **لاگ ها:** لاگ Xray، هسته های دیگر و خود پنل، جدا یا همه با هم، با زمان دقیق هر خط و سطح (info، warning، error)
+- 🚦 **محدودیت های هر کاربر:** تعداد IP همزمان، تعداد دستگاه (HWID)، سرعت دانلود و آپلود جدا، سقف حجم روزانه، ضریب مصرف، مسدود کردن تورنت، بازه زمانی مجاز (ساعت و روزهای هفته به وقت منطقه زمانی پنل)؛ برای TUIC هم کار می کند
+- 🔍 **گزارش اتصال ها:** IP ها و دستگاه های هر کاربر با اولین و آخرین زمان دیده شدن، و مسدود یا آزاد کردن هر IP یا دستگاه
+- 🗂️ **گروه ها:** گروه بسازید، کاربران را در گروه بگذارید، برای گروه ورودی ها و مقادیر پیش فرض تعیین کنید و مسدودسازی تبلیغات را روشن کنید
+- 🧑‍💼 **چند مدیر با دسترسی جدا:** مدیر اصلی و مدیران زیرمجموعه؛ برای هر مدیر دیدن، ساختن، ویرایش و حذف کاربران و دسترسی به بخش ها جدا روشن یا خاموش می شود، به همراه سقف تعداد کاربر و حجم؛ ثبت رویدادها (Audit log)
+- 🗄️ **پایگاه داده:** PostgreSQL (پیش فرض) یا SQLite
+- 💻 **منوی خط فرمان `veilon`:** به روزرسانی، ری استارت، لاگ ها، تغییر رمز، پورت، مسیر، SSL، BBR و فایروال
+- 🌗 **رابط کاربری:** واکنش گرا برای موبایل و دسکتاپ، تم تیره و روشن، فارسی (پیش فرض) و انگلیسی
+
+## پروتکل ها
+
+| گروه | پروتکل ها | کاربرد |
+| --- | --- | --- |
+| 🛡️ **پراکسی** | VLESS، VMess، Trojan، Shadowsocks (شامل 2022) | پروتکل های پایه با TLS یا Reality |
+| ⚡ **UDP و QUIC** | Hysteria2، TUIC، MASQUE | سریع روی شبکه های پرتلفات |
+| 🌐 **VPN** | WireGuard، AmneziaWG، TUN | تونل کامل لایه شبکه |
+| 🔧 **ابزاری** | HTTP، Mixed (HTTP + SOCKS)، Tunnel، MTProto | پراکسی ساده، پورت فوروارد و تلگرام |
+
+**امنیت:** Reality و TLS &nbsp;·&nbsp; **انتقال:** TCP، WebSocket، gRPC، HTTPUpgrade و XHTTP
 
 ## پیش نیازها
 
-- یک سرور مجازی (VPS) لازم است
-- سیستم عامل: Ubuntu، Debian، CentOS Stream، AlmaLinux، Rocky Linux، Fedora یا Arch Linux، با systemd (پیشنهاد: Ubuntu 22.04 یا 24.04، یا Debian 12)
-- پردازنده: معماری amd64 (x86_64) یا arm64، حداقل ۱ هسته
-- رم: حداقل ۱ گیگابایت (۲ گیگابایت پیشنهاد می شود)
-- دسترسی root (یا کاربری که بتواند `sudo` بزند)
-- اختیاری: یک دامنه که رکورد DNS آن به IP سرور اشاره کند
+| مورد | نیاز |
+| --- | --- |
+| 🖥️ **سرور** | یک سرور مجازی (VPS) لازم است |
+| 🐧 **سیستم عامل** | Ubuntu، Debian، CentOS Stream، AlmaLinux، Rocky Linux، Fedora یا Arch Linux، با systemd (پیشنهاد: Ubuntu 22.04 یا 24.04، یا Debian 12) |
+| 🧠 **پردازنده** | معماری amd64 (x86_64) یا arm64، حداقل ۱ هسته |
+| 💾 **رم** | حداقل ۱ گیگابایت (۲ گیگابایت پیشنهاد می شود) |
+| 🔑 **دسترسی** | دسترسی root (یا کاربری که بتواند `sudo` بزند) |
+| 🌍 **اختیاری** | یک دامنه که رکورد DNS آن به IP سرور اشاره کند |
+
+---
 
 ## نصب قدم به قدم برای تازه کارها
 
@@ -71,6 +147,11 @@ ssh root@SERVER_IP
 
 به جای `SERVER_IP`، IP سرور خودتان را بنویسید (مثلا `ssh root@203.0.113.10`). بار اول سوال `Are you sure you want to continue connecting` می آید؛ `yes` را تایپ کنید و Enter بزنید. سپس رمز عبور را وارد کنید و Enter بزنید. هنگام تایپ رمز چیزی روی صفحه نمایش داده نمی شود؛ این طبیعی است.
 
+<details>
+<summary><b>🪟 ویندوز، 🤖 اندروید، 🍎 macOS و 🐧 Linux</b></summary>
+
+<br>
+
 **ویندوز (PowerShell):** کلید Windows را بزنید، `PowerShell` را تایپ و باز کنید و دستور بالا را بزنید.
 
 **ویندوز با Termius:** اگر محیط گرافیکی را ترجیح می دهید، برنامه Termius را نصب کنید و مثل بخش اندروید جلو بروید.
@@ -79,13 +160,22 @@ ssh root@SERVER_IP
 
 **macOS و Linux:** برنامه Terminal را باز کنید و همان دستور بالا را بزنید.
 
-> **نکته (اختیاری): ورود با فایل کلید.** اگر به جای رمز، یک فایل کلید به شما داده شده است:
->
-> ```bash
-> ssh -i key root@SERVER_IP
-> ```
->
-> به جای `key` مسیر فایل کلید را بنویسید. در macOS و Linux اگر خطای دسترسی فایل دیدید، اول `chmod 600 key` را بزنید. در Termius فایل کلید را در بخش **Keys** اضافه کنید و برای Host انتخاب کنید.
+</details>
+
+<details>
+<summary><b>🔑 اختیاری: ورود با فایل کلید</b></summary>
+
+<br>
+
+اگر به جای رمز، یک فایل کلید به شما داده شده است:
+
+```bash
+ssh -i key root@SERVER_IP
+```
+
+به جای `key` مسیر فایل کلید را بنویسید. در macOS و Linux اگر خطای دسترسی فایل دیدید، اول `chmod 600 key` را بزنید. در Termius فایل کلید را در بخش **Keys** اضافه کنید و برای Host انتخاب کنید.
+
+</details>
 
 ### ۳. کاربر root شوید
 
@@ -145,7 +235,9 @@ Password: ••••••••••••••••
 cat /root/veilon-credentials.txt
 ```
 
-اجرای دوباره همان دستور نصب روی سروری که Veilon دارد، آن را **به روزرسانی** می کند و اطلاعات و تنظیمات حفظ می شود.
+> 💡 اجرای دوباره همان دستور نصب روی سروری که Veilon دارد، آن را **به روزرسانی** می کند و اطلاعات و تنظیمات حفظ می شود.
+
+---
 
 ## باز کردن پورت ها در فایروال
 
@@ -163,7 +255,12 @@ cat /root/veilon-credentials.txt
 veilon firewall
 ```
 
-یا دستی، با **ufw** (Ubuntu و Debian). به جای `PANEL_PORT` پورت پنل را بنویسید:
+<details>
+<summary><b>باز کردن دستی پورت ها با ufw یا firewalld</b></summary>
+
+<br>
+
+با **ufw** (Ubuntu و Debian). به جای `PANEL_PORT` پورت پنل را بنویسید:
 
 ```bash
 ufw allow PANEL_PORT/tcp
@@ -183,11 +280,15 @@ firewall-cmd --reload
 
 برای پورت UDP، به جای `tcp` بنویسید `udp` (مثلا `ufw allow 8443/udp`).
 
+</details>
+
 ## گواهی SSL: دامنه یا IP سرور
 
-- **دامنه (گزینه ۱):** گواهی ۹۰ روزه Let's Encrypt با تمدید خودکار. قبل از نصب، یک رکورد `A` برای دامنه بسازید که به IP سرور اشاره کند (اگر سرویس DNS شما گزینه پروکسی یا CDN دارد، آن را برای این رکورد خاموش کنید).
-- **IP سرور (گزینه ۲):** گواهی کوتاه مدت Let's Encrypt (حدود ۶ روز) مستقیم برای IP، که هر ۳ روز خودکار تمدید می شود. نیازی به دامنه نیست.
-- **رد کردن (گزینه ۳):** پنل با HTTP ساده باز می شود و بعدا می توانید از منو گواهی بگیرید.
+| گزینه | گواهی | توضیح |
+| --- | --- | --- |
+| **۱. دامنه** | Let's Encrypt، ۹۰ روزه، تمدید خودکار | قبل از نصب، یک رکورد `A` برای دامنه بسازید که به IP سرور اشاره کند (اگر سرویس DNS شما گزینه پروکسی یا CDN دارد، آن را برای این رکورد خاموش کنید) |
+| **۲. IP سرور** | Let's Encrypt کوتاه مدت (حدود ۶ روز) مستقیم برای IP | هر ۳ روز خودکار تمدید می شود. نیازی به دامنه نیست |
+| **۳. رد کردن** | بدون گواهی | پنل با HTTP ساده باز می شود و بعدا می توانید از منو گواهی بگیرید |
 
 گرفتن یا تغییر گواهی بعد از نصب:
 
@@ -205,12 +306,20 @@ veilon cert list
 
 در هر دو حالت پورت 80/tcp باید باز باشد.
 
+---
+
 ## اولین ورود، ساخت ورودی و کاربر
 
 1. آدرس پنل را در مرورگر باز کنید و با نام کاربری و رمز وارد شوید.
 2. **ساخت ورودی:** به بخش **ورودی ها** بروید ← **ورودی جدید**. برای شروع **VLESS + Reality** پیشنهاد می شود: پروتکل VLESS، انتقال tcp، امنیت Reality، پورت 443. کلیدهای Reality خودکار ساخته می شوند. پورت و نام هر ورودی باید یکتا باشد؛ اگر تکراری باشد، پنل همان لحظه هشدار می دهد.
 3. **ساخت کاربر:** به بخش **کاربران** بروید ← **کاربر جدید**. نام، سقف حجم (۰ یعنی نامحدود)، تاریخ انقضا و ورودی هایی که کاربر به آن ها دسترسی دارد را انتخاب کنید.
 4. روی کاربر بزنید تا **لینک اشتراک**، **کد QR** و لینک های تکی را ببینید.
+
+<details>
+<summary><b>قدم های بعدی: محدودیت ها، گروه ها، مدیران، TUIC، هسته Xray، منطقه زمانی و لاگ ها</b></summary>
+
+<br>
+
 5. **محدودیت ها (اختیاری):** در فرم کاربر، بخش محدودیت ها را باز کنید. مثلا «IP همزمان» را ۲ بگذارید تا کاربر فقط با دو IP همزمان وصل شود، یا سرعت دانلود را محدود کنید. هر مقدار ۰ یعنی بدون محدودیت. در زبانه **اتصال ها** IP ها و دستگاه های کاربر را می بینید و می توانید هر کدام را مسدود کنید.
 6. **گروه ها (اختیاری):** در بخش **گروه ها** یک گروه بسازید، ورودی ها و مقادیر پیش فرض آن را تعیین کنید و هنگام ساخت کاربر، گروه را انتخاب کنید.
 7. **مدیران (اختیاری):** در بخش **مدیران** مدیر جدید بسازید و برای او مشخص کنید چه کارهایی مجاز است (مثلا فقط دیدن کاربران). دکمه هایی که مدیر اجازه آن را ندارد در پنل نمایش داده نمی شوند.
@@ -218,6 +327,8 @@ veilon cert list
 9. **هسته Xray:** در کارت هسته در **داشبورد** می توانید هسته را خاموش و روشن کنید، روی شماره نسخه بزنید و نسخه دیگری نصب کنید، یا فایل های geo را به روز کنید.
 10. **منطقه زمانی:** در **تنظیمات** منطقه زمانی پنل را انتخاب کنید (مثلا تهران؛ پیش فرض UTC). زمان لاگ ها، نمودار ترافیک و ریست های روزانه، هفتگی و ماهانه طبق آن است.
 11. **لاگ ها:** در بخش **لاگ ها** منبع را انتخاب کنید (Xray، پنل یا همه) تا هر خط را با زمان دقیق ببینید.
+
+</details>
 
 ## اتصال با برنامه های کلاینت
 
@@ -231,6 +342,8 @@ veilon cert list
 
 لینک اشتراک خودکار به روز می شود؛ اگر ورودی جدیدی به کاربر بدهید، کافی است در برنامه Update subscription را بزنید.
 
+---
+
 ## منوی مدیریت veilon
 
 با کاربر root این دستور را بزنید تا منوی مدیریت باز شود:
@@ -238,6 +351,11 @@ veilon cert list
 ```bash
 veilon
 ```
+
+<details>
+<summary><b>گزینه های منو</b></summary>
+
+<br>
 
 ```
  1  Install / update            10  Status
@@ -251,6 +369,8 @@ veilon
  9  Restart                     18  Version
                                  0  Exit
 ```
+
+</details>
 
 همه گزینه ها به شکل دستور مستقیم هم هستند:
 
@@ -278,19 +398,34 @@ veilon help
 
 ## رفع مشکلات رایج
 
-**پنل باز نمی شود.**
+<details>
+<summary><b>پنل باز نمی شود</b></summary>
+
+<br>
+
 1. وضعیت سرویس را ببینید: `veilon status`
 2. آدرس دقیق را ببینید (پورت و مسیر را درست وارد کنید، با `/` آخر): `veilon info`
 3. پورت پنل را در فایروال سرور، و اگر ارائه دهنده سرور شما در پنل خودش فایروال دارد آنجا هم، باز کنید.
 4. لاگ ها را بررسی کنید: `veilon logs -n 100`
 
-**خطای گواهی یا «اتصال امن نیست».**
+</details>
+
+<details>
+<summary><b>خطای گواهی یا «اتصال امن نیست»</b></summary>
+
+<br>
+
 - اگر گواهی نگرفته اید، آدرس با `http://` باز می شود نه `https://`.
 - پورت 80/tcp باید باز باشد، سپس دوباره گواهی بگیرید: `veilon cert issue --ip auto --panel`
 - برای دامنه، مطمئن شوید رکورد DNS به IP همین سرور اشاره می کند و پروکسی یا CDN سرویس DNS برای آن خاموش است.
 - لیست و وضعیت گواهی ها: `veilon cert list`
 
-**رمز پنل را فراموش کرده ام.**
+</details>
+
+<details>
+<summary><b>رمز پنل را فراموش کرده ام</b></summary>
+
+<br>
 
 ```bash
 cat /root/veilon-credentials.txt
@@ -302,7 +437,13 @@ cat /root/veilon-credentials.txt
 veilon admin reset-credentials --password NEW_PASSWORD
 ```
 
-**پورت در حال استفاده است.**
+</details>
+
+<details>
+<summary><b>پورت در حال استفاده است</b></summary>
+
+<br>
+
 - پورت پنل: یک پورت دیگر بدهید: `veilon set-port 2096`
 - پورت ورودی: پنل اجازه نمی دهد دو ورودی یک پورت داشته باشند. اگر برنامه دیگری روی سرور از آن پورت استفاده می کند، ببینید کدام است:
 
@@ -310,18 +451,31 @@ veilon admin reset-credentials --password NEW_PASSWORD
 ss -tulpn | grep :443
 ```
 
-**کاربر وصل نمی شود.**
+</details>
+
+<details>
+<summary><b>کاربر وصل نمی شود</b></summary>
+
+<br>
+
 - پورت ورودی را در فایروال سرور، و اگر ارائه دهنده سرور شما در پنل خودش فایروال دارد آنجا هم، باز کنید (برای Hysteria2، TUIC و WireGuard به صورت UDP).
 - ساعت گوشی و سرور باید درست باشد.
 - در برنامه کلاینت Update subscription را بزنید.
+
+</details>
+
+---
 
 ## حمایت از توسعه دهنده
 
 Veilon رایگان است و با وقت و علاقه ساخته می شود. اگر به کارتان آمده، هر حمایتی دلگرمی بزرگی است. همین اطلاعات در پنل، در منوی «بیشتر» ← «حمایت از توسعه دهنده» هم هست.
 
-- **کیف پول:** Tonkeeper
-- **ارزها:** TON و تتر (USDT) **فقط روی شبکه TON**
-- **آدرس:**
+| مورد | جزئیات |
+| --- | --- |
+| 👛 **کیف پول** | Tonkeeper |
+| 💎 **ارزها** | TON و تتر (USDT) **فقط روی شبکه TON** |
+
+**آدرس:**
 
 ```
 UQCr7FXmeLsKLplHAgb1HIT0rxmQJpvAh4w2pST-DBGicbi2
@@ -339,86 +493,143 @@ AGPL-3.0. متن کامل در [LICENSE](LICENSE).
 
 <a id="english"></a>
 
+<div align="center">
+
 # Veilon (English)
 
 **Developed by [@lxhosein](https://t.me/lxhosein)**
 
+Free, open-source proxy panel. One binary, one-line install.
+
+</div>
+
 Veilon is a free, open-source proxy panel. One Go binary serves the web UI, the API and subscriptions, and supervises the proxy cores. One-command install, Persian and English UI.
+
+<table>
+  <tr>
+    <td width="50%" valign="top">⚡ <b>One binary</b><br><sub>Web UI, API, subscriptions and cores in a single Go program</sub></td>
+    <td width="50%" valign="top">🚀 <b>One-line install</b><br><sub>Ubuntu, Debian, CentOS Stream, AlmaLinux, Rocky Linux, Fedora and Arch</sub></td>
+  </tr>
+  <tr>
+    <td valign="top">🧩 <b>14 protocols</b><br><sub>From VLESS and Reality to Hysteria2, TUIC, WireGuard and AmneziaWG</sub></td>
+    <td valign="top">🔒 <b>Free SSL</b><br><sub>Let's Encrypt for a domain or directly for the server IP, auto renewed</sub></td>
+  </tr>
+  <tr>
+    <td valign="top">👥 <b>Full user management</b><br><sub>Data caps, expiry, IP and device limits, groups and multiple admins</sub></td>
+    <td valign="top">🌗 <b>Persian and English</b><br><sub>Responsive UI for phone and desktop, dark and light themes</sub></td>
+  </tr>
+</table>
+
+### ⚡ Quick install
+
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer/install.sh)
+```
+
+---
 
 ## Features
 
-- **Protocols:** VLESS, VMess, Trojan, Shadowsocks (incl. 2022), Hysteria2, TUIC, WireGuard, AmneziaWG, HTTP, Mixed (HTTP + SOCKS), Tunnel, TUN, MTProto and MASQUE
-- **Security and transports:** Reality and TLS; TCP, WebSocket, gRPC, HTTPUpgrade and XHTTP
-- **Free Let's Encrypt certificates** for a domain (90 days) or directly for the server IP (short-lived), renewed automatically
-- **Users:** data cap, expiry, expiry starting at first connection, periodic data reset (daily, weekly, monthly), online status and last connection, bulk actions
-- **Subscriptions** for v2rayNG, Hiddify, Streisand, sing-box and Clash, with QR codes and `.conf` files for WireGuard and AmneziaWG
-- **Inbounds:** step-by-step wizard; inbound ports and names are unique and checked live
-- **Live dashboard:** real network traffic of the server, online users, CPU, memory and disk; the traffic total equals the sum of user usage
-- **Xray core control from the dashboard:** switch the core on or off (stays off across panel restarts), pick and install any official Xray release (verified download, automatic rollback on failure), update geo files
-- **Panel timezone:** every date, chart, periodic reset and user time window follows the timezone chosen in Settings (e.g. Tehran; default UTC)
-- **Logs:** Xray, the other engines and the panel itself, one source or all merged, with the exact time and level (info, warning, error) of every line
-- **Per-user limits:** concurrent IPs, devices (HWID), separate download and upload speed, daily data cap, traffic multiplier, torrent blocking, allowed time window (hours and weekdays, in the panel timezone); TUIC included
-- **Connection log:** each user's IPs and devices with first and last seen, block or unblock any IP or device
-- **Groups:** create groups, put users in them, set a group's inbounds and defaults, turn on ad blocking
-- **Multiple admins with permissions:** per sub-admin toggles for viewing, creating, editing and deleting users and for each panel area, plus user and traffic quotas; audit log
-- **Database:** PostgreSQL (default) or SQLite
-- **`veilon` CLI menu** for update, restart, logs, credentials, port, path, SSL, BBR and firewall
-- Responsive UI for phone and desktop, dark and light themes, Persian (default) and English
+- 🧩 **Protocols:** VLESS, VMess, Trojan, Shadowsocks (incl. 2022), Hysteria2, TUIC, WireGuard, AmneziaWG, HTTP, Mixed (HTTP + SOCKS), Tunnel, TUN, MTProto and MASQUE
+- 🛡️ **Security and transports:** Reality and TLS; TCP, WebSocket, gRPC, HTTPUpgrade and XHTTP
+- 🔒 **Free Let's Encrypt certificates:** For a domain (90 days) or directly for the server IP (short-lived), renewed automatically
+- 👥 **Users:** Data cap, expiry, expiry starting at first connection, periodic data reset (daily, weekly, monthly), online status and last connection, bulk actions
+- 🔗 **Subscriptions:** For v2rayNG, Hiddify, Streisand, sing-box and Clash, with QR codes and `.conf` files for WireGuard and AmneziaWG
+- 🧭 **Inbounds:** Step-by-step wizard; inbound ports and names are unique and checked live
+- 📊 **Live dashboard:** Real network traffic of the server, online users, CPU, memory and disk; the traffic total equals the sum of user usage
+- ⚙️ **Xray core control from the dashboard:** Switch the core on or off (stays off across panel restarts), pick and install any official Xray release (verified download, automatic rollback on failure), update geo files
+- 🕒 **Panel timezone:** Every date, chart, periodic reset and user time window follows the timezone chosen in Settings (e.g. Tehran; default UTC)
+- 📜 **Logs:** Xray, the other engines and the panel itself, one source or all merged, with the exact time and level (info, warning, error) of every line
+- 🚦 **Per-user limits:** Concurrent IPs, devices (HWID), separate download and upload speed, daily data cap, traffic multiplier, torrent blocking, allowed time window (hours and weekdays, in the panel timezone); TUIC included
+- 🔍 **Connection log:** Each user's IPs and devices with first and last seen, block or unblock any IP or device
+- 🗂️ **Groups:** Create groups, put users in them, set a group's inbounds and defaults, turn on ad blocking
+- 🧑‍💼 **Multiple admins with permissions:** Per sub-admin toggles for viewing, creating, editing and deleting users and for each panel area, plus user and traffic quotas; audit log
+- 🗄️ **Database:** PostgreSQL (default) or SQLite
+- 💻 **`veilon` CLI menu:** Update, restart, logs, credentials, port, path, SSL, BBR and firewall
+- 🌗 **UI:** Responsive for phone and desktop, dark and light themes, Persian (default) and English
+
+## Protocols
+
+| Group | Protocols | Use |
+| --- | --- | --- |
+| 🛡️ **Proxies** | VLESS, VMess, Trojan, Shadowsocks (incl. 2022) | Core protocols with TLS or Reality |
+| ⚡ **UDP / QUIC** | Hysteria2, TUIC, MASQUE | Fast on lossy networks |
+| 🌐 **VPN** | WireGuard, AmneziaWG, TUN | Full network-layer tunnels |
+| 🔧 **Utility** | HTTP, Mixed (HTTP + SOCKS), Tunnel, MTProto | Plain proxies, port forwarding and Telegram |
+
+**Security:** Reality and TLS &nbsp;·&nbsp; **Transports:** TCP, WebSocket, gRPC, HTTPUpgrade and XHTTP
 
 ## Requirements
 
-- A VPS is required
-- OS: Ubuntu, Debian, CentOS Stream, AlmaLinux, Rocky Linux, Fedora or Arch Linux, with systemd (recommended: Ubuntu 22.04 or 24.04, or Debian 12)
-- CPU: amd64 (x86_64) or arm64, at least 1 core
-- RAM: at least 1 GB (2 GB recommended)
-- Root access (or a user with `sudo`)
-- Optional: a domain whose DNS record points to the server
+| Item | Needed |
+| --- | --- |
+| 🖥️ **Server** | A VPS is required |
+| 🐧 **OS** | Ubuntu, Debian, CentOS Stream, AlmaLinux, Rocky Linux, Fedora or Arch Linux, with systemd (recommended: Ubuntu 22.04 or 24.04, or Debian 12) |
+| 🧠 **CPU** | amd64 (x86_64) or arm64, at least 1 core |
+| 💾 **RAM** | At least 1 GB (2 GB recommended) |
+| 🔑 **Access** | Root access (or a user with `sudo`) |
+| 🌍 **Optional** | A domain whose DNS record points to the server |
+
+---
 
 ## Install
 
 1. A VPS is required (see Requirements; Ubuntu 24.04 or Debian 12 recommended). Note its IP, username (usually `root`) and password.
 2. Connect with SSH using your password (the main way):
 
-```bash
-ssh root@SERVER_IP
-```
+   ```bash
+   ssh root@SERVER_IP
+   ```
 
-Replace `SERVER_IP` with your server's IP. The first time, type `yes` to accept the host key, then enter your password (nothing is shown while you type; that is normal).
+   Replace `SERVER_IP` with your server's IP. The first time, type `yes` to accept the host key, then enter your password (nothing is shown while you type; that is normal).
 
-- **Windows:** open PowerShell and run the command above, or use Termius.
-- **Android:** install Termius, tap **New Host**, enter the server IP as Address, `root` as Username and your password, then **Connect**.
-- **macOS and Linux:** open Terminal and run the command above.
+   <details>
+   <summary><b>🪟 Windows, 🤖 Android, 🍎 macOS and 🐧 Linux</b></summary>
 
-> **Optional: key login.** If your provider gave you a key file instead of a password:
->
-> ```bash
-> ssh -i key root@SERVER_IP
-> ```
->
-> Replace `key` with the path to the key file (on macOS and Linux run `chmod 600 key` first if SSH complains about permissions). In Termius, add the key under **Keys** and select it for the host.
+   - **Windows:** open PowerShell and run the command above, or use Termius.
+   - **Android:** install Termius, tap **New Host**, enter the server IP as Address, `root` as Username and your password, then **Connect**.
+   - **macOS and Linux:** open Terminal and run the command above.
+
+   </details>
+
+   <details>
+   <summary><b>🔑 Optional: key login</b></summary>
+
+   If your provider gave you a key file instead of a password:
+
+   ```bash
+   ssh -i key root@SERVER_IP
+   ```
+
+   Replace `key` with the path to the key file (on macOS and Linux run `chmod 600 key` first if SSH complains about permissions). In Termius, add the key under **Keys** and select it for the host.
+
+   </details>
 
 3. If you logged in as a non-root user, become root:
 
-```bash
-sudo -i
-```
+   ```bash
+   sudo -i
+   ```
 
 4. Run the installer:
 
-```bash
-bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer/install.sh)
-```
+   ```bash
+   bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer/install.sh)
+   ```
 
-A specific release:
+   A specific release:
 
-```bash
-bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer/install.sh) v0.2.2
-```
+   ```bash
+   bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer/install.sh) v0.2.2
+   ```
 
 5. Answer the questions (Enter accepts the default): panel port (random free port), admin username (`admin`), admin password (random), panel path (random), then the certificate: `1` domain, `2` server IP (recommended without a domain), `3` skip (plain HTTP).
 6. At the end the installer prints the panel URL, username and password, also saved to `/root/veilon-credentials.txt`. Running the same command again upgrades the panel and keeps all data.
 
-Non-interactive options:
+<details>
+<summary><b>Non-interactive options</b></summary>
+
+<br>
 
 ```
 --port N  --admin NAME  --password PW  --path P  --lang fa|en
@@ -427,11 +638,20 @@ Non-interactive options:
 install.sh uninstall [--purge] [-y]
 ```
 
+</details>
+
 ## Firewall
 
 Open the panel port in your server firewall, and in your provider's firewall panel if it has one. Also open 80/tcp (Let's Encrypt validation) and every inbound port (UDP for Hysteria2, TUIC and WireGuard).
 
-`veilon firewall` opens the Veilon ports in ufw or firewalld. To do it by hand, replace `PANEL_PORT` with your panel port.
+`veilon firewall` opens the Veilon ports in ufw or firewalld.
+
+<details>
+<summary><b>Open the ports by hand with ufw or firewalld</b></summary>
+
+<br>
+
+Replace `PANEL_PORT` with your panel port.
 
 ufw (Ubuntu, Debian):
 
@@ -453,10 +673,14 @@ firewall-cmd --reload
 
 For a UDP port use `udp` instead of `tcp` (e.g. `ufw allow 8443/udp`).
 
+</details>
+
 ## SSL
 
-- **Domain:** Let's Encrypt, 90 days, auto renewed. Point an `A` record to the server first (turn off any DNS proxy or CDN option for that record).
-- **Server IP:** Let's Encrypt short-lived certificate (about 6 days), renewed every ~3 days. No domain needed.
+| Option | Certificate | Notes |
+| --- | --- | --- |
+| **Domain** | Let's Encrypt, 90 days, auto renewed | Point an `A` record to the server first (turn off any DNS proxy or CDN option for that record) |
+| **Server IP** | Let's Encrypt short-lived certificate (about 6 days) | Renewed every ~3 days. No domain needed |
 
 ```bash
 veilon cert issue --domain panel.example.com --panel
@@ -466,12 +690,20 @@ veilon cert issue --domain panel.example.com --panel
 veilon cert issue --ip auto --panel
 ```
 
+---
+
 ## First steps
 
 1. Open the panel URL and sign in.
 2. **Inbounds → New inbound.** VLESS + Reality on port 443 is a good start. Ports and names must be unique.
 3. **Users → New user.** Set a data cap (0 = unlimited), expiry and the inbounds.
 4. Open the user to get the subscription link, QR codes and per-inbound links.
+
+<details>
+<summary><b>Next steps: limits, groups, admins, TUIC, Xray core, timezone and logs</b></summary>
+
+<br>
+
 5. **Limits (optional):** in the user form, open the limits section, e.g. concurrent IPs = 2 or a download speed cap. 0 always means no limit. The **Connections** tab lists the user's IPs and devices and lets you block any of them.
 6. **Groups (optional):** create a group under **Groups**, set its inbounds and defaults, and pick it when creating users.
 7. **Admins (optional):** create a sub-admin under **Admins** and choose what it may do (e.g. only view users). Buttons an admin may not use are hidden.
@@ -480,10 +712,17 @@ veilon cert issue --ip auto --panel
 10. **Timezone:** choose the panel timezone in **Settings** (e.g. Tehran; default UTC). Log times, the traffic chart and daily, weekly and monthly resets follow it.
 11. **Logs:** pick a source (Xray, panel or all) under **Logs** to see every line with its exact time.
 
+</details>
+
 ## Client apps
 
-- **v2rayNG** (Android), **Hiddify** (all platforms), **Streisand** (iOS, macOS): import the subscription link or scan the QR code.
-- **AmneziaWG** and **WireGuard**: download the `.conf` file from the user page and import it.
+| App | Platforms | How |
+| --- | --- | --- |
+| **v2rayNG** | Android | Import the subscription link or scan the QR code |
+| **Hiddify** | All platforms | Import the subscription link or scan the QR code |
+| **Streisand** | iOS, macOS | Import the subscription link or scan the QR code |
+| **AmneziaWG** | Android, iOS, Windows, macOS | For AmneziaWG inbounds: download the `.conf` file from the user page and import it |
+| **WireGuard** | All | For WireGuard inbounds: the `.conf` file or scan the QR code |
 
 ## Management
 
@@ -511,24 +750,62 @@ veilon
 
 ## Troubleshooting
 
-- **Panel does not open:** `veilon status`, `veilon info` (exact port and path, with the trailing `/`), open the panel port in your server firewall (and your provider's firewall panel if it has one), `veilon logs -n 100`.
-- **Certificate errors:** without a certificate use `http://`; open 80/tcp and run `veilon cert issue --ip auto --panel`; for a domain check the DNS record and turn off any DNS proxy or CDN option.
-- **Forgot the password:** `cat /root/veilon-credentials.txt` or `veilon admin reset-credentials --password NEW_PASSWORD`.
-- **Port in use:** `veilon set-port 2096` for the panel; for inbounds find the other program with `ss -tulpn | grep :443`.
+<details>
+<summary><b>Panel does not open</b></summary>
+
+<br>
+
+`veilon status`, `veilon info` (exact port and path, with the trailing `/`), open the panel port in your server firewall (and your provider's firewall panel if it has one), `veilon logs -n 100`.
+
+</details>
+
+<details>
+<summary><b>Certificate errors</b></summary>
+
+<br>
+
+Without a certificate use `http://`; open 80/tcp and run `veilon cert issue --ip auto --panel`; for a domain check the DNS record and turn off any DNS proxy or CDN option.
+
+</details>
+
+<details>
+<summary><b>Forgot the password</b></summary>
+
+<br>
+
+`cat /root/veilon-credentials.txt` or `veilon admin reset-credentials --password NEW_PASSWORD`.
+
+</details>
+
+<details>
+<summary><b>Port in use</b></summary>
+
+<br>
+
+`veilon set-port 2096` for the panel; for inbounds find the other program with `ss -tulpn | grep :443`.
+
+</details>
+
+---
 
 ## Support the developer
 
 Veilon is free and built with time and care. If it helps you, any support means a lot. The same details are in the panel under More → Support the developer.
 
-- Wallet: Tonkeeper
-- Accepts: TON and USDT (Tether) **on the TON network only**
+| Item | Details |
+| --- | --- |
+| 👛 **Wallet** | Tonkeeper |
+| 💎 **Accepts** | TON and USDT (Tether) **on the TON network only** |
 
 ```
 UQCr7FXmeLsKLplHAgb1HIT0rxmQJpvAh4w2pST-DBGicbi2
 ```
 
-> ⚠️ Send each coin only on the network of that address; sending on another network will lose the money. Do not send USDT from TRC20, ERC20 or BEP20.
+> [!WARNING]
+> Send each coin only on the network of that address; sending on another network will lose the money. Do not send USDT from TRC20, ERC20 or BEP20.
 
 ## License
 
 AGPL-3.0. See [LICENSE](LICENSE).
+
+<p align="center"><sub>Made with care by <a href="https://t.me/lxhosein">@lxhosein</a></sub></p>
