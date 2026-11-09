@@ -2,6 +2,8 @@
 
 # Veilon
 
+**توسعه داده شده توسط [@lxhosein](https://t.me/lxhosein)**
+
 Veilon یک پنل مدیریت پروکسی رایگان و متن باز است. یک فایل اجرایی Go همه کار را انجام می دهد: رابط وب، API، لینک اشتراک (Subscription) و مدیریت هسته های پروکسی. نصب با یک دستور انجام می شود و رابط کاربری فارسی و انگلیسی دارد.
 
 [English version below](#english)
@@ -338,6 +340,8 @@ AGPL-3.0. متن کامل در [LICENSE](LICENSE).
 <a id="english"></a>
 
 # Veilon (English)
+
+**Developed by [@lxhosein](https://t.me/lxhosein)**
 
 Veilon is a free, open-source proxy panel. One Go binary serves the web UI, the API and subscriptions, and supervises the proxy cores. One-command install, Persian and English UI.
 
