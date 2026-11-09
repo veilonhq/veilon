@@ -9,6 +9,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/audit"
 	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/stats"
+	"github.com/veilonhq/veilon/panel/internal/usage"
 	"github.com/veilonhq/veilon/panel/internal/users"
 )
 
@@ -31,14 +32,21 @@ func (s *Server) systemStats(w http.ResponseWriter, r *http.Request, a *db.Admin
 	}
 	var online int64
 	s.DB.Model(&db.User{}).Where("last_online_at > ?", time.Now().UTC().Add(-users.OnlineWindow)).Count(&online)
-	up, _ := strconv.ParseInt(db.GetSetting(s.DB, db.KeyTrafficUp), 10, 64)
-	down, _ := strconv.ParseInt(db.GetSetting(s.DB, db.KeyTrafficDown), 10, 64)
+	// The total is the sum of every user's counters: the same source and
+	// units (counted bytes) as the users list.
+	up, down, err := usage.Totals(s.DB)
+	if err != nil {
+		writeServiceErr(w, err)
+		return
+	}
+	uUp, uDown := usage.Default.Rate(usage.LiveWindow)
 	writeJSON(w, 200, map[string]any{
 		"cpu_percent": h.CPUPercent, "mem_used": h.MemUsed, "mem_total": h.MemTotal,
 		"disk_used": h.DiskUsed, "disk_total": h.DiskTotal, "uptime_sec": h.UptimeSec,
 		"swap_used": h.SwapUsed, "swap_total": h.SwapTotal,
 		"cpu_cores": h.CPUCores, "cpu_model": h.CPUModel, "load_avg": h.LoadAvg,
 		"net_up_bps": h.NetUpBps, "net_down_bps": h.NetDownBps,
+		"traffic_up_bps": round2(uUp), "traffic_down_bps": round2(uDown),
 		"users_total": total, "users_active": by[db.StatusActive], "users_online": online,
 		"users_expired": by[db.StatusExpired], "users_limited": by[db.StatusLimited],
 		"users_disabled": by[db.StatusDisabled], "users_on_hold": by[db.StatusOnHold],
@@ -48,18 +56,42 @@ func (s *Server) systemStats(w http.ResponseWriter, r *http.Request, a *db.Admin
 }
 
 func (s *Server) systemTraffic(w http.ResponseWriter, r *http.Request, a *db.Admin) {
-	window, bucket, ok := stats.RangeSpec(r.URL.Query().Get("range"))
+	q := r.URL.Query()
+	window, bucket, ok := stats.RangeSpec(q.Get("range"))
 	if !ok {
 		writeErr(w, http.StatusBadRequest, "bad_request", "range must be 24h, 7d or 30d")
 		return
 	}
-	pts, err := stats.Traffic(s.DB, window, bucket, time.Now())
+	b, ok := stats.BucketSpec(q.Get("bucket"))
+	if !ok {
+		writeErr(w, http.StatusBadRequest, "bad_request", "bucket must be 5m, 15m, 1h, 6h or 1d")
+		return
+	}
+	if b > 0 {
+		bucket = b
+	}
+	if bucket > window || window/bucket > stats.MaxPoints {
+		writeErr(w, http.StatusBadRequest, "bad_request", "bucket does not fit the range")
+		return
+	}
+	loc := users.LoadLocation(s.Settings().Timezone)
+	pts, err := stats.Traffic(s.DB, window, bucket, time.Now(), loc)
 	if err != nil {
 		writeServiceErr(w, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"points": pts, "bucket_sec": int(bucket.Seconds())})
+	var tu, td int64
+	for _, p := range pts {
+		tu += p.Up
+		td += p.Down
+	}
+	writeJSON(w, 200, map[string]any{
+		"points": pts, "bucket_sec": int(bucket.Seconds()), "range": window.String(),
+		"timezone": loc.String(), "total_up": tu, "total_down": td,
+	})
 }
+
+func round2(v float64) float64 { return float64(int64(v*100+0.5)) / 100 }
 
 func (s *Server) coreRestart(w http.ResponseWriter, r *http.Request, a *db.Admin) {
 	s.Core.Restart()

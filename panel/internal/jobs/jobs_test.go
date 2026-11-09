@@ -6,6 +6,7 @@ import (
 
 	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/testutil"
+	"github.com/veilonhq/veilon/panel/internal/usage"
 )
 
 func TestProcessUsers(t *testing.T) {
@@ -70,15 +71,16 @@ func TestProcessUsers(t *testing.T) {
 
 func TestTickRecordsTraffic(t *testing.T) {
 	gdb := testutil.DB(t)
-	r := &Runner{DB: gdb, TakeSystemDelta: func() (int64, int64) { return 10, 20 }}
+	m := usage.NewMeter()
+	r := &Runner{DB: gdb, TakeUsage: m.Take, RestoreUsage: m.Restore}
+	m.Add(10, 20)
 	r.Tick()
+	r.Tick() // nothing new: no empty point is stored
+	m.Add(1, 2)
 	r.Tick()
 	var pts []db.TrafficPoint
-	gdb.Find(&pts)
-	if len(pts) != 2 || pts[0].Up != 10 || pts[0].Down != 20 {
+	gdb.Order("id").Find(&pts)
+	if len(pts) != 2 || pts[0].Up != 10 || pts[0].Down != 20 || pts[1].Up != 1 || pts[1].Down != 2 {
 		t.Fatalf("points %+v", pts)
-	}
-	if db.GetSetting(gdb, db.KeyTrafficDown) != "40" {
-		t.Fatalf("total down = %s", db.GetSetting(gdb, db.KeyTrafficDown))
 	}
 }

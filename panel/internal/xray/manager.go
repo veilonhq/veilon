@@ -20,6 +20,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/veilonhq/veilon/panel/internal/db"
+	"github.com/veilonhq/veilon/panel/internal/usage"
 	"github.com/veilonhq/veilon/panel/internal/users"
 	"github.com/veilonhq/veilon/panel/internal/util"
 )
@@ -443,7 +444,8 @@ func ApplyUserTraffic(gdb *gorm.DB, deltas map[int64][2]int64, now time.Time) er
 	for _, m := range ms {
 		mult[m.ID] = m.TrafficMultiplier
 	}
-	return gdb.Transaction(func(tx *gorm.DB) error {
+	var addUp, addDown int64
+	err := gdb.Transaction(func(tx *gorm.DB) error {
 		for id, d := range deltas {
 			if d[0] <= 0 && d[1] <= 0 {
 				continue
@@ -457,12 +459,22 @@ func ApplyUserTraffic(gdb *gorm.DB, deltas map[int64][2]int64, now time.Time) er
 			if d[0] > 0 {
 				upd["last_online_at"] = now
 			}
-			if err := tx.Model(&db.User{}).Where("id = ?", id).Updates(upd).Error; err != nil {
-				return err
+			res := tx.Model(&db.User{}).Where("id = ?", id).Updates(upd)
+			if res.Error != nil {
+				return res.Error
+			}
+			if res.RowsAffected > 0 { // a deleted user's bytes are not counted
+				addUp += up
+				addDown += down
 			}
 		}
 		return nil
 	})
+	if err == nil {
+		// History and live rate come from exactly the bytes added to users.
+		usage.Default.Add(addUp, addDown)
+	}
+	return err
 }
 
 // ErrNotRunning is returned when an operation needs a running core.

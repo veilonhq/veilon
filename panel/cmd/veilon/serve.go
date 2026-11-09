@@ -27,6 +27,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/jobs"
 	"github.com/veilonhq/veilon/panel/internal/stats"
 	"github.com/veilonhq/veilon/panel/internal/sub"
+	usagemeter "github.com/veilonhq/veilon/panel/internal/usage"
 	"github.com/veilonhq/veilon/panel/internal/users"
 	"github.com/veilonhq/veilon/panel/internal/util"
 	"github.com/veilonhq/veilon/panel/internal/version"
@@ -126,8 +127,9 @@ func cmdServe(args []string) error {
 	var plainPanelPort atomic.Int64
 	certSvc.PanelServesHTTP01 = func(port int) bool { return int64(port) == plainPanelPort.Load() }
 	runner := &jobs.Runner{
-		DB: gdb, TakeSystemDelta: core.TakeSystemDelta, OnUsersChanged: core.RequestReload,
-		RenewCerts: certSvc.RenewDue,
+		DB: gdb, TakeUsage: usagemeter.Default.Take, RestoreUsage: usagemeter.Default.Restore,
+		OnUsersChanged: core.RequestReload,
+		RenewCerts:     certSvc.RenewDue,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

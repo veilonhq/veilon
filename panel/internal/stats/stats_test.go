@@ -48,3 +48,33 @@ func TestParseMemAndCPU(t *testing.T) {
 		t.Fatal("no cores")
 	}
 }
+
+func TestTrafficAlignsToPanelTimezone(t *testing.T) {
+	loc := time.FixedZone("Tehran", 3*3600+1800)
+	now := time.Date(2026, 11, 9, 20, 47, 0, 0, loc)
+	if got := alignStart(now, time.Hour, loc); !got.Equal(time.Date(2026, 11, 9, 20, 0, 0, 0, loc)) {
+		t.Fatalf("hour start %v", got)
+	}
+	if got := alignStart(now, 24*time.Hour, loc); !got.Equal(time.Date(2026, 11, 9, 0, 0, 0, 0, loc)) {
+		t.Fatalf("day start %v", got)
+	}
+	if got := alignStart(now, 6*time.Hour, loc); !got.Equal(time.Date(2026, 11, 9, 18, 0, 0, 0, loc)) {
+		t.Fatalf("6h start %v", got)
+	}
+	if _, ok := BucketSpec("2h"); ok {
+		t.Fatal("bad bucket accepted")
+	}
+}
+
+func TestParseNetDevSkipsVirtual(t *testing.T) {
+	in := `Inter-|   Receive                                                |  Transmit
+ face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
+    lo: 500 5 0 0 0 0 0 0 500 5 0 0 0 0 0 0
+  ens5: 1000 10 0 0 0 0 0 0 2000 20 0 0 0 0 0 0
+ vawg2: 300 3 0 0 0 0 0 0 400 4 0 0 0 0 0 0
+`
+	rx, tx := parseNetDev(bufio.NewScanner(strings.NewReader(in)), func(n string) bool { return n == "vawg2" })
+	if rx != 1000 || tx != 2000 {
+		t.Fatalf("rx=%d tx=%d", rx, tx)
+	}
+}

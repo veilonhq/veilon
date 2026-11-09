@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -233,20 +234,37 @@ func readLoadAvg() (l [3]float64) {
 	return l
 }
 
+// readNet sums the byte counters of the physical interfaces. Virtual ones
+// (lo, AmneziaWG/WireGuard, TUN, veth, bridges, docker) carry the same
+// packets a second time, so counting them would double the proxied traffic.
 func readNet() (rx, tx uint64) {
 	f, err := os.Open("/proc/net/dev")
 	if err != nil {
 		return 0, 0
 	}
 	defer f.Close()
-	sc := bufio.NewScanner(f)
+	return parseNetDev(bufio.NewScanner(f), isVirtualIface)
+}
+
+func isVirtualIface(name string) bool {
+	if name == "lo" {
+		return true
+	}
+	p, err := filepath.EvalSymlinks(filepath.Join("/sys/class/net", name))
+	if err != nil {
+		return false
+	}
+	return strings.HasPrefix(p, "/sys/devices/virtual/")
+}
+
+func parseNetDev(sc *bufio.Scanner, virtual func(string) bool) (rx, tx uint64) {
 	for sc.Scan() {
 		name, rest, ok := strings.Cut(sc.Text(), ":")
 		if !ok {
 			continue
 		}
 		name = strings.TrimSpace(name)
-		if name == "lo" {
+		if name == "lo" || (virtual != nil && virtual(name)) {
 			continue
 		}
 		fields := strings.Fields(rest)
@@ -261,14 +279,15 @@ func readNet() (rx, tx uint64) {
 	return rx, tx
 }
 
-// Point is one chart point.
+// Point is one chart point: counted user traffic (bytes) in the bucket that
+// starts at T.
 type Point struct {
 	T    time.Time `json:"t"`
 	Up   int64     `json:"up"`
 	Down int64     `json:"down"`
 }
 
-// RangeSpec returns the window and bucket size for a range name.
+// RangeSpec returns the window and default bucket size for a range name.
 func RangeSpec(r string) (window, bucket time.Duration, ok bool) {
 	switch r {
 	case "", "24h":
@@ -281,14 +300,49 @@ func RangeSpec(r string) (window, bucket time.Duration, ok bool) {
 	return 0, 0, false
 }
 
-// Traffic aggregates stored points into buckets covering the window,
-// returning zero-filled points in chronological order.
-func Traffic(gdb *gorm.DB, window, bucket time.Duration, now time.Time) ([]Point, error) {
-	now = now.UTC()
-	end := now.Truncate(bucket).Add(bucket)
+// MaxPoints bounds the number of buckets one request may ask for.
+const MaxPoints = 2000
+
+// BucketSpec parses an optional bucket override ("" keeps the default).
+// Every bucket divides a day, so buckets align to local midnight.
+func BucketSpec(b string) (time.Duration, bool) {
+	switch b {
+	case "":
+		return 0, true
+	case "5m":
+		return 5 * time.Minute, true
+	case "15m":
+		return 15 * time.Minute, true
+	case "1h":
+		return time.Hour, true
+	case "6h":
+		return 6 * time.Hour, true
+	case "1d":
+		return 24 * time.Hour, true
+	}
+	return 0, false
+}
+
+// alignStart returns the start of the bucket containing t, with buckets
+// counted from local midnight in loc (so hours and days follow the panel's
+// timezone, e.g. Tehran's +03:30).
+func alignStart(t time.Time, bucket time.Duration, loc *time.Location) time.Time {
+	if loc == nil {
+		loc = time.UTC
+	}
+	lt := t.In(loc)
+	mid := time.Date(lt.Year(), lt.Month(), lt.Day(), 0, 0, 0, 0, loc)
+	return mid.Add(lt.Sub(mid) / bucket * bucket)
+}
+
+// Traffic aggregates stored points into buckets covering the window that
+// ends with the bucket containing now, returning zero-filled points in
+// chronological order and the window's totals.
+func Traffic(gdb *gorm.DB, window, bucket time.Duration, now time.Time, loc *time.Location) ([]Point, error) {
+	end := alignStart(now, bucket, loc).Add(bucket)
 	start := end.Add(-window)
 	var rows []db.TrafficPoint
-	if err := gdb.Where("t >= ? AND t < ?", start, end).Order("t").Find(&rows).Error; err != nil {
+	if err := gdb.Where("t >= ? AND t < ?", start.UTC(), end.UTC()).Order("t").Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	return Bucketize(rows, start, end, bucket), nil
@@ -299,10 +353,10 @@ func Bucketize(rows []db.TrafficPoint, start, end time.Time, bucket time.Duratio
 	n := int(end.Sub(start) / bucket)
 	pts := make([]Point, n)
 	for i := range pts {
-		pts[i].T = start.Add(time.Duration(i) * bucket)
+		pts[i].T = start.Add(time.Duration(i) * bucket).UTC()
 	}
 	for _, r := range rows {
-		t := r.T.UTC()
+		t := r.T
 		if t.Before(start) || !t.Before(end) {
 			continue
 		}

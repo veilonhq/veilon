@@ -17,8 +17,12 @@ import (
 // Runner holds job dependencies.
 type Runner struct {
 	DB *gorm.DB
-	// TakeSystemDelta returns system traffic since the last call (may be nil).
-	TakeSystemDelta func() (up, down int64)
+	// TakeUsage returns the counted user traffic (bytes added to user
+	// counters) since the last call; it is stored as history points so the
+	// chart matches the users' totals (may be nil).
+	TakeUsage func() (up, down int64)
+	// RestoreUsage puts deltas back when storing them failed (may be nil).
+	RestoreUsage func(up, down int64)
 	// OnUsersChanged is called when served users changed (Xray reload).
 	OnUsersChanged func()
 	// RenewCerts renews due certificates (may be nil).
@@ -76,16 +80,19 @@ func (r *Runner) Tick() {
 }
 
 func (r *Runner) recordTraffic() {
-	if r.TakeSystemDelta == nil {
+	if r.TakeUsage == nil {
 		return
 	}
-	up, down := r.TakeSystemDelta()
+	up, down := r.TakeUsage()
+	if up <= 0 && down <= 0 {
+		return // the chart zero-fills empty minutes
+	}
 	if err := r.DB.Create(&db.TrafficPoint{T: r.now().Truncate(time.Minute), Up: up, Down: down}).Error; err != nil {
 		slog.Warn("store traffic point failed", "err", err)
-		return
+		if r.RestoreUsage != nil {
+			r.RestoreUsage(up, down)
+		}
 	}
-	_ = db.AddCounter(r.DB, db.KeyTrafficUp, up)
-	_ = db.AddCounter(r.DB, db.KeyTrafficDown, down)
 }
 
 func (r *Runner) prune() {
