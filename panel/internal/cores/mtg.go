@@ -70,6 +70,7 @@ func NewMTG(opt Options) *MTG {
 		ReloadSignal: syscall.SIGHUP, // reloads [secrets] without dropping other users
 		Plan:         e.plan,
 		Collect:      e.collect,
+		ConfigGlob:   filepath.Join(opt.DataDir, "mtg", "inbound-*.toml"),
 	})
 	return e
 }

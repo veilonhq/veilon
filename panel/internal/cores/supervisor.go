@@ -69,6 +69,9 @@ type Spec struct {
 	LineHook   func(key string, gen uint64, line string) bool
 	StatsEvery time.Duration
 	Debounce   time.Duration
+	// ConfigGlob matches the config files this engine writes; files it
+	// matches that no planned instance uses (deleted inbounds) are removed.
+	ConfigGlob string
 }
 
 // Running describes a live instance for Collect.
@@ -333,6 +336,7 @@ func (s *Supervisor) apply(ctx context.Context, force bool) {
 	for _, p := range gone {
 		s.stopProc(p)
 	}
+	s.removeStale(want)
 	if len(plan) == 0 {
 		s.setErr("")
 		return
@@ -395,6 +399,26 @@ func (s *Supervisor) apply(ctx context.Context, force bool) {
 		s.mu.Unlock()
 	}
 	s.setErr(strings.Join(errs, "; "))
+}
+
+// removeStale deletes config files matching ConfigGlob that no wanted
+// instance writes.
+func (s *Supervisor) removeStale(want map[string]Instance) {
+	if s.spec.ConfigGlob == "" {
+		return
+	}
+	files, _ := filepath.Glob(s.spec.ConfigGlob)
+	keep := map[string]bool{}
+	for _, in := range want {
+		keep[filepath.Clean(in.ConfigFile)] = true
+	}
+	for _, f := range files {
+		if !keep[filepath.Clean(f)] {
+			if err := os.Remove(f); err == nil {
+				slog.Info("removed stale engine config", "engine", s.spec.Name, "file", f)
+			}
+		}
+	}
 }
 
 func sortedKeys(m map[string]Instance) []string {

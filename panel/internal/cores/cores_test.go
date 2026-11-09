@@ -307,3 +307,26 @@ func TestAWGConfigsPerInbound(t *testing.T) {
 		t.Fatal("no inbounds must mean no instances")
 	}
 }
+
+// Config files of instances that are no longer planned (deleted inbounds)
+// are removed; files of planned instances and unrelated files stay.
+func TestSupervisorRemovesStaleConfigs(t *testing.T) {
+	dir := t.TempDir()
+	for _, n := range []string{"vawg2.json", "vawg12.json", "keep.txt"} {
+		if err := os.WriteFile(filepath.Join(dir, n), []byte("{}"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s := NewSupervisor(Spec{Name: "t", ConfigGlob: filepath.Join(dir, "vawg*.json")})
+	s.removeStale(map[string]Instance{"vawg2": {Key: "vawg2", ConfigFile: filepath.Join(dir, "vawg2.json")}})
+	for n, want := range map[string]bool{"vawg2.json": true, "vawg12.json": false, "keep.txt": true} {
+		_, err := os.Stat(filepath.Join(dir, n))
+		if (err == nil) != want {
+			t.Fatalf("%s exists=%v want %v", n, err == nil, want)
+		}
+	}
+	s.removeStale(nil)
+	if _, err := os.Stat(filepath.Join(dir, "vawg2.json")); err == nil {
+		t.Fatal("vawg2.json kept with empty plan")
+	}
+}

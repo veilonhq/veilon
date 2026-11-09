@@ -107,6 +107,7 @@ func NewAWG(opt Options, self string) *AWG {
 		Bin:          func() string { return self },
 		Version:      func() string { return strings.TrimPrefix(awgd.Version, "amneziawg-go ") },
 		ReloadSignal: syscall.SIGHUP,
+		ConfigGlob:   filepath.Join(cfgDir, "vawg*.json"),
 		Plan: func() ([]Instance, error) {
 			in, err := xray.LoadInput(opt.DB, opt.DataDir, 0)
 			if err != nil {

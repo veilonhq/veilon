@@ -145,11 +145,12 @@ func NewSingbox(opt Options) *Singbox {
 	e := &Singbox{opt: opt}
 	cfgPath := filepath.Join(opt.DataDir, "sing-box", "config.json")
 	e.Supervisor = NewSupervisor(Spec{
-		Name:      "sing-box",
-		Protocols: []string{inbounds.TUIC},
-		Bin:       func() string { return opt.BinPath },
-		Ensure:    e.ensure,
-		Version:   func() string { return binVersion(opt.BinPath, "version", 2) },
+		Name:       "sing-box",
+		Protocols:  []string{inbounds.TUIC},
+		Bin:        func() string { return opt.BinPath },
+		Ensure:     e.ensure,
+		Version:    func() string { return binVersion(opt.BinPath, "version", 2) },
+		ConfigGlob: cfgPath,
 		Plan: func() ([]Instance, error) {
 			in, err := xray.LoadInput(opt.DB, opt.DataDir, 0)
 			if err != nil {
