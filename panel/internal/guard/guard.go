@@ -47,6 +47,8 @@ type Guard struct {
 	// refused by the cores, so they never count as live for the limits.
 	blocked  map[string]bool
 	sbParser *SingboxParser
+	// shapes is the last speed-limit plan (for the nodes).
+	shapes []Shape
 }
 
 type limit struct {
@@ -248,9 +250,27 @@ func (g *Guard) Plan() (bans []string, shapes []Shape) {
 // Enforce applies bans and shaping.
 func (g *Guard) Enforce() {
 	bans, shapes := g.Plan()
+	g.mu.Lock()
+	g.shapes = shapes
+	g.mu.Unlock()
 	g.applyBans(bans)
 	g.applyTC(shapes)
 }
+
+// Shapes returns the current speed-limit plan (users with a speed limit
+// and their live IPs on all servers), for the nodes.
+func (g *Guard) Shapes() []Shape {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return append([]Shape(nil), g.shapes...)
+}
+
+// ApplyShapes applies a speed-limit plan received from the master (on a
+// node; the guard there has no database).
+func (g *Guard) ApplyShapes(shapes []Shape) { g.applyTC(shapes) }
+
+// ClearShapes removes the shaping (on shutdown).
+func (g *Guard) ClearShapes() { g.clearTC() }
 
 func (g *Guard) applyBans(bans []string) {
 	now := g.now()

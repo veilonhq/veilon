@@ -114,10 +114,10 @@ func joinInts(v []int) string {
 
 // Shape is the speed limit of one user and its live IPs.
 type Shape struct {
-	UserID   int64
-	DownKbps int64
-	UpKbps   int64
-	IPs      []string
+	UserID   int64    `json:"u"`
+	DownKbps int64    `json:"down"`
+	UpKbps   int64    `json:"up"`
+	IPs      []string `json:"ips"`
 }
 
 // htbBurst is the HTB burst for a download class: 50 ms at the rate.

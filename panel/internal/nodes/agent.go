@@ -50,6 +50,8 @@ type Agent struct {
 	IPs *guard.IPCollector
 	// Firewall drops the IPs the master bans (nil = bans are ignored).
 	Firewall *guard.NodeFirewall
+	// Shaper applies the master's speed limits (nil = ignored).
+	Shaper interface{ ApplyShapes([]guard.Shape) }
 
 	mu      sync.Mutex
 	hash    string
@@ -369,6 +371,9 @@ func (a *Agent) putBans(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(io.LimitReader(r.Body, 4<<20)).Decode(&p); err != nil {
 		writeJ(w, 400, map[string]string{"error": "bad request: " + err.Error()})
 		return
+	}
+	if a.Shaper != nil && p.Shapes != nil {
+		a.Shaper.ApplyShapes(p.Shapes)
 	}
 	if a.Firewall == nil {
 		writeJ(w, 200, map[string]bool{"ok": false})

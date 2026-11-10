@@ -169,3 +169,51 @@ func TestBansToOldAgentDoNotFailTheRound(t *testing.T) {
 		t.Fatalf("state %+v", st)
 	}
 }
+
+type shapeRec struct {
+	mu   sync.Mutex
+	last []guard.Shape
+	n    int
+}
+
+func (s *shapeRec) ApplyShapes(v []guard.Shape) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.last, s.n = v, s.n+1
+}
+
+// Speed limits apply on nodes too: the master's plan (users with a speed
+// limit and their live IPs on all servers) reaches every node, and an
+// unchanged plan is not resent every round.
+func TestSpeedLimitsReachNodes(t *testing.T) {
+	r := newRig(t)
+	g := guard.New(r.gdb, "")
+	g.Run = (&nftRec{}).run
+	g.LookPath = func(string) (string, error) { return "/sbin/x", nil }
+	g.Dev = "eth0"
+	g.Limit(1, 0, 2048, 512)
+	r.m.OnIPs, r.m.Bans, r.m.Shapes = g.ObserveRemote, g.Bans, g.Shapes
+	n := r.addNode(t, "de", 1)
+	a, _ := startAgent(t, r, n)
+	a.IPs = &guard.IPCollector{}
+	sh := &shapeRec{}
+	a.Shaper = sh
+	ctx := context.Background()
+	a.IPs.ObserveLine(accessLine("198.51.100.20", 1, "alice"))
+	r.m.SyncNode(ctx, reload(t, r.gdb, n.ID)) // reports the IP
+	g.Enforce()
+	r.m.SyncNode(ctx, reload(t, r.gdb, n.ID)) // sends the plan
+	sh.mu.Lock()
+	got, calls := sh.last, sh.n
+	sh.mu.Unlock()
+	if len(got) != 1 || got[0].UserID != 1 || got[0].DownKbps != 2048 || got[0].UpKbps != 512 || len(got[0].IPs) != 1 || got[0].IPs[0] != "198.51.100.20" {
+		t.Fatalf("plan on node: %+v", got)
+	}
+	r.m.SyncNode(ctx, reload(t, r.gdb, n.ID))
+	sh.mu.Lock()
+	again := sh.n
+	sh.mu.Unlock()
+	if again != calls {
+		t.Fatalf("unchanged plan resent (%d -> %d)", calls, again)
+	}
+}

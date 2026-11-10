@@ -89,7 +89,7 @@ func cmdServe(args []string) error {
 	// Remote nodes get every change too (their config is rendered from the
 	// same users, inbounds and template).
 	nodeMgr := &nodes.Manager{DB: gdb, DataDir: cfg.DataDir, PKI: &nodes.PKI{Dir: filepath.Join(cfg.DataDir, "nodes")},
-		OnIPs: connGuard.ObserveRemote, Bans: connGuard.Bans}
+		OnIPs: connGuard.ObserveRemote, Bans: connGuard.Bans, Shapes: connGuard.Shapes}
 	reloadAll := func() { core.RequestReload(); nodeMgr.Kick() }
 	certSvc := &certs.Service{DB: gdb, DataDir: cfg.DataDir, ACMEDirectory: cfg.ACMEDirectory, OnChange: reloadAll,
 		AllowNonPublicIPs: cfg.ACMEAllowPrivateIPs}

@@ -137,9 +137,11 @@ func nodeServe(dir, token, listen string) error {
 		apiPort = v
 	}
 	ips := &guard.IPCollector{}
+	shaper := guard.New(nil, "") // speed limits from the master (tc only)
 	core := &nodes.ProcCore{Bin: filepath.Join(nodeXrayDir(dir), "xray"), Dir: dir, APIPort: apiPort, OnLine: ips.ObserveLine}
 	a := &nodes.Agent{Enrollment: e, Dir: dir, Core: core, APIPort: apiPort, Version: version.Version,
-		IPs: ips, Firewall: &guard.NodeFirewall{}}
+		IPs: ips, Firewall: &guard.NodeFirewall{}, Shaper: shaper}
+	defer shaper.ClearShapes()
 	a.Restore(ctx)
 	return a.Serve(ctx, listen)
 }

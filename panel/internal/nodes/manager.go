@@ -76,6 +76,8 @@ type Manager struct {
 	// Bans lists the IPs dropped for the IP limit; every node gets them
 	// (nil = no bans are sent).
 	Bans func() []guard.Ban
+	// Shapes is the speed-limit plan; every node gets it with the bans.
+	Shapes func() []guard.Shape
 
 	once     sync.Once
 	mu       sync.Mutex
@@ -559,11 +561,21 @@ func (m *Manager) sendBans(ctx context.Context, hc *http.Client, n *db.Node) {
 	if bans == nil {
 		bans = []guard.Ban{}
 	}
+	var shapes []guard.Shape
+	if m.Shapes != nil {
+		util.Safe("node shapes", func() { shapes = m.Shapes() })
+	}
+	if shapes == nil {
+		shapes = []guard.Shape{}
+	}
 	ips := make([]string, len(bans))
 	for i, b := range bans {
 		ips[i] = b.IP
 	}
 	sig := strings.Join(ips, ",")
+	for _, s := range shapes {
+		sig += fmt.Sprintf("|%d:%d:%d:%s", s.UserID, s.DownKbps, s.UpKbps, strings.Join(s.IPs, ","))
+	}
 	m.mu.Lock()
 	prev := m.bansSent[n.ID]
 	m.mu.Unlock()
@@ -572,13 +584,13 @@ func (m *Manager) sendBans(ctx context.Context, hc *http.Client, n *db.Node) {
 		return
 	case !prev.unsupported && prev.sig == sig && time.Since(prev.at) < time.Minute:
 		return
-	case !prev.unsupported && prev.at.IsZero() && len(bans) == 0:
+	case !prev.unsupported && prev.at.IsZero() && len(bans) == 0 && len(shapes) == 0:
 		m.mu.Lock()
 		m.bansSent[n.ID] = bansState{sig: sig, at: time.Now()}
 		m.mu.Unlock()
 		return
 	}
-	err := m.call(ctx, hc, http.MethodPut, baseURL(n)+"/v1/bans", BansPush{Bans: bans}, nil)
+	err := m.call(ctx, hc, http.MethodPut, baseURL(n)+"/v1/bans", BansPush{Bans: bans, Shapes: shapes}, nil)
 	st := bansState{sig: sig, at: time.Now()}
 	if err != nil {
 		if strings.Contains(err.Error(), "HTTP 404") || strings.Contains(err.Error(), "HTTP 405") {
