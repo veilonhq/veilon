@@ -48,10 +48,11 @@ func TestNodesAPI(t *testing.T) {
 		t.Fatalf("duplicate %d %v", code, r)
 	}
 
-	// subscription links gain the node's address
+	// links of an inbound on a node point at the node only (the deprecated
+	// inbound_ids of the node API keeps the main server running it)
 	_, r, _ = c.do("GET", api+"/users/1/links", nil)
 	links := r["links"].([]any)
-	if len(links) != 2 || !strings.Contains(links[1].(map[string]any)["uri"].(string), "@de.example.com:4443") {
+	if len(links) != 1 || !strings.Contains(links[0].(map[string]any)["uri"].(string), "@de.example.com:4443") {
 		t.Fatalf("links %v", links)
 	}
 
@@ -65,8 +66,8 @@ func TestNodesAPI(t *testing.T) {
 		t.Fatalf("patch %d %v", code, r)
 	}
 	_, r, _ = c.do("GET", api+"/users/1/links", nil)
-	if n := len(r["links"].([]any)); n != 1 {
-		t.Fatalf("disabled node still in links: %d", n)
+	if l := r["links"].([]any); len(l) != 1 || strings.Contains(l[0].(map[string]any)["uri"].(string), "de.example.com") {
+		t.Fatalf("disabled node still in links: %v", l)
 	}
 	if code, r, _ = c.do("POST", api+"/nodes/"+itoa(id)+"/install", nil); code != 200 || r["token"] == nil {
 		t.Fatalf("reinstall %d %v", code, r)

@@ -124,8 +124,11 @@ func (g *Guard) Refresh() {
 	for _, u := range us {
 		lim[u.ID] = limit{ipLimit: u.IPLimit, down: u.SpeedDownKbps, up: u.SpeedUpKbps}
 	}
+	// Only the ports this server listens on (inbounds that run on nodes
+	// only are enforced by their nodes).
 	var ports []int
-	g.DB.Model(&db.Inbound{}).Where("enabled = ?", true).Pluck("port", &ports)
+	g.DB.Model(&db.Inbound{}).Where("enabled = ? AND NOT (serve_main = ? AND id IN (?))", true, false,
+		g.DB.Table("node_inbounds").Select("inbound_id")).Pluck("port", &ports)
 	var bl []db.UserIP
 	g.DB.Select("user_id", "ip").Where("blocked = ?", true).Find(&bl)
 	blocked := make(map[string]bool, len(bl))

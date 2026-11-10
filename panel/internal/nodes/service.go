@@ -276,8 +276,19 @@ func (s *Service) Delete(id int64) error {
 	_ = s.Manager.Reset(ctx, &n)
 	cancel()
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
+		var ids []int64
+		tx.Model(&db.NodeInbound{}).Where("node_id = ?", id).Pluck("inbound_id", &ids)
 		if err := tx.Where("node_id = ?", id).Delete(&db.NodeInbound{}).Error; err != nil {
 			return err
+		}
+		// An inbound that ran on this node only has no node left: it goes
+		// back to the main server (the flag is set so the stored state says
+		// what happens).
+		if len(ids) > 0 {
+			if err := tx.Model(&db.Inbound{}).Where("id IN ? AND id NOT IN (?)", ids,
+				tx.Table("node_inbounds").Select("inbound_id")).Update("serve_main", true).Error; err != nil {
+				return err
+			}
 		}
 		return tx.Delete(&db.Node{}, id).Error
 	})

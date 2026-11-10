@@ -84,6 +84,12 @@ type Extras struct {
 	// Nodes by inbound id: each enabled node serving the inbound adds one
 	// more proxy that connects to the node's address.
 	Nodes map[int64][]inbounds.NodeTarget
+	// Placed marks inbounds assigned to nodes: their proxies connect to the
+	// nodes only, never to the main server's address (even when the main
+	// server still runs them, as inbounds placed before v0.3.2 do).
+	Placed map[int64]bool
+	// NodeOnly marks placed inbounds the main server does not run.
+	NodeOnly map[int64]bool
 }
 
 // Address picks the address clients should connect to for an inbound.
@@ -195,7 +201,14 @@ func BuildProxiesX(u *db.User, ibs []inbounds.View, s db.Settings, reqHost strin
 				p.SpiderX = r.SpiderX
 			}
 		}
-		for _, v := range append(withHosts(p, ib, ex.Hosts[ib.ID]), withNodes(p, ib, ex.Nodes[ib.ID])...) {
+		// The main server's address is used only for inbounds without
+		// nodes, or for one the main server still runs whose nodes are all
+		// switched off (so its users keep a working link).
+		var main []Proxy
+		if !ex.Placed[ib.ID] || (len(ex.Nodes[ib.ID]) == 0 && !ex.NodeOnly[ib.ID]) {
+			main = withHosts(p, ib, ex.Hosts[ib.ID])
+		}
+		for _, v := range append(main, withNodes(p, ib, ex.Nodes[ib.ID], ex.Hosts[ib.ID])...) {
 			name := v.Name
 			used[name]++
 			if used[name] > 1 {
@@ -208,19 +221,26 @@ func BuildProxiesX(u *db.User, ibs []inbounds.View, s db.Settings, reqHost strin
 	return out
 }
 
-// withNodes returns one proxy per node serving the inbound: the inbound's
-// own settings, the node's address, and the node's name after the remark.
-func withNodes(p Proxy, ib *inbounds.View, nodes []inbounds.NodeTarget) []Proxy {
-	out := make([]Proxy, 0, len(nodes))
+// withNodes returns the proxies of the nodes that run the inbound: one per
+// node, connecting to the node's address and named "<remark> · <node>".
+// With hosts, each node gets one proxy per host: the host's overrides apply
+// on top of the node (a host address, when set, wins over the node's), and
+// proxies that end up identical are listed once.
+func withNodes(p Proxy, ib *inbounds.View, nodes []inbounds.NodeTarget, hosts []db.Host) []Proxy {
+	out := make([]Proxy, 0, len(nodes)*max(1, len(hosts)))
+	seen := map[string]bool{}
 	for _, n := range nodes {
-		v := p
-		v.Name = ib.Remark + " · " + n.Name
-		v.Server = n.Address
-		if p.WG != nil {
-			wg := *p.WG
-			v.WG = &wg
+		np := p
+		np.Server = n.Address
+		for _, v := range withHosts(np, ib, hosts) {
+			v.Name = v.Name + " · " + n.Name
+			k := fmt.Sprintf("%s|%d|%s|%s|%s|%s|%s", v.Server, v.Port, v.SNI, v.Host, v.Path, v.Fingerprint, strings.Join(v.ALPN, ","))
+			if seen[k] {
+				continue
+			}
+			seen[k] = true
+			out = append(out, v)
 		}
-		out = append(out, v)
 	}
 	return out
 }

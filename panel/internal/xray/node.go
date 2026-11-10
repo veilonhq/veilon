@@ -56,9 +56,7 @@ func NodeConfig(gdb *gorm.DB, dataDir string, inboundIDs []int64, apiPort int) (
 
 // NodeCapable reports whether inbounds of this protocol can be served by a
 // node (Xray-core inbounds, except TUN which needs the host's network).
-func NodeCapable(protocol string) bool {
-	return inbounds.Engine(protocol) == inbounds.EngineXray && protocol != "tun"
-}
+func NodeCapable(protocol string) bool { return inbounds.NodeCapable(protocol) }
 
 // inlineFiles replaces certificateFile / keyFile references with the file
 // contents ("certificate" / "key" as line arrays), everywhere in the config.

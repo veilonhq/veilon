@@ -230,6 +230,14 @@ var migrations = []migration{
 			PRIMARY KEY (node_id, inbound_id))`,
 		`CREATE INDEX idx_node_inbounds_inbound ON node_inbounds(inbound_id)`,
 	}},
+	// Where an inbound runs: serve_main says whether the main server's own
+	// cores serve it too. Additive only: every existing inbound gets TRUE,
+	// so inbounds already assigned to nodes keep running on the main server
+	// exactly as before. Inbounds without nodes always run on the main
+	// server, whatever the flag says.
+	{8, "inbound placement", []string{
+		`ALTER TABLE inbounds ADD COLUMN serve_main BOOLEAN NOT NULL DEFAULT TRUE`,
+	}},
 }
 
 type schemaMigration struct {

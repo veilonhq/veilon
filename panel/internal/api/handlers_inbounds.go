@@ -34,11 +34,33 @@ func (s *Server) getInbound(w http.ResponseWriter, r *http.Request, a *db.Admin)
 	writeJSON(w, 200, v)
 }
 
-func (s *Server) createInbound(w http.ResponseWriter, r *http.Request, a *db.Admin) {
-	v := inbounds.Defaults()
-	if !decode(w, r, &v) {
+// placementKeys applies the placement rule to a decoded create/update body:
+// choosing nodes ("node_ids") without saying "serve_main" means the nodes
+// only, so the main server stops serving the inbound.
+func placementKeys(body []byte, v *inbounds.View) {
+	var keys map[string]json.RawMessage
+	if json.Unmarshal(body, &keys) != nil {
 		return
 	}
+	_, hasNodes := keys["node_ids"]
+	_, hasMain := keys["serve_main"]
+	if hasNodes && !hasMain {
+		v.ServeMain = len(v.NodeIDs) == 0
+	}
+}
+
+func (s *Server) createInbound(w http.ResponseWriter, r *http.Request, a *db.Admin) {
+	v := inbounds.Defaults()
+	body, err := io.ReadAll(io.LimitReader(r.Body, 4<<20))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "bad_request", "cannot read body")
+		return
+	}
+	if err := json.Unmarshal(body, &v); err != nil {
+		writeErr(w, http.StatusBadRequest, "bad_request", "invalid JSON body: "+err.Error())
+		return
+	}
+	placementKeys(body, &v)
 	out, err := s.Inbounds.Create(&v)
 	if err != nil {
 		writeServiceErr(w, err)
@@ -70,6 +92,7 @@ func (s *Server) updateInbound(w http.ResponseWriter, r *http.Request, a *db.Adm
 		return
 	}
 	cur.ID = id
+	placementKeys(body, cur)
 	out, err := s.Inbounds.Update(cur)
 	if err != nil {
 		writeServiceErr(w, err)

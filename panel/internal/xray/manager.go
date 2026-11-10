@@ -112,7 +112,7 @@ func (m *Manager) ConfigPath() string { return filepath.Join(m.opt.DataDir, "xra
 
 // GenerateConfig renders the config from the DB without applying it.
 func (m *Manager) GenerateConfig() ([]byte, error) {
-	in, err := LoadInput(m.opt.DB, m.opt.DataDir, m.opt.APIPort)
+	in, err := LoadMainInput(m.opt.DB, m.opt.DataDir, m.opt.APIPort)
 	if err != nil {
 		return nil, err
 	}

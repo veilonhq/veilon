@@ -53,6 +53,12 @@ func Engine(protocol string) string {
 	return EngineXray
 }
 
+// NodeCapable reports whether inbounds of this protocol can run on a node
+// (Xray-core inbounds, except TUN which needs the host's network).
+func NodeCapable(protocol string) bool {
+	return Engine(protocol) == EngineXray && protocol != TUN
+}
+
 // HasUsers reports whether the protocol authenticates individual users.
 func HasUsers(protocol string) bool { return protocol != Tunnel && protocol != TUN }
 

@@ -244,3 +244,51 @@ func TestUpgradeFromSchema5KeepsData(t *testing.T) {
 		t.Fatalf("data changed by the upgrade:\n%s\n%s", before, after)
 	}
 }
+
+// Upgrading a schema-7 database (v0.3.x) adds inbound placement without
+// changing any existing row: inbounds already assigned to nodes keep
+// running on the main server too (serve_main TRUE), users, inbounds, nodes
+// and assignments are byte-identical.
+func TestUpgradeFromSchema7KeepsNodePlacement(t *testing.T) {
+	gdb := rawSQLite(t, filepath.Join(t.TempDir(), "u7.db"))
+	saved := migrations
+	migrations = saved[:7]
+	if err := Migrate(gdb, "sqlite"); err != nil {
+		t.Fatal(err)
+	}
+	migrations = saved
+	now := time.Now().UTC()
+	gdb.Exec(`INSERT INTO users (username, status, uuid, password, sub_token, created_at, updated_at, data_limit, up, down, ip_limit)
+		VALUES ('hosein','active','u-1','p-1','tok-1',?,?,0,11,22,2)`, now, now)
+	gdb.Exec(`INSERT INTO inbounds (remark, protocol, port, network, security, created_at, updated_at) VALUES ('VL', 'vless', 443, 'tcp', 'reality', ?, ?)`, now, now)
+	gdb.Exec(`INSERT INTO inbounds (remark, protocol, port, network, security, created_at, updated_at) VALUES ('Node test', 'vless', 2096, 'tcp', 'reality', ?, ?)`, now, now)
+	gdb.Exec(`INSERT INTO user_inbounds (user_id, inbound_id) VALUES (1, 1), (1, 2)`)
+	gdb.Exec(`INSERT INTO nodes (name, address, api_port, enabled, created_at, updated_at) VALUES ('Lightsail', '10.0.0.9', 62050, TRUE, ?, ?)`, now, now)
+	gdb.Exec(`INSERT INTO node_inbounds (node_id, inbound_id) VALUES (1, 2)`)
+	snap := func() string {
+		var us, ibs, ns, ni, ui []map[string]any
+		gdb.Raw("SELECT username, status, uuid, password, sub_token, up, down, ip_limit FROM users").Scan(&us)
+		gdb.Raw("SELECT id, remark, protocol, port, network, security, enabled FROM inbounds ORDER BY id").Scan(&ibs)
+		gdb.Raw("SELECT id, name, address, api_port, enabled FROM nodes").Scan(&ns)
+		gdb.Raw("SELECT * FROM node_inbounds").Scan(&ni)
+		gdb.Raw("SELECT * FROM user_inbounds ORDER BY inbound_id").Scan(&ui)
+		return fmt.Sprint(us, ibs, ns, ni, ui)
+	}
+	before := snap()
+	for i := 0; i < 2; i++ {
+		if err := Migrate(gdb, "sqlite"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if v := SchemaVersion(gdb); v != len(migrations) || v < 8 {
+		t.Fatalf("schema %d", v)
+	}
+	if after := snap(); after != before {
+		t.Fatalf("data changed by the upgrade:\n%s\n%s", before, after)
+	}
+	var off int64
+	gdb.Raw("SELECT COUNT(*) FROM inbounds WHERE serve_main = FALSE").Scan(&off)
+	if off != 0 {
+		t.Fatalf("%d existing inbounds left the main server", off)
+	}
+}

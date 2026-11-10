@@ -177,6 +177,9 @@ type Inbound struct {
 	SSServerKey     string `gorm:"column:ss_server_key"`
 	Sniffing        bool
 	AddressOverride string
+	// ServeMain: the main server serves the inbound too. Only read when
+	// the inbound is assigned to nodes (no nodes = main server only).
+	ServeMain bool `gorm:"column:serve_main"`
 	// Settings holds protocol-specific options (JSON) for the protocols that
 	// do not use the shared stream fields (hysteria, wireguard, tuic...).
 	Settings  string

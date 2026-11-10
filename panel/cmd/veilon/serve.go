@@ -112,7 +112,7 @@ func cmdServe(args []string) error {
 	}
 	inbSvc := &inbounds.Service{
 		DB:         gdb,
-		OnChange:   reloadAll,
+		OnChange:   func() { reloadAll(); connGuard.Refresh() },
 		SelfSigned: certSvc.SelfSigned,
 		ReservedPorts: func() []int {
 			return []int{srv.Settings().PanelPort, apiPort, sbPort}

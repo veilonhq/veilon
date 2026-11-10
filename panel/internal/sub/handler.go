@@ -80,7 +80,7 @@ func (s *Service) Extras(u *db.User, ibs []inbounds.View) Extras {
 	for i := range ibs {
 		ids = append(ids, ibs[i].ID)
 	}
-	ex := Extras{Pins: CertPinsFull(s.DB), Peers: map[int64]db.WGPeer{}, Hosts: inbounds.EnabledHosts(s.DB, ids), Nodes: inbounds.NodeTargets(s.DB, ids)}
+	ex := Extras{Pins: CertPinsFull(s.DB), Peers: map[int64]db.WGPeer{}, Hosts: inbounds.EnabledHosts(s.DB, ids), Nodes: inbounds.NodeTargets(s.DB, ids), NodeOnly: inbounds.NodeOnly(s.DB), Placed: inbounds.Placed(s.DB)}
 	for i := range ibs {
 		if !inbounds.IsWG(ibs[i].Protocol) {
 			continue

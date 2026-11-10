@@ -48,7 +48,7 @@ func (m *Manager) LoadTemplate() *Template {
 // renderWith renders the full config from the database with t in place of
 // the saved template.
 func (m *Manager) renderWith(t *Template) ([]byte, []string, error) {
-	in, err := LoadInput(m.opt.DB, m.opt.DataDir, m.opt.APIPort)
+	in, err := LoadMainInput(m.opt.DB, m.opt.DataDir, m.opt.APIPort)
 	if err != nil {
 		return nil, nil, err
 	}

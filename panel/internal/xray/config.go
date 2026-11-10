@@ -195,6 +195,25 @@ func LoadInput(gdb *gorm.DB, dataDir string, apiPort int) (*Input, error) {
 	return in, nil
 }
 
+// LoadMainInput is LoadInput for the main server: inbounds that run on
+// nodes only are left out, so the main server does not listen on them.
+func LoadMainInput(gdb *gorm.DB, dataDir string, apiPort int) (*Input, error) {
+	in, err := LoadInput(gdb, dataDir, apiPort)
+	if err != nil {
+		return nil, err
+	}
+	if off := inbounds.NodeOnly(gdb); len(off) > 0 {
+		kept := in.Inbounds[:0]
+		for _, ib := range in.Inbounds {
+			if !off[ib.ID] {
+				kept = append(kept, ib)
+			}
+		}
+		in.Inbounds = kept
+	}
+	return in, nil
+}
+
 func loadPolicy(gdb *gorm.DB, served map[int64]db.User) Policy {
 	st := db.LoadSettings(gdb)
 	p := Policy{BlockedIPs: map[string][]string{}, TorrentAll: st.BlockTorrent, AdBlockAll: st.AdBlock}

@@ -67,7 +67,16 @@ type View struct {
 	Settings        Settings  `json:"settings"`
 	UserCount       int64     `json:"user_count"`
 	// HostCount is the number of hosts (link overrides) of the inbound.
-	HostCount int64     `json:"host_count"`
+	HostCount int64 `json:"host_count"`
+	// NodeIDs are the nodes that run the inbound ([] = main server only).
+	NodeIDs []int64 `json:"node_ids"`
+	// ServeMain: the main server runs the inbound as well as its nodes.
+	// New placements set it false when nodes are chosen; inbounds that were
+	// assigned to nodes before this field existed keep it true.
+	ServeMain bool `json:"serve_main"`
+	// OnMain (read-only) reports whether the main server runs the inbound:
+	// no nodes, or ServeMain.
+	OnMain    bool      `json:"on_main"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -136,7 +145,7 @@ func FromModel(m *db.Inbound) View {
 		ID: m.ID, Remark: m.Remark, Enabled: m.Enabled, Protocol: m.Protocol, Port: m.Port,
 		Listen: m.Listen, Network: m.Network, Security: m.Security, Flow: m.Flow,
 		SSMethod: m.SSMethod, SSServerKey: m.SSServerKey, Sniffing: m.Sniffing,
-		AddressOverride: m.AddressOverride, CreatedAt: m.CreatedAt,
+		AddressOverride: m.AddressOverride, CreatedAt: m.CreatedAt, ServeMain: m.ServeMain, NodeIDs: []int64{},
 	}
 	if m.TLS != "" {
 		var t TLS
@@ -167,6 +176,7 @@ func toModel(v *View, m *db.Inbound) {
 	m.Remark, m.Enabled, m.Protocol, m.Port = v.Remark, v.Enabled, v.Protocol, v.Port
 	m.Listen, m.Network, m.Security, m.Flow = v.Listen, v.Network, v.Security, v.Flow
 	m.SSMethod, m.SSServerKey, m.Sniffing, m.AddressOverride = v.SSMethod, v.SSServerKey, v.Sniffing, v.AddressOverride
+	m.ServeMain = v.ServeMain || len(v.NodeIDs) == 0
 	m.TLS, m.Reality = "", ""
 	if v.TLS != nil {
 		b, _ := json.Marshal(v.TLS)
@@ -441,11 +451,16 @@ func (s *Service) List() ([]View, error) {
 		counts[c.InboundID] = c.N
 	}
 	hosts := HostCounts(s.DB)
+	placed := Placements(s.DB)
 	out := make([]View, 0, len(rows))
 	for i := range rows {
 		v := FromModel(&rows[i])
 		v.UserCount = counts[v.ID]
 		v.HostCount = hosts[v.ID]
+		if ids := placed[v.ID]; ids != nil {
+			v.NodeIDs = ids
+		}
+		v.OnMain = v.ServeMain || len(v.NodeIDs) == 0
 		out = append(out, v)
 	}
 	return out, nil
@@ -463,6 +478,10 @@ func (s *Service) Get(id int64) (*View, error) {
 	v := FromModel(&m)
 	s.DB.Model(&db.UserInbound{}).Where("inbound_id = ?", id).Count(&v.UserCount)
 	s.DB.Model(&db.Host{}).Where("inbound_id = ?", id).Count(&v.HostCount)
+	if ids := Placements(s.DB)[id]; ids != nil {
+		v.NodeIDs = ids
+	}
+	v.OnMain = v.ServeMain || len(v.NodeIDs) == 0
 	return &v, nil
 }
 
@@ -594,7 +613,7 @@ func (s *Service) checkCross(v *View) error {
 
 // Defaults returns a View pre-filled with defaults for create requests.
 func Defaults() View {
-	return View{Enabled: true, Sniffing: true, Network: "tcp", Security: "none"}
+	return View{Enabled: true, Sniffing: true, Network: "tcp", Security: "none", ServeMain: true, NodeIDs: []int64{}}
 }
 
 // Create validates and stores a new inbound.
@@ -609,9 +628,18 @@ func (s *Service) Create(v *View) (*View, error) {
 	if err := s.checkCross(v); err != nil {
 		return nil, err
 	}
+	if err := s.checkNodes(v); err != nil {
+		return nil, err
+	}
 	var m db.Inbound
 	toModel(v, &m)
-	if err := s.DB.Create(&m).Error; err != nil {
+	err := s.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&m).Error; err != nil {
+			return err
+		}
+		return setNodes(tx, m.ID, v.NodeIDs)
+	})
+	if err != nil {
 		return nil, err
 	}
 	s.changed()
@@ -637,8 +665,17 @@ func (s *Service) Update(v *View) (*View, error) {
 	if err := s.checkCross(v); err != nil {
 		return nil, err
 	}
+	if err := s.checkNodes(v); err != nil {
+		return nil, err
+	}
 	toModel(v, &m)
-	if err := s.DB.Save(&m).Error; err != nil {
+	err := s.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(&m).Error; err != nil {
+			return err
+		}
+		return setNodes(tx, m.ID, v.NodeIDs)
+	})
+	if err != nil {
 		return nil, err
 	}
 	s.changed()
