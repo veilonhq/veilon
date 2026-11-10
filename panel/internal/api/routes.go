@@ -29,6 +29,10 @@ func (s *Server) routes() http.Handler {
 	m.HandleFunc("GET /core/xray/releases", s.perm(auth.PermSettings, s.coreReleases))
 	m.HandleFunc("POST /core/xray/install", s.perm(auth.PermSettings, s.coreInstall))
 	m.HandleFunc("POST /core/xray/geo", s.perm(auth.PermSettings, s.coreGeoUpdate))
+	m.HandleFunc("GET /xray/template", s.sudo(s.xrayTemplate))
+	m.HandleFunc("POST /xray/template/test", s.sudo(s.xrayTemplateTest))
+	m.HandleFunc("PUT /xray/template", s.sudo(s.xrayTemplateApply))
+	m.HandleFunc("POST /xray/outbounds/parse", s.sudo(s.xrayParseLink))
 	m.HandleFunc("GET /core/logs", s.perm(auth.PermLogs, s.coreLogs))
 	m.HandleFunc("GET /core/config", s.perm(auth.PermLogs, s.coreConfig))
 

@@ -55,6 +55,12 @@ type Input struct {
 	// Policy holds the per-user routing policy (blocked IPs, torrent and
 	// ad blocking).
 	Policy Policy
+	// Template is the admin's outbounds / routing / DNS template (nil =
+	// default).
+	Template *Template
+	// Usernames maps every username to its Xray email, so template rules
+	// can name users by username.
+	Usernames map[string]string
 }
 
 // AdsGeosite is the geosite category blocked by ad blocking.
@@ -146,6 +152,20 @@ func LoadInput(gdb *gorm.DB, dataDir string, apiPort int) (*Input, error) {
 		}
 	}
 	in.Policy = loadPolicy(gdb, byID)
+	in.Usernames = map[string]string{}
+	var names []db.User
+	gdb.Select("id", "username").Find(&names)
+	for i := range names {
+		in.Usernames[names[i].Username] = Email(&names[i])
+	}
+	if raw := db.GetSetting(gdb, KeyTemplate); raw != "" {
+		t, err := ParseTemplate([]byte(raw))
+		if err != nil {
+			in.Skipped = append(in.Skipped, "xray template ignored: "+err.Error())
+		} else {
+			in.Template = t
+		}
+	}
 	var links []db.UserInbound
 	if err := gdb.Order("user_id").Find(&links).Error; err != nil {
 		return nil, err
@@ -241,11 +261,14 @@ func Build(in *Input) ([]byte, error) {
 	pr, warn := policyRules(in.Policy, fileExists(filepath.Join(in.AssetDir, "geosite.dat")))
 	rules = append(rules, pr...)
 	in.Skipped = append(in.Skipped, warn...)
-	if fileExists(filepath.Join(in.AssetDir, "geoip.dat")) {
-		rules = append(rules, obj{"type": "field", "ip": []string{"geoip:private"}, "outboundTag": "blocked"})
+	t := in.Template
+	if t == nil {
+		t = DefaultTemplate()
+	}
+	if t.BlocksPrivate() && fileExists(filepath.Join(in.AssetDir, "geoip.dat")) {
+		rules = append(rules, obj{"type": "field", "ip": []string{"geoip:private"}, "outboundTag": TagBlocked})
 	}
 	cfg := obj{
-		"log":   obj{"loglevel": "warning"},
 		"api":   obj{"tag": "api", "services": []string{"StatsService"}},
 		"stats": obj{},
 		"policy": obj{
@@ -256,12 +279,8 @@ func Build(in *Input) ([]byte, error) {
 			},
 		},
 		"inbounds": ibs,
-		"outbounds": []any{
-			obj{"tag": "direct", "protocol": "freedom", "settings": obj{}},
-			obj{"tag": "blocked", "protocol": "blackhole", "settings": obj{}},
-		},
-		"routing": obj{"domainStrategy": "AsIs", "rules": rules},
 	}
+	renderTemplate(cfg, t, rules, in.Usernames)
 	return json.MarshalIndent(cfg, "", "  ")
 }
 

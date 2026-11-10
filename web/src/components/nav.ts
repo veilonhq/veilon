@@ -2,6 +2,7 @@ import {
   Activity,
   Heart,
   Layers,
+  Route,
   LayoutGrid,
   ScrollText,
   Settings as SettingsIcon,
@@ -33,6 +34,7 @@ export const PRIMARY: NavItem[] = [
 export const SECONDARY: NavItem[] = [
   { to: '/certs', key: 'nav.certs', icon: ShieldCheck, need: 'certs' },
   { to: '/settings', key: 'nav.settings', icon: SettingsIcon },
+  { to: '/xray', key: 'nav.xray', icon: Route, need: 'sudo' },
   { to: '/admins', key: 'nav.admins', icon: UserCog, need: 'sudo' },
   { to: '/audit', key: 'nav.audit', icon: Activity, need: 'logs' },
   { to: '/groups', key: 'nav.groups', icon: Layers, need: 'groups' },

@@ -22,6 +22,7 @@ const pageImports = {
   inbounds: () => import('@/pages/Inbounds'),
   certs: () => import('@/pages/Certs'),
   settings: () => import('@/pages/Settings'),
+  xray: () => import('@/pages/XrayConfig'),
   admins: () => import('@/pages/Admins'),
   groups: () => import('@/pages/Groups'),
   audit: () => import('@/pages/Audit'),
@@ -33,6 +34,7 @@ const UsersPage = lazyPage(pageImports.users);
 const InboundsPage = lazyPage(pageImports.inbounds);
 const CertsPage = lazyPage(pageImports.certs);
 const SettingsPage = lazyPage(pageImports.settings);
+const XrayConfigPage = lazyPage(pageImports.xray);
 const AdminsPage = lazyPage(pageImports.admins);
 const GroupsPage = lazyPage(pageImports.groups);
 const AuditPage = lazyPage(pageImports.audit);
@@ -41,7 +43,7 @@ const DonatePage = lazyPage(pageImports.donate);
 const NotFound = lazyPage(pageImports.notFound);
 /** Warm every route chunk and the data the dock pages open with. */
 export function preloadPages() {
-  for (const c of [UsersPage, InboundsPage, CertsPage, SettingsPage, LogsPage, AdminsPage, GroupsPage, AuditPage, NotFound]) c.preload().catch(() => undefined);
+  for (const c of [UsersPage, InboundsPage, CertsPage, SettingsPage, XrayConfigPage, LogsPage, AdminsPage, GroupsPage, AuditPage, NotFound]) c.preload().catch(() => undefined);
   prefetchPageData(qc);
 }
 
@@ -101,6 +103,7 @@ export function App() {
               <Route path="inbounds" element={<Guard need="inbounds" title="nav.inbounds"><InboundsPage /></Guard>} />
               <Route path="certs" element={<Guard need="certs" title="nav.certs"><CertsPage /></Guard>} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="xray" element={<Guard need="sudo" title="nav.xray"><XrayConfigPage /></Guard>} />
               <Route path="groups" element={<Guard need="groups" title="nav.groups"><GroupsPage /></Guard>} />
               <Route path="admins" element={<AdminsPage />} />
               <Route path="audit" element={<Guard need="logs" title="nav.audit"><AuditPage /></Guard>} />

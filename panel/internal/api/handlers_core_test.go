@@ -34,8 +34,15 @@ func (f *fakeXray) StartGeoUpdate() error { return nil }
 func (f *fakeXray) Releases(context.Context, bool) (xray.ReleaseList, error) {
 	return xray.ReleaseList{Releases: []xray.Release{{Tag: "v26.11.9"}}}, nil
 }
-func (f *fakeXray) Job() *xray.JobState       { return nil }
-func (f *fakeXray) GeoStatus() []xray.GeoInfo { return nil }
+func (f *fakeXray) Job() *xray.JobState          { return nil }
+func (f *fakeXray) GeoStatus() []xray.GeoInfo    { return nil }
+func (f *fakeXray) LoadTemplate() *xray.Template { return xray.DefaultTemplate() }
+func (f *fakeXray) TestTemplate(context.Context, *xray.Template) xray.TemplateResult {
+	return xray.TemplateResult{OK: true}
+}
+func (f *fakeXray) ApplyTemplate(context.Context, *xray.Template) (xray.TemplateResult, error) {
+	return xray.TemplateResult{OK: true, Applied: true}, nil
+}
 
 type fakeCoreX struct {
 	fakeCore

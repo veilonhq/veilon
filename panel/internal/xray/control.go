@@ -358,6 +358,9 @@ type Controller interface {
 	Releases(ctx context.Context, refresh bool) (ReleaseList, error)
 	Job() *JobState
 	GeoStatus() []GeoInfo
+	LoadTemplate() *Template
+	TestTemplate(ctx context.Context, t *Template) TemplateResult
+	ApplyTemplate(ctx context.Context, t *Template) (TemplateResult, error)
 }
 
 var _ Controller = (*Manager)(nil)
