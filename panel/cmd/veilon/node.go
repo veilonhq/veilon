@@ -255,6 +255,16 @@ func nodeUninstall(dir string, purge bool) error {
 			return err
 		}
 		okf("removed %s", dir)
+		// the binary goes too, unless this server also runs the panel
+		if _, err := os.Stat(unitFile); os.IsNotExist(err) {
+			self, _ := os.Executable()
+			for _, p := range []string{self, defaultBin} {
+				if p != "" {
+					_ = os.Remove(p)
+				}
+			}
+			okf("removed the veilon binary")
+		}
 	}
 	return nil
 }

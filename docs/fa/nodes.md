@@ -31,7 +31,7 @@
 
 ```bash
 veilon node status
-veilon node uninstall          # با --purge اطلاعات نود هم حذف می شود
+veilon node uninstall          # با --purge اطلاعات نود و فایل veilon هم حذف می شود
 ```
 
 ## محدودیت ها

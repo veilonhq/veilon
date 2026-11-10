@@ -681,11 +681,18 @@ do_uninstall() {
 			runuser -u postgres -- psql -q -c "DROP DATABASE IF EXISTS veilon" || true
 			runuser -u postgres -- psql -q -c "DROP ROLE IF EXISTS veilon" || true
 		fi
+		local was_pg=0
+		grep -qs '^VEILON_DB_DRIVER=postgres' "$CONF_FILE" && was_pg=1
 		rm -rf "$CONF_DIR" "$DATA_DIR" "$CRED_FILE"
 		if id -u "$SVC_USER" >/dev/null 2>&1; then
 			userdel "$SVC_USER" 2>/dev/null || true
 		fi
+		if [[ -f /etc/sysctl.d/99-veilon-bbr.conf ]]; then
+			rm -f /etc/sysctl.d/99-veilon-bbr.conf
+			info "removed /etc/sysctl.d/99-veilon-bbr.conf (BBR stays on until the next reboot)"
+		fi
 		ok "configuration, data and database removed"
+		[[ $was_pg -eq 1 ]] && info "PostgreSQL itself is left installed; remove it with your package manager if nothing else uses it."
 	else
 		echo "  Data kept in ${DATA_DIR} and ${CONF_DIR} (use --purge to remove)."
 	fi

@@ -412,7 +412,13 @@ func cmdUninstall(args []string) error {
 		_ = os.RemoveAll(p)
 	}
 	_ = exec.Command("userdel", serviceUser).Run()
+	if err := os.Remove(bbrSysctlFile); err == nil {
+		fmt.Println("  removed " + bbrSysctlFile + " (BBR stays on until the next reboot)")
+	}
 	okf("configuration, data and database removed")
+	if cerr == nil && cfg.DBDriver == "postgres" {
+		fmt.Println(dim("  PostgreSQL itself is left installed; remove it with your package manager if nothing else uses it."))
+	}
 	return nil
 }
 

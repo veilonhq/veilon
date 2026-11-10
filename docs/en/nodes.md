@@ -29,7 +29,7 @@ The panel link port must be reachable from the main server. The node opens it in
 
 ```bash
 veilon node status
-veilon node uninstall          # add --purge to remove its state too
+veilon node uninstall          # add --purge to remove its state and the veilon binary too
 ```
 
 ## Limits
