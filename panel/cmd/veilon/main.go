@@ -23,6 +23,7 @@ Panel:
   veilon admin create --username U [--password P] [--sudo=true]
   veilon admin reset-password --username U [--password P]
   veilon admin reset-credentials [--current U] [--username NEW] [--password P]
+  veilon admin delete <username>
   veilon set-port <port>                change the panel port (applied live)
   veilon set-path <path|random>         change the panel path (applied live)
   veilon set-address <host>             public server address used in links

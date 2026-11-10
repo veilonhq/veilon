@@ -13,6 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"gorm.io/gorm"
+
+	"github.com/veilonhq/veilon/panel/internal/audit"
 	"github.com/veilonhq/veilon/panel/internal/auth"
 	"github.com/veilonhq/veilon/panel/internal/config"
 	"github.com/veilonhq/veilon/panel/internal/db"
@@ -22,10 +25,13 @@ import (
 
 func cmdAdmin(args []string) error {
 	if len(args) < 1 {
-		return errors.New("usage: veilon admin create|reset-password|reset-credentials --username U [--password P]")
+		return errors.New("usage: veilon admin create|reset-password|reset-credentials|delete --username U [--password P]")
 	}
 	if args[0] == "reset-credentials" {
 		return cmdAdminResetCredentials(args[1:])
+	}
+	if args[0] == "delete" {
+		return cmdAdminDelete(args[1:])
 	}
 	fs := flag.NewFlagSet("admin "+args[0], flag.ContinueOnError)
 	username := fs.String("username", "", "admin username")
@@ -70,6 +76,42 @@ func cmdAdmin(args []string) error {
 	if generated {
 		fmt.Printf("password: %s\n", pw)
 	}
+	return nil
+}
+
+// cmdAdminDelete removes an admin: "veilon admin delete <username>" (or
+// --username). The last full (sudo) admin and an admin who owns users are
+// refused.
+func cmdAdminDelete(args []string) error {
+	fs := flag.NewFlagSet("admin delete", flag.ContinueOnError)
+	username := fs.String("username", "", "admin to delete")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	name := *username
+	if name == "" && fs.NArg() == 1 {
+		name = fs.Arg(0)
+	}
+	if name == "" || fs.NArg() > 1 {
+		return errors.New("usage: veilon admin delete <username>")
+	}
+	_, gdb, err := openDB()
+	if err != nil {
+		return err
+	}
+	return adminDelete(gdb, name)
+}
+
+func adminDelete(gdb *gorm.DB, name string) error {
+	a, err := auth.DeleteAdmin(gdb, name)
+	if errors.Is(err, auth.ErrAdminNotFound) {
+		return fmt.Errorf("admin %q not found", name)
+	}
+	if err != nil {
+		return err
+	}
+	audit.Log(gdb, nil, "admin.delete", a.Username+" (cli)", "")
+	fmt.Printf("admin %q deleted\n", a.Username)
 	return nil
 }
 

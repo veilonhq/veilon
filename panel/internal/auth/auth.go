@@ -283,3 +283,48 @@ func (l *Limiter) Reset(key string) {
 	defer l.mu.Unlock()
 	delete(l.fails, key)
 }
+
+// Errors of DeleteAdmin.
+var (
+	ErrAdminNotFound = errors.New("admin not found")
+	ErrLastSudo      = errors.New("cannot delete the last full (sudo) admin")
+)
+
+// AdminOwnsUsersError refuses deleting an admin who still owns users.
+type AdminOwnsUsersError struct{ N int64 }
+
+func (e *AdminOwnsUsersError) Error() string {
+	return fmt.Sprintf("this admin owns %d users; move or delete them first", e.N)
+}
+
+// DeleteAdmin removes an admin by username. It refuses the last full
+// (sudo) admin and an admin who owns users (their users would be left
+// without an owner). The checks and the delete run in one transaction.
+func DeleteAdmin(gdb *gorm.DB, username string) (*db.Admin, error) {
+	var a db.Admin
+	err := gdb.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("username = ?", username).Limit(1).Find(&a).Error; err != nil {
+			return err
+		}
+		if a.ID == 0 {
+			return ErrAdminNotFound
+		}
+		if a.IsSudo {
+			var n int64
+			tx.Model(&db.Admin{}).Where("is_sudo = ? AND id <> ?", true, a.ID).Count(&n)
+			if n == 0 {
+				return ErrLastSudo
+			}
+		}
+		var owned int64
+		tx.Model(&db.User{}).Where("admin_id = ?", a.ID).Count(&owned)
+		if owned > 0 {
+			return &AdminOwnsUsersError{N: owned}
+		}
+		return tx.Delete(&db.Admin{}, a.ID).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
