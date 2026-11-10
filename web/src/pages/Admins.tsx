@@ -1,6 +1,7 @@
 import { Crown, Lock, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useAdmins, useDeleteAdmin } from '@/api/hooks';
+import { ApiError } from '@/api/client';
 import type { Admin } from '@/api/types';
 import { EmptyState, ErrorState, PageHeader, Section, Skeleton } from '@/components/misc';
 import { useI18n } from '@/i18n';
@@ -33,7 +34,7 @@ export default function AdminsPage() {
 
   const remove = async (a: Admin) => {
     if (!(await confirmAction({ title: t('adm.deleteConfirm', { name: a.username }), danger: true, confirmLabel: t('common.delete') }))) return;
-    del.mutate(a.id, { onSuccess: () => toast.success(t('adm.deleted')), onError: (x) => toast.error(t('common.error'), (x as Error).message) });
+    del.mutate(a.id, { onSuccess: () => toast.success(t('adm.deleted')), onError: (x) => toast.error(t('common.error'), x instanceof ApiError && x.status === 409 ? t('adm.ownsUsers') : (x as Error).message) });
   };
 
   return (

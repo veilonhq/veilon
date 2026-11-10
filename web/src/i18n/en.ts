@@ -369,6 +369,7 @@ const en: Record<MessageKey, string> = {
   'adm.created': 'Admin created',
   'adm.deleteConfirm': 'Delete admin {name}?',
   'adm.deleted': 'Admin deleted',
+  'adm.ownsUsers': 'This admin still owns users. Move or delete their users first.',
   'adm.sudoOnly': 'Only sudo admins can open this section.',
   'adm.isSudo': 'Sudo access',
 
