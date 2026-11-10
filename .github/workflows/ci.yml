@@ -46,19 +46,18 @@ jobs:
         run: |
           ./bin/veilon admin create --username admin --password ci-password-1
           ./bin/veilon serve & PID=$!
-          for i in $(seq 1 30); do curl -sf http://127.0.0.1:18080/ci/api/v1/health && break; sleep 1; done
+          for _ in $(seq 1 30); do curl -sf http://127.0.0.1:18080/ci/api/v1/health && break; sleep 1; done
           TOK=$(curl -sf -X POST http://127.0.0.1:18080/ci/api/v1/auth/login -H 'content-type: application/json' \
             -d '{"username":"admin","password":"ci-password-1"}' | jq -r .token)
           curl -sf -X POST http://127.0.0.1:18080/ci/api/v1/inbounds -H "Authorization: Bearer $TOK" \
             -d '{"remark":"ci","protocol":"vless","port":24443,"security":"reality","reality":{"dest":"www.example.com"}}'
           SUB=$(curl -sf -X POST http://127.0.0.1:18080/ci/api/v1/users -H "Authorization: Bearer $TOK" \
             -d '{"username":"ciuser","inbound_ids":[1]}' | jq -r .sub_token)
-          curl -sf http://127.0.0.1:18080/sub/$SUB | base64 -d | grep '^vless://'
+          curl -sf "http://127.0.0.1:18080/sub/$SUB" | base64 -d | grep '^vless://'
           kill $PID
 
   web:
     runs-on: ubuntu-latest
-    if: ${{ hashFiles('web/package.json') != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
