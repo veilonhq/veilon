@@ -87,9 +87,12 @@ func runMenu(title string, header func(), items []menuItem, exitLabel string) er
 		if choice == "0" || choice == "q" {
 			return nil
 		}
+		if choice == "" {
+			continue // Enter alone shows the menu again
+		}
 		var picked *menuItem
 		for i := range items {
-			if items[i].key == choice {
+			if items[i].key != "" && items[i].run != nil && items[i].key == choice {
 				picked = &items[i]
 			}
 		}
