@@ -26,6 +26,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/inbounds"
 	"github.com/veilonhq/veilon/panel/internal/jobs"
 	"github.com/veilonhq/veilon/panel/internal/logbuf"
+	"github.com/veilonhq/veilon/panel/internal/selfupdate"
 	"github.com/veilonhq/veilon/panel/internal/stats"
 	"github.com/veilonhq/veilon/panel/internal/sub"
 	usagemeter "github.com/veilonhq/veilon/panel/internal/usage"
@@ -113,9 +114,20 @@ func cmdServe(args []string) error {
 		},
 	}
 	sampler := &stats.Sampler{DiskPath: cfg.DataDir}
+	// Loopback health URL of this panel, for the updater's health check.
+	var healthURL atomic.Value
+	healthURL.Store("")
+	updates := &selfupdate.Service{
+		Checker: &selfupdate.Checker{Current: version.Version, FirstDelay: time.Minute, Interval: 6 * time.Hour},
+		DataDir: cfg.DataDir, Current: version.Version, Self: self,
+		HealthURL: func() string { return healthURL.Load().(string) },
+	}
+	if d, err := time.ParseDuration(os.Getenv("VEILON_UPDATE_FIRST_CHECK")); err == nil {
+		updates.Checker.FirstDelay = d
+	}
 	srv = api.New(&api.Server{
 		DB: gdb, Auth: authSvc, Users: userSvc, Inbounds: inbSvc, Certs: certSvc,
-		Sub: &sub.Service{DB: gdb}, Core: core, Sampler: sampler, TrustProxy: cfg.TrustProxy, PanelLogs: panelLogs,
+		Sub: &sub.Service{DB: gdb}, Core: core, Sampler: sampler, TrustProxy: cfg.TrustProxy, PanelLogs: panelLogs, Update: updates,
 		Live: func(id int64) []string { return connGuard.Tracker.Live(id, time.Now().UTC()) },
 		OnListenerChange: func() {
 			select {
@@ -139,6 +151,7 @@ func cmdServe(args []string) error {
 	coreDone := make(chan struct{})
 	go func() { util.Supervise(ctx, "cores", core.Run); close(coreDone) }()
 	go util.Supervise(ctx, "system stats", func(ctx context.Context) { sampler.Run(ctx, 3*time.Second) })
+	go util.Supervise(ctx, "update check", updates.Checker.Run)
 	guardDone := make(chan struct{})
 	go func() { util.Supervise(ctx, "connection guard", connGuard.RunLoop); close(guardDone) }()
 	// The jobs runner stops only after the cores: their final counter reads
@@ -213,6 +226,11 @@ func cmdServe(args []string) error {
 		} else {
 			plainPanelPort.Store(int64(st.PanelPort))
 		}
+		host := cfg.Listen
+		if host == "" || host == "0.0.0.0" || host == "::" {
+			host = "127.0.0.1"
+		}
+		healthURL.Store(fmt.Sprintf("%s://%s/%s/api/v1/health", scheme, net.JoinHostPort(host, strconv.Itoa(st.PanelPort)), st.PanelPath))
 		slog.Info("panel listening", "addr", addr, "url", fmt.Sprintf("%s://%s/%s/", scheme, addr, st.PanelPath))
 
 		select {

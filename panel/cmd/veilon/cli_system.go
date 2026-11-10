@@ -307,6 +307,10 @@ func cmdUpdate(args []string) error {
 	}
 	okf("installed %s", self)
 	if _, err := os.Stat(unitFile); err == nil {
+		// let the panel offer the next updates itself (new binary's CLI)
+		if err := exec.Command(self, "self-update", "--install-units").Run(); err != nil {
+			warnf("panel updates not enabled: %v", err)
+		}
 		if err := exec.Command("systemctl", "restart", unitName).Run(); err != nil {
 			return fmt.Errorf("restart the service: %w", err)
 		}
@@ -380,8 +384,10 @@ func cmdUninstall(args []string) error {
 		}
 	}
 	cfg, cerr := config.Load()
-	_ = exec.Command("systemctl", "disable", "--now", unitName).Run()
+	_ = exec.Command("systemctl", "disable", "--now", unitName, "veilon-updater.path").Run()
 	_ = os.Remove(unitFile)
+	_ = os.Remove("/etc/systemd/system/veilon-updater.path")
+	_ = os.Remove("/etc/systemd/system/veilon-updater.service")
 	_ = exec.Command("systemctl", "daemon-reload").Run()
 	self, _ := os.Executable()
 	for _, p := range []string{self, defaultBin} {

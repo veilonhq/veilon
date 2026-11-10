@@ -21,6 +21,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/inbounds"
 	"github.com/veilonhq/veilon/panel/internal/logbuf"
+	"github.com/veilonhq/veilon/panel/internal/selfupdate"
 	"github.com/veilonhq/veilon/panel/internal/stats"
 	"github.com/veilonhq/veilon/panel/internal/sub"
 	"github.com/veilonhq/veilon/panel/internal/users"
@@ -57,6 +58,8 @@ type Server struct {
 	Live func(userID int64) []string
 	// PanelLogs holds the panel's own log (may be nil).
 	PanelLogs *logbuf.Ring
+	// Update checks for and starts panel updates (may be nil).
+	Update *selfupdate.Service
 
 	settings atomic.Pointer[db.Settings]
 	api      http.Handler

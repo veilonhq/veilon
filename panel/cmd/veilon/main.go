@@ -112,6 +112,8 @@ func main() {
 		err = cmdLogs(args)
 	case "update", "upgrade":
 		err = cmdUpdate(args)
+	case "self-update":
+		err = cmdSelfUpdate(args)
 	case "uninstall":
 		err = cmdUninstall(args)
 	case "bbr":

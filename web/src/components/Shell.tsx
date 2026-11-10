@@ -3,6 +3,7 @@ import { Languages, LogOut, Moon, MoreHorizontal, Search, Sun, UserRound } from 
 import { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { UpdateBanner } from './UpdateBanner';
 import { useStats, useSyncPanelTz } from '@/api/hooks';
 import { useI18n } from '@/i18n';
 import { useSession } from '@/store/session';
@@ -322,6 +323,7 @@ export function Shell({ onReady, fallback }: { onReady?: () => void; fallback?: 
       </a>
       <TopBar />
       <main id="main" className={s.main} tabIndex={-1}>
+        <UpdateBanner />
         {/* Enter transition is CSS-only and never touches opacity: page content is
             visible even if an animation never runs (see Shell.module.css .page). */}
         {/* One Suspense boundary that outlives navigation: dock taps run in a

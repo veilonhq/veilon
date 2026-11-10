@@ -406,6 +406,13 @@ EOF
 	systemctl daemon-reload
 }
 
+# enable_updater installs veilon-updater.path/.service so the panel can
+# offer updates itself (download, checksum, backup, swap, restart, rollback).
+enable_updater() {
+	VEILON_CONFIG="$CONF_FILE" "$BIN_PATH" self-update --install-units >/dev/null 2>&1 ||
+		warn "in-panel updates are not available with this version"
+}
+
 # vctl runs the veilon CLI as the service user with the service config.
 vctl() { runuser -u "$SVC_USER" -- env VEILON_CONFIG="$CONF_FILE" VEILON_NO_REEXEC=1 "$BIN_PATH" "$@"; }
 
@@ -602,6 +609,7 @@ do_install() {
 	vctl admin reset-credentials --username "$ADMIN_USER" --password "$ADMIN_PASS" >/dev/null
 
 	write_unit
+	enable_updater
 	systemctl enable --now veilon >/dev/null 2>&1
 	open_port "$PORT"
 	if ! wait_healthy; then
@@ -633,6 +641,7 @@ do_update() {
 	fi
 	if [[ -f "$UNIT_FILE" ]]; then
 		write_unit
+		enable_updater
 		systemctl restart veilon
 		# wait for the new process to finish its migrations before any other
 		# command opens the database
@@ -654,8 +663,8 @@ do_uninstall() {
 		[[ $PURGE -eq 1 ]] && what="the service, binary, configuration, ALL DATA and the database"
 		ask_yn "This removes ${what}. Continue?" n || die "aborted"
 	fi
-	systemctl disable --now veilon >/dev/null 2>&1 || true
-	rm -f "$UNIT_FILE"
+	systemctl disable --now veilon veilon-updater.path >/dev/null 2>&1 || true
+	rm -f "$UNIT_FILE" /etc/systemd/system/veilon-updater.path /etc/systemd/system/veilon-updater.service
 	systemctl daemon-reload || true
 	rm -f "$BIN_PATH"
 	ok "service and binary removed"

@@ -22,6 +22,8 @@ func (s *Server) routes() http.Handler {
 
 	m.HandleFunc("GET /system/stats", s.authn(s.systemStats))
 	m.HandleFunc("GET /system/traffic", s.authn(s.systemTraffic))
+	m.HandleFunc("GET /system/update", s.sudo(s.updateInfo))
+	m.HandleFunc("POST /system/update", s.sudo(s.startUpdate))
 	m.HandleFunc("POST /core/restart", s.perm(auth.PermSettings, s.coreRestart))
 	m.HandleFunc("GET /core/xray", s.perm(auth.PermSettings, s.coreXray))
 	m.HandleFunc("POST /core/start", s.perm(auth.PermSettings, s.corePower(true)))
