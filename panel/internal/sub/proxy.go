@@ -81,6 +81,9 @@ type Extras struct {
 	// Hosts by inbound id (enabled hosts, in order). An inbound with hosts
 	// gets one proxy per host instead of the plain one.
 	Hosts map[int64][]db.Host
+	// Nodes by inbound id: each enabled node serving the inbound adds one
+	// more proxy that connects to the node's address.
+	Nodes map[int64][]inbounds.NodeTarget
 }
 
 // Address picks the address clients should connect to for an inbound.
@@ -192,7 +195,7 @@ func BuildProxiesX(u *db.User, ibs []inbounds.View, s db.Settings, reqHost strin
 				p.SpiderX = r.SpiderX
 			}
 		}
-		for _, v := range withHosts(p, ib, ex.Hosts[ib.ID]) {
+		for _, v := range append(withHosts(p, ib, ex.Hosts[ib.ID]), withNodes(p, ib, ex.Nodes[ib.ID])...) {
 			name := v.Name
 			used[name]++
 			if used[name] > 1 {
@@ -201,6 +204,23 @@ func BuildProxiesX(u *db.User, ibs []inbounds.View, s db.Settings, reqHost strin
 			v.Name = name
 			out = append(out, v)
 		}
+	}
+	return out
+}
+
+// withNodes returns one proxy per node serving the inbound: the inbound's
+// own settings, the node's address, and the node's name after the remark.
+func withNodes(p Proxy, ib *inbounds.View, nodes []inbounds.NodeTarget) []Proxy {
+	out := make([]Proxy, 0, len(nodes))
+	for _, n := range nodes {
+		v := p
+		v.Name = ib.Remark + " · " + n.Name
+		v.Server = n.Address
+		if p.WG != nil {
+			wg := *p.WG
+			v.WG = &wg
+		}
+		out = append(out, v)
 	}
 	return out
 }

@@ -87,6 +87,13 @@ func (s *Server) routes() http.Handler {
 	m.HandleFunc("PATCH /admins/{id}", s.sudo(s.updateAdmin))
 	m.HandleFunc("DELETE /admins/{id}", s.sudo(s.deleteAdmin))
 
+	m.HandleFunc("GET /nodes", s.sudo(s.listNodes))
+	m.HandleFunc("POST /nodes", s.sudo(s.createNode))
+	m.HandleFunc("POST /nodes/sync", s.sudo(s.syncNodes))
+	m.HandleFunc("PATCH /nodes/{id}", s.sudo(s.updateNode))
+	m.HandleFunc("DELETE /nodes/{id}", s.sudo(s.deleteNode))
+	m.HandleFunc("POST /nodes/{id}/install", s.sudo(s.nodeInstall))
+
 	m.HandleFunc("GET /audit", s.perm(auth.PermLogs, s.listAudit))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

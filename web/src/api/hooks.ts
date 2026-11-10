@@ -31,6 +31,9 @@ import type {
   WgKeys,
   Group,
   UserConnections,
+  VNode,
+  NodeInput,
+  NodeInstall,
 } from './types';
 
 export const qk = {
@@ -50,6 +53,7 @@ export const qk = {
   logs: (core: string) => ['logs', core] as const,
   config: (core: string) => ['core-config', core] as const,
   me: ['me'] as const,
+  nodes: ['nodes'] as const,
 };
 
 /* ---------- auth ---------- */
@@ -621,4 +625,36 @@ export function useAudit(page: number) {
     queryFn: () => api<Paged<AuditEntry>>('/audit', { query: { page, per_page: AUDIT_PER_PAGE } }),
     placeholderData: keepPreviousData,
   });
+}
+
+/* ---------- nodes ---------- */
+export function useNodes() {
+  return useQuery({ queryKey: qk.nodes, queryFn: () => api<VNode[]>('/nodes'), refetchInterval: 10_000 });
+}
+export function useSaveNode() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, body }: { id: number | null; body: Partial<NodeInput> }): Promise<{ node: VNode; install?: NodeInstall }> => {
+      if (id) return { node: await api<VNode>(`/nodes/${id}`, { method: 'PATCH', body }) };
+      return api<{ node: VNode; install: NodeInstall }>('/nodes', { method: 'POST', body });
+    },
+    onSuccess: (r) => {
+      qc.setQueryData<VNode[]>(qk.nodes, (old) => (old ? (old.some((x) => x.id === r.node.id) ? old.map((x) => (x.id === r.node.id ? r.node : x)) : [...old, r.node]) : old));
+      qc.invalidateQueries({ queryKey: qk.nodes });
+      qc.invalidateQueries({ queryKey: ['users', 'links'] });
+    },
+  });
+}
+export function useDeleteNode() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api(`/nodes/${id}`, { method: 'DELETE' }),
+    onSuccess: (_r, id) => {
+      qc.setQueryData<VNode[]>(qk.nodes, (old) => old?.filter((x) => x.id !== id));
+      qc.invalidateQueries({ queryKey: ['users', 'links'] });
+    },
+  });
+}
+export function useNodeInstall() {
+  return useMutation({ mutationFn: (id: number) => api<NodeInstall>(`/nodes/${id}/install`, { method: 'POST' }) });
 }

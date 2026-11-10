@@ -1,0 +1,267 @@
+package nodes
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"net"
+	"net/http"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/veilonhq/veilon/panel/internal/util"
+	"github.com/veilonhq/veilon/panel/internal/xray"
+)
+
+// Core runs Xray on the node.
+type Core interface {
+	// Apply tests cfg and, when it is valid, (re)starts Xray with it. An
+	// invalid config leaves the running one untouched.
+	Apply(ctx context.Context, cfg []byte) error
+	// Status reports whether Xray runs, its version and its last error.
+	Status() (running bool, version, lastErr string)
+	// Collect reads and resets Xray's traffic counters.
+	Collect(ctx context.Context) (xray.Traffic, error)
+	Stop()
+}
+
+// Agent is the node side ("veilon node serve").
+type Agent struct {
+	Enrollment *Enrollment
+	Dir        string // state: config.json, config.hash
+	Core       Core
+	APIPort    int
+	Version    string
+	// StatsEvery is how often Xray's counters are read (default 10s).
+	StatsEvery time.Duration
+
+	mu      sync.Mutex
+	hash    string
+	pending StatsReply
+	unacked *StatsReply
+	boot    string
+	batch   int
+	started time.Time
+	applyMu sync.Mutex
+}
+
+func (a *Agent) init() {
+	if a.boot == "" {
+		b := make([]byte, 6)
+		_, _ = rand.Read(b)
+		a.boot = hex.EncodeToString(b)
+		a.started = time.Now().UTC()
+		a.pending.Users = map[int64][2]int64{}
+	}
+	if a.StatsEvery == 0 {
+		a.StatsEvery = 10 * time.Second
+	}
+	if a.APIPort == 0 {
+		a.APIPort = DefaultAPIPort
+	}
+}
+
+// Restore starts Xray with the last config the master pushed, so a node
+// that reboots serves its users before the master reaches it again.
+func (a *Agent) Restore(ctx context.Context) {
+	a.init()
+	cfg, err := os.ReadFile(filepath.Join(a.Dir, "config.json"))
+	if err != nil {
+		return
+	}
+	if err := a.Core.Apply(ctx, cfg); err != nil {
+		slog.Warn("saved node config does not start", "err", err)
+		return
+	}
+	a.mu.Lock()
+	a.hash = Hash(cfg)
+	a.mu.Unlock()
+}
+
+// Serve listens with mutual TLS until ctx ends.
+func (a *Agent) Serve(ctx context.Context, listen string) error {
+	a.init()
+	tc, err := ServerTLS(a.Enrollment)
+	if err != nil {
+		return err
+	}
+	ln, err := net.Listen("tcp", listen)
+	if err != nil {
+		return err
+	}
+	hs := &http.Server{Handler: a.Handler(), TLSConfig: tc, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 2 * time.Minute, WriteTimeout: 2 * time.Minute, IdleTimeout: 2 * time.Minute}
+	go func() {
+		<-ctx.Done()
+		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = hs.Shutdown(sctx)
+	}()
+	go a.statsLoop(ctx)
+	slog.Info("veilon node listening", "addr", listen, "node", a.Enrollment.ID)
+	err = hs.ServeTLS(ln, "", "")
+	if errors.Is(err, http.ErrServerClosed) {
+		err = nil
+	}
+	a.collect(context.Background())
+	a.Core.Stop()
+	return err
+}
+
+func (a *Agent) statsLoop(ctx context.Context) {
+	t := time.NewTicker(a.StatsEvery)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			util.Safe("node stats", func() { a.collect(ctx) })
+		}
+	}
+}
+
+// collect moves Xray's counters into the pending batch.
+func (a *Agent) collect(ctx context.Context) {
+	if running, _, _ := a.Core.Status(); !running {
+		return
+	}
+	cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	t, err := a.Core.Collect(cctx)
+	if err != nil {
+		slog.Debug("node stats read failed", "err", err)
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for id, v := range t.Users {
+		p := a.pending.Users[id]
+		a.pending.Users[id] = [2]int64{p[0] + v[0], p[1] + v[1]}
+	}
+	a.pending.Up += t.SysUp
+	a.pending.Down += t.SysDown
+}
+
+// Handler serves the agent API (behind mutual TLS).
+func (a *Agent) Handler() http.Handler {
+	a.init()
+	m := http.NewServeMux()
+	m.HandleFunc("GET /v1/info", func(w http.ResponseWriter, r *http.Request) { writeJ(w, 200, a.info()) })
+	m.HandleFunc("PUT /v1/config", a.putConfig)
+	m.HandleFunc("GET /v1/stats", a.stats)
+	return m
+}
+
+func (a *Agent) info() Info {
+	running, ver, lastErr := a.Core.Status()
+	a.mu.Lock()
+	hash := a.hash
+	a.mu.Unlock()
+	in := Info{NodeID: a.Enrollment.ID, Version: a.Version, XrayVersion: ver, XrayRunning: running, XrayError: lastErr,
+		ConfigHash: hash, APIPort: a.APIPort, StartedAt: a.started, CPUs: runtime.NumCPU()}
+	in.Load1, in.MemUsed = hostLoad()
+	return in
+}
+
+func (a *Agent) putConfig(w http.ResponseWriter, r *http.Request) {
+	var p ConfigPush
+	if err := json.NewDecoder(io.LimitReader(r.Body, 32<<20)).Decode(&p); err != nil {
+		writeJ(w, 400, map[string]string{"error": "bad request: " + err.Error()})
+		return
+	}
+	if !json.Valid(p.Config) || Hash(p.Config) != p.Hash {
+		writeJ(w, 400, map[string]string{"error": "config does not match its hash"})
+		return
+	}
+	a.applyMu.Lock()
+	defer a.applyMu.Unlock()
+	a.collect(r.Context()) // keep the counters of the process about to restart
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	if err := a.Core.Apply(ctx, p.Config); err != nil {
+		writeJ(w, 422, map[string]string{"error": err.Error()})
+		return
+	}
+	if err := os.MkdirAll(a.Dir, 0o700); err == nil {
+		tmp := filepath.Join(a.Dir, ".config.json")
+		if os.WriteFile(tmp, p.Config, 0o600) == nil {
+			_ = os.Rename(tmp, filepath.Join(a.Dir, "config.json"))
+		}
+	}
+	a.mu.Lock()
+	a.hash = p.Hash
+	a.mu.Unlock()
+	slog.Info("node config applied", "hash", p.Hash[:12])
+	writeJ(w, 200, a.info())
+}
+
+func (a *Agent) stats(w http.ResponseWriter, r *http.Request) {
+	ack := r.URL.Query().Get("ack")
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.unacked != nil && ack == a.unacked.Seq {
+		a.unacked = nil
+	}
+	if a.unacked == nil {
+		a.batch++
+		b := a.pending
+		b.Seq = a.boot + ":" + strconv.Itoa(a.batch)
+		a.unacked = &b
+		a.pending = StatsReply{Users: map[int64][2]int64{}}
+	}
+	writeJ(w, 200, a.unacked)
+}
+
+func writeJ(w http.ResponseWriter, code int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+// hostLoad reads the 1-minute load average and the used memory share.
+func hostLoad() (load float64, mem float64) {
+	if b, err := os.ReadFile("/proc/loadavg"); err == nil {
+		if f := strings.Fields(string(b)); len(f) > 0 {
+			load, _ = strconv.ParseFloat(f[0], 64)
+		}
+	}
+	if b, err := os.ReadFile("/proc/meminfo"); err == nil {
+		var total, avail float64
+		for _, l := range strings.Split(string(b), "\n") {
+			f := strings.Fields(l)
+			if len(f) < 2 {
+				continue
+			}
+			v, _ := strconv.ParseFloat(f[1], 64)
+			switch f[0] {
+			case "MemTotal:":
+				total = v
+			case "MemAvailable:":
+				avail = v
+			}
+		}
+		if total > 0 {
+			mem = (total - avail) / total
+		}
+	}
+	return
+}
+
+// errorf keeps error text short enough for the UI.
+func errorf(format string, a ...any) error {
+	s := fmt.Sprintf(format, a...)
+	if len(s) > 600 {
+		s = s[:600] + "…"
+	}
+	return errors.New(s)
+}

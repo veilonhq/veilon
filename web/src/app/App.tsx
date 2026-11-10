@@ -23,6 +23,7 @@ const pageImports = {
   certs: () => import('@/pages/Certs'),
   settings: () => import('@/pages/Settings'),
   xray: () => import('@/pages/XrayConfig'),
+  nodes: () => import('@/pages/Nodes'),
   admins: () => import('@/pages/Admins'),
   groups: () => import('@/pages/Groups'),
   audit: () => import('@/pages/Audit'),
@@ -35,6 +36,7 @@ const InboundsPage = lazyPage(pageImports.inbounds);
 const CertsPage = lazyPage(pageImports.certs);
 const SettingsPage = lazyPage(pageImports.settings);
 const XrayConfigPage = lazyPage(pageImports.xray);
+const NodesPage = lazyPage(pageImports.nodes);
 const AdminsPage = lazyPage(pageImports.admins);
 const GroupsPage = lazyPage(pageImports.groups);
 const AuditPage = lazyPage(pageImports.audit);
@@ -104,6 +106,7 @@ export function App() {
               <Route path="certs" element={<Guard need="certs" title="nav.certs"><CertsPage /></Guard>} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="xray" element={<Guard need="sudo" title="nav.xray"><XrayConfigPage /></Guard>} />
+              <Route path="nodes" element={<Guard need="sudo" title="nav.nodes"><NodesPage /></Guard>} />
               <Route path="groups" element={<Guard need="groups" title="nav.groups"><GroupsPage /></Guard>} />
               <Route path="admins" element={<AdminsPage />} />
               <Route path="audit" element={<Guard need="logs" title="nav.audit"><AuditPage /></Guard>} />

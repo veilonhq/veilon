@@ -26,6 +26,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/inbounds"
 	"github.com/veilonhq/veilon/panel/internal/jobs"
 	"github.com/veilonhq/veilon/panel/internal/logbuf"
+	"github.com/veilonhq/veilon/panel/internal/nodes"
 	"github.com/veilonhq/veilon/panel/internal/selfupdate"
 	"github.com/veilonhq/veilon/panel/internal/stats"
 	"github.com/veilonhq/veilon/panel/internal/sub"
@@ -85,7 +86,11 @@ func cmdServe(args []string) error {
 		cores.NewMTG(cores.Options{DB: gdb, DataDir: cfg.DataDir, BinPath: cfg.MTGBin, Version: cfg.MTGVersion, AutoDownload: cfg.XrayAutoDownload}),
 		cores.NewAWG(cores.Options{DB: gdb, DataDir: cfg.DataDir}, self),
 	}}
-	certSvc := &certs.Service{DB: gdb, DataDir: cfg.DataDir, ACMEDirectory: cfg.ACMEDirectory, OnChange: core.RequestReload,
+	// Remote nodes get every change too (their config is rendered from the
+	// same users, inbounds and template).
+	nodeMgr := &nodes.Manager{DB: gdb, DataDir: cfg.DataDir, PKI: &nodes.PKI{Dir: filepath.Join(cfg.DataDir, "nodes")}}
+	reloadAll := func() { core.RequestReload(); nodeMgr.Kick() }
+	certSvc := &certs.Service{DB: gdb, DataDir: cfg.DataDir, ACMEDirectory: cfg.ACMEDirectory, OnChange: reloadAll,
 		AllowNonPublicIPs: cfg.ACMEAllowPrivateIPs}
 	if cfg.ACMECAFile != "" {
 		hc, err := acmeHTTPClient(cfg.ACMECAFile)
@@ -102,12 +107,12 @@ func cmdServe(args []string) error {
 	var srv *api.Server
 	userSvc := &users.Service{
 		DB:       gdb,
-		OnChange: func() { core.RequestReload(); connGuard.Refresh() },
+		OnChange: func() { reloadAll(); connGuard.Refresh() },
 		SubURL:   func(token, host string) string { return sub.SubURL(srv.Settings(), token, host) },
 	}
 	inbSvc := &inbounds.Service{
 		DB:         gdb,
-		OnChange:   core.RequestReload,
+		OnChange:   reloadAll,
 		SelfSigned: certSvc.SelfSigned,
 		ReservedPorts: func() []int {
 			return []int{srv.Settings().PanelPort, apiPort, sbPort}
@@ -128,7 +133,8 @@ func cmdServe(args []string) error {
 	srv = api.New(&api.Server{
 		DB: gdb, Auth: authSvc, Users: userSvc, Inbounds: inbSvc, Certs: certSvc,
 		Sub: &sub.Service{DB: gdb}, Core: core, Sampler: sampler, TrustProxy: cfg.TrustProxy, PanelLogs: panelLogs, Update: updates,
-		Live: func(id int64) []string { return connGuard.Tracker.Live(id, time.Now().UTC()) },
+		Nodes: &nodes.Service{DB: gdb, PKI: nodeMgr.PKI, Manager: nodeMgr},
+		Live:  func(id int64) []string { return connGuard.Tracker.Live(id, time.Now().UTC()) },
 		OnListenerChange: func() {
 			select {
 			case restartListener <- struct{}{}:
@@ -142,7 +148,7 @@ func cmdServe(args []string) error {
 	certSvc.PanelServesHTTP01 = func(port int) bool { return int64(port) == plainPanelPort.Load() }
 	runner := &jobs.Runner{
 		DB: gdb, TakeUsage: usagemeter.Default.Take, RestoreUsage: usagemeter.Default.Restore,
-		OnUsersChanged: core.RequestReload,
+		OnUsersChanged: reloadAll,
 		RenewCerts:     certSvc.RenewDue,
 	}
 
@@ -152,6 +158,7 @@ func cmdServe(args []string) error {
 	go func() { util.Supervise(ctx, "cores", core.Run); close(coreDone) }()
 	go util.Supervise(ctx, "system stats", func(ctx context.Context) { sampler.Run(ctx, 3*time.Second) })
 	go util.Supervise(ctx, "update check", updates.Checker.Run)
+	go util.Supervise(ctx, "nodes", nodeMgr.Run)
 	guardDone := make(chan struct{})
 	go func() { util.Supervise(ctx, "connection guard", connGuard.RunLoop); close(guardDone) }()
 	// The jobs runner stops only after the cores: their final counter reads

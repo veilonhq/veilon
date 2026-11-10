@@ -35,6 +35,7 @@ CERT_DOMAIN=""
 CERT_IP=""
 CERT_IPV6=""
 CERT_EMAIL=""
+NODE_TOKEN=""   # node install: enrollment token from the panel
 ARCH=""
 OS_ID=""
 PKG=""         # apt | dnf | yum | pacman
@@ -74,6 +75,10 @@ Install options (asked interactively when omitted; defaults with -y or without a
   --binary <file>     install a local binary instead of downloading
   -y, --yes           no questions: use defaults and given options
 
+Node (a remote server that serves inbounds for a panel):
+  node --token <token>  set this server up as a node; copy the full command
+                        from the panel (Nodes > Add node)
+
 Other:
   --purge             with uninstall: also remove data, configuration, database and user
   -h, --help          this help
@@ -87,7 +92,8 @@ USAGE
 parse_args() {
 	while [[ $# -gt 0 ]]; do
 		case "$1" in
-			install|update|upgrade|uninstall|info) ACTION="$1"; [[ "$ACTION" == upgrade ]] && ACTION=update ;;
+			install|update|upgrade|uninstall|info|node) ACTION="$1"; [[ "$ACTION" == upgrade ]] && ACTION=update ;;
+			--token) NODE_TOKEN="${2:?--token needs a value}"; shift ;;
 			--sqlite) USE_SQLITE=1 ;;
 			--lang|--language) PANEL_LANG="${2:?--lang needs a value}"; shift ;;
 			--port) PORT="${2:?--port needs a value}"; shift ;;
@@ -683,12 +689,33 @@ do_uninstall() {
 	fi
 }
 
+# do_node installs only the binary and the node agent (no panel, no
+# database); "veilon node install" writes the unit, gets Xray and starts it.
+do_node() {
+	require_root
+	[[ -n "$NODE_TOKEN" ]] || die "node needs --token (copy the command from the panel: Nodes > Add node)"
+	detect_os
+	detect_arch
+	install_deps
+	if [[ -x "$BIN_PATH" ]]; then
+		local tmp
+		tmp=$(mktemp)
+		fetch_binary "$tmp"
+		install -m 0755 "$tmp" "$BIN_PATH"
+		rm -f "$tmp"
+	else
+		fetch_binary "$BIN_PATH"
+	fi
+	"$BIN_PATH" node install --token "$NODE_TOKEN"
+}
+
 main() {
 	parse_args "$@"
 	case "$ACTION" in
 		install) do_install ;;
 		update) detect_os; do_update; summary "" ;;
 		uninstall) do_uninstall ;;
+		node) do_node ;;
 		info) require_root; [[ -x "$BIN_PATH" ]] || die "Veilon is not installed"; vctl info ;;
 	esac
 }

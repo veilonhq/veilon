@@ -208,6 +208,28 @@ var migrations = []migration{
 			updated_at {{TS}} NOT NULL)`,
 		`CREATE INDEX idx_inbound_hosts_inbound ON inbound_hosts(inbound_id)`,
 	}},
+	// Nodes: remote servers running "veilon node" that serve chosen
+	// inbounds. New tables only; existing data is untouched.
+	{7, "nodes", []string{
+		`CREATE TABLE nodes (
+			id {{PK}},
+			name VARCHAR(64) NOT NULL UNIQUE,
+			address VARCHAR(255) NOT NULL,
+			api_port INTEGER NOT NULL DEFAULT 62050,
+			enabled BOOLEAN NOT NULL DEFAULT TRUE,
+			cert_sha256 VARCHAR(64) NOT NULL DEFAULT '',
+			up BIGINT NOT NULL DEFAULT 0,
+			down BIGINT NOT NULL DEFAULT 0,
+			stats_seq VARCHAR(64) NOT NULL DEFAULT '',
+			last_seen_at {{TS}} NULL,
+			created_at {{TS}} NOT NULL,
+			updated_at {{TS}} NOT NULL)`,
+		`CREATE TABLE node_inbounds (
+			node_id BIGINT NOT NULL,
+			inbound_id BIGINT NOT NULL,
+			PRIMARY KEY (node_id, inbound_id))`,
+		`CREATE INDEX idx_node_inbounds_inbound ON node_inbounds(inbound_id)`,
+	}},
 }
 
 type schemaMigration struct {

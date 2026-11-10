@@ -1,0 +1,330 @@
+.intro {
+  margin: -4px 0 20px;
+  max-width: 760px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.8;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
+  gap: 16px;
+}
+
+/* ---------- card ---------- */
+.card {
+  --sc: var(--accent);
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 26px;
+  border: 1px solid var(--line);
+  background: radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--sc) 12%, transparent), transparent 62%), linear-gradient(180deg, var(--panel-2), var(--panel));
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  overflow: hidden;
+  transition:
+    transform 0.25s var(--ease),
+    border-color 0.25s;
+}
+.card:hover {
+  transform: translateY(-3px);
+  border-color: var(--line-2);
+}
+.s_degraded {
+  --sc: var(--warn);
+}
+.s_offline {
+  --sc: var(--danger);
+}
+.s_waiting {
+  --sc: var(--info);
+}
+.s_disabled {
+  --sc: var(--muted);
+  opacity: 0.7;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.beacon {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 15px;
+  color: var(--sc);
+  background: color-mix(in srgb, var(--sc) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sc) 30%, transparent);
+}
+.s_online .beacon::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  border: 2px solid var(--sc);
+  opacity: 0;
+  animation: ping 2.6s var(--ease) infinite;
+}
+@keyframes ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  80%,
+  100% {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .s_online .beacon::after {
+    animation: none;
+  }
+}
+.head {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.name {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.addr {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--muted);
+  text-align: start;
+}
+.host {
+  overflow-wrap: anywhere;
+}
+.port {
+  white-space: nowrap;
+}
+.status {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--sc);
+  background: color-mix(in srgb, var(--sc) 12%, transparent);
+}
+.status i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--sc);
+}
+
+.err {
+  padding: 9px 12px;
+  border-radius: 14px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--warn-fg);
+  background: var(--warn-soft);
+  overflow-wrap: anywhere;
+  direction: ltr;
+  text-align: start;
+  unicode-bidi: plaintext;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.metric {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 10px 9px;
+  border-radius: 14px;
+  background: var(--panel-3);
+  border: 1px solid var(--line);
+}
+.metric small {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.metric small svg {
+  flex: none;
+}
+.metric b {
+  font-size: 14px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+.bar {
+  display: block;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--line);
+  overflow: hidden;
+}
+.bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--sc);
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.traffic {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+.traffic > span,
+.seen {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.seen {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line-2);
+  color: var(--muted);
+}
+.chip {
+  max-width: 100%;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--text-2);
+  background: var(--panel-3);
+  border: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.muted {
+  font-size: 12.5px;
+}
+
+@media (max-width: 520px) {
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .card {
+    padding: 16px;
+    border-radius: 22px;
+  }
+}
+
+/* ---------- sheet ---------- */
+.sheetIntro {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.8;
+}
+.cmd {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-2);
+}
+.cmd code {
+  align-self: stretch;
+  max-height: 180px;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: break-all;
+  white-space: pre-wrap;
+  user-select: all;
+  -webkit-user-select: all;
+  text-align: left;
+}
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--text-2);
+}
+.steps svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--accent);
+}
+.warnStep svg {
+  color: var(--warn);
+}
+.stateErr {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--warn-fg);
+  background: var(--warn-soft);
+  overflow-wrap: anywhere;
+}
+.stateErr svg {
+  flex: none;
+  margin-top: 2px;
+}
+.reinstall {
+  align-self: flex-start;
+}

@@ -47,6 +47,10 @@ Service and system (root):
   veilon geo update                     download fresh geoip.dat / geosite.dat
   veilon version
 
+Nodes (run on a remote server; the token comes from the panel's Nodes page):
+  veilon node install --token TOKEN     set up this server as a node
+  veilon node serve | status | uninstall
+
 Configuration is read from /etc/veilon/veilon.env (override with VEILON_CONFIG)
 and environment variables: VEILON_DB_DRIVER (postgres|sqlite), VEILON_DB_DSN,
 VEILON_DATA_DIR, VEILON_LISTEN, VEILON_XRAY_BIN, VEILON_XRAY_AUTO_DOWNLOAD,
@@ -112,6 +116,8 @@ func main() {
 		err = cmdLogs(args)
 	case "update", "upgrade":
 		err = cmdUpdate(args)
+	case "node":
+		err = cmdNode(args)
 	case "self-update":
 		err = cmdSelfUpdate(args)
 	case "uninstall":

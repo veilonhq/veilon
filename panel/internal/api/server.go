@@ -21,6 +21,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/inbounds"
 	"github.com/veilonhq/veilon/panel/internal/logbuf"
+	"github.com/veilonhq/veilon/panel/internal/nodes"
 	"github.com/veilonhq/veilon/panel/internal/selfupdate"
 	"github.com/veilonhq/veilon/panel/internal/stats"
 	"github.com/veilonhq/veilon/panel/internal/sub"
@@ -60,6 +61,8 @@ type Server struct {
 	PanelLogs *logbuf.Ring
 	// Update checks for and starts panel updates (may be nil).
 	Update *selfupdate.Service
+	// Nodes manages remote nodes (may be nil).
+	Nodes *nodes.Service
 
 	settings atomic.Pointer[db.Settings]
 	api      http.Handler

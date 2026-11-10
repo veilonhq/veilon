@@ -457,3 +457,50 @@ export interface AuditEntry {
   ip: string;
   created_at: string;
 }
+
+/** Live status of a remote node. */
+export type NodeStatus = 'online' | 'degraded' | 'offline' | 'waiting' | 'disabled';
+export interface NodeState {
+  status: NodeStatus;
+  error?: string;
+  checked_at: string | null;
+  version: string;
+  xray_version: string;
+  xray_running: boolean;
+  synced: boolean;
+  skipped: string[] | null;
+  started_at: string | null;
+  load1: number;
+  /** 0..1 */
+  mem_used: number;
+  cpus: number;
+  latency_ms: number;
+}
+/** A remote server running "veilon node" that serves chosen inbounds. */
+export interface VNode {
+  id: number;
+  name: string;
+  /** what clients connect to (also used in subscription links) */
+  address: string;
+  /** the agent port */
+  api_port: number;
+  enabled: boolean;
+  up: number;
+  down: number;
+  last_seen_at: string | null;
+  created_at: string;
+  inbound_ids: number[];
+  state: NodeState;
+}
+export interface NodeInput {
+  name: string;
+  address: string;
+  api_port: number;
+  enabled: boolean;
+  inbound_ids: number[];
+}
+export interface NodeInstall {
+  token: string;
+  command: string;
+  port: number;
+}

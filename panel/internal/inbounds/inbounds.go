@@ -661,6 +661,9 @@ func (s *Service) Delete(id int64) error {
 		if err := tx.Where("inbound_id = ?", id).Delete(&db.Host{}).Error; err != nil {
 			return err
 		}
+		if err := tx.Where("inbound_id = ?", id).Delete(&db.NodeInbound{}).Error; err != nil {
+			return err
+		}
 		return tx.Where("inbound_id = ?", id).Delete(&db.UserInbound{}).Error
 	})
 	if err == nil {

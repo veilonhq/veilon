@@ -206,6 +206,31 @@ type Host struct {
 // TableName pins the table name.
 func (Host) TableName() string { return "inbound_hosts" }
 
+// Node is a remote server running "veilon node". The master pushes the
+// Xray config for the node's inbounds to it over mutual TLS and collects its
+// traffic. Address is what clients connect to (it appears in subscription
+// links); the agent listens on Address:APIPort.
+type Node struct {
+	ID         int64      `gorm:"primaryKey" json:"id"`
+	Name       string     `json:"name"`
+	Address    string     `json:"address"`
+	APIPort    int        `gorm:"column:api_port" json:"api_port"`
+	Enabled    bool       `json:"enabled"`
+	CertSHA256 string     `gorm:"column:cert_sha256" json:"-"`
+	Up         int64      `json:"up"`
+	Down       int64      `json:"down"`
+	StatsSeq   string     `json:"-"`
+	LastSeenAt *time.Time `json:"last_seen_at"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"-"`
+}
+
+// NodeInbound assigns an inbound to a node.
+type NodeInbound struct {
+	NodeID    int64 `gorm:"primaryKey"`
+	InboundID int64 `gorm:"primaryKey"`
+}
+
 // WGPeer is the auto-generated WireGuard / AmneziaWG peer of a user on one
 // inbound: its key pair, preshared key and tunnel address.
 type WGPeer struct {
@@ -270,3 +295,9 @@ type TrafficPoint struct {
 	Up   int64
 	Down int64
 }
+
+// TableName pins the table name.
+func (Node) TableName() string { return "nodes" }
+
+// TableName pins the table name.
+func (NodeInbound) TableName() string { return "node_inbounds" }
