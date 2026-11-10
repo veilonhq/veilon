@@ -65,9 +65,10 @@ type Manager struct {
 	Interval       time.Duration
 	Timeout        time.Duration
 	RequestTimeout time.Duration
-	// ApplyTraffic stores per-user traffic (nil = xray.ApplyUserTrafficFrom
-	// with the node's id, so the history keeps each node's traffic apart).
-	ApplyTraffic func(gdb *gorm.DB, deltas map[int64][2]int64, now time.Time) error
+	// ApplyTraffic stores per-user traffic and returns the counted bytes it
+	// added (nil = xray.ApplyUserTrafficTx in one transaction with the node's
+	// totals; the node's id keeps its history apart).
+	ApplyTraffic func(gdb *gorm.DB, deltas map[int64][2]int64, now time.Time) (up, down int64, err error)
 	// BuildConfig renders a node's Xray config (default xray.NodeConfig).
 	BuildConfig func(gdb *gorm.DB, dataDir string, inboundIDs []int64, apiPort int) ([]byte, []string, error)
 	// OnIPs receives the client IPs a node reported (with the master-minus-
@@ -408,20 +409,25 @@ func (m *Manager) storeTraffic(n *db.Node, sr *StatsReply) error {
 	m.trafMu.Lock()
 	defer m.trafMu.Unlock()
 	now := time.Now().UTC()
-	node := func(tx *gorm.DB) error {
+	// The node's totals are the users' counted usage it carried (real bytes x
+	// each user's multiplier), the same figure as its share in "traffic by
+	// server" and in users' usage, not the raw inbound counters.
+	node := func(tx *gorm.DB, up, down int64) error {
 		return tx.Model(&db.Node{}).Where("id = ?", n.ID).Updates(map[string]any{
-			"up": gorm.Expr("up + ?", sr.Up), "down": gorm.Expr("down + ?", sr.Down),
+			"up": gorm.Expr("up + ?", up), "down": gorm.Expr("down + ?", down),
 			"stats_seq": sr.Seq, "last_seen_at": now,
 		}).Error
 	}
 	if m.ApplyTraffic != nil { // tests
+		var up, down int64
 		if len(sr.Users) > 0 {
-			if err := m.ApplyTraffic(m.DB, sr.Users, now); err != nil {
+			var err error
+			if up, down, err = m.ApplyTraffic(m.DB, sr.Users, now); err != nil {
 				return err
 			}
 		}
 		n.StatsSeq = sr.Seq
-		return node(m.DB)
+		return node(m.DB, up, down)
 	}
 	// Users' counters, the node's totals and the batch id commit together:
 	// a batch is counted exactly once even if the master stops halfway
@@ -432,7 +438,7 @@ func (m *Manager) storeTraffic(n *db.Node, sr *StatsReply) error {
 		if up, down, err = xray.ApplyUserTrafficTx(tx, sr.Users, now); err != nil {
 			return err
 		}
-		return node(tx)
+		return node(tx, up, down)
 	})
 	if err != nil {
 		return err

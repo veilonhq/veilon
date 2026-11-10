@@ -266,7 +266,8 @@ func TestSyncPushesConfigAndCountsTrafficOnce(t *testing.T) {
 		t.Fatalf("user traffic %d/%d %d/%d", a.Up, a.Down, b.Up, b.Down)
 	}
 	nn := reload(t, r.gdb, n.ID)
-	if nn.Up != 300 || nn.Down != 400 || nn.LastSeenAt == nil {
+	// the node's totals are the users' counted usage, not the raw inbound counters
+	if nn.Up != 105 || nn.Down != 206 || nn.LastSeenAt == nil {
 		t.Fatalf("node totals %+v", nn)
 	}
 	if core.applies() != 1 {

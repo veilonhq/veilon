@@ -1015,7 +1015,7 @@ const en: Record<MessageKey, string> = {
   'srv.period.7d': 'Last 7 days',
   'srv.period.30d': 'Last 30 days',
   'srv.hint': "Users' usage carried by each server. A user's usage is the sum over all servers.",
-  'node.trafficAll': 'All-time traffic of this node',
+  'node.trafficAll': "Users' usage carried by this node, all time (counted like traffic by server)",
   'node.title': 'Nodes',
   'node.count': '{n} nodes',
   'node.intro': "Each node is another server that runs the inbounds you place on it in the inbound form, with the same users. The panel pushes the config to nodes, collects their traffic and adds one link per node to users' subscriptions.",
