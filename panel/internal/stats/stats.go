@@ -3,6 +3,7 @@
 package stats
 
 import (
+	"sort"
 	"bufio"
 	"context"
 	"os"
@@ -347,17 +348,90 @@ func alignStart(t time.Time, bucket time.Duration, loc *time.Location) time.Time
 	return mid.Add(lt.Sub(mid) / bucket * bucket)
 }
 
-// Traffic aggregates stored points into buckets covering the window that
-// ends with the bucket containing now, returning zero-filled points in
-// chronological order and the window's totals.
+// Edges returns the n+1 bucket boundaries of a window of n = window/bucket
+// buckets that ends with the bucket containing now. Buckets follow the wall
+// clock of loc and restart at every local midnight, so a "day" is one
+// calendar day (23 or 25 hours on a daylight-saving change) and 6-hour
+// buckets start at 00:00, 06:00, 12:00 and 18:00 local time every day.
+func Edges(now time.Time, window, bucket time.Duration, loc *time.Location) []time.Time {
+	if loc == nil {
+		loc = time.UTC
+	}
+	n := int(window / bucket)
+	if n < 1 || bucket <= 0 {
+		return nil
+	}
+	lt := now.In(loc)
+	days := int(window/(24*time.Hour)) + 2
+	first := time.Date(lt.Year(), lt.Month(), lt.Day()-days, 0, 0, 0, 0, loc)
+	var all []time.Time
+	for day := first; ; {
+		next := time.Date(day.Year(), day.Month(), day.Day()+1, 0, 0, 0, 0, loc)
+		for off := time.Duration(0); off < 24*time.Hour; off += bucket {
+			e := time.Date(day.Year(), day.Month(), day.Day(), int(off/time.Hour), int(off%time.Hour/time.Minute), 0, 0, loc)
+			if e.Before(day) || !e.Before(next) {
+				continue
+			}
+			if k := len(all); k > 0 && !e.After(all[k-1]) {
+				continue // a wall time skipped by a clock change
+			}
+			all = append(all, e)
+		}
+		if next.After(now) && len(all) > 0 && all[len(all)-1].After(now) {
+			all = append(all, next)
+			break
+		}
+		day = next
+		if len(all) > 0 && all[len(all)-1].After(now) {
+			break
+		}
+	}
+	// the bucket containing now ends at the first edge after now
+	endIdx := len(all) - 1
+	for i, e := range all {
+		if e.After(now) {
+			endIdx = i
+			break
+		}
+	}
+	all = all[:endIdx+1]
+	if len(all) < n+1 {
+		return all
+	}
+	return all[len(all)-(n+1):]
+}
+
+// Traffic aggregates stored points into the buckets of Edges, zero-filled
+// and in chronological order.
 func Traffic(gdb *gorm.DB, window, bucket time.Duration, now time.Time, loc *time.Location) ([]Point, error) {
-	end := alignStart(now, bucket, loc).Add(bucket)
-	start := end.Add(-window)
+	edges := Edges(now, window, bucket, loc)
+	if len(edges) < 2 {
+		return []Point{}, nil
+	}
 	var rows []db.TrafficPoint
-	if err := gdb.Where("t >= ? AND t < ?", start.UTC(), end.UTC()).Order("t").Find(&rows).Error; err != nil {
+	if err := gdb.Where("t >= ? AND t < ?", edges[0].UTC(), edges[len(edges)-1].UTC()).Order("t").Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	return Bucketize(rows, start, end, bucket), nil
+	return BucketizeEdges(rows, edges), nil
+}
+
+// BucketizeEdges groups points into the buckets between consecutive edges.
+func BucketizeEdges(rows []db.TrafficPoint, edges []time.Time) []Point {
+	if len(edges) < 2 {
+		return []Point{}
+	}
+	pts := make([]Point, len(edges)-1)
+	for i := range pts {
+		pts[i].T = edges[i].UTC()
+	}
+	for _, r := range rows {
+		i := sort.Search(len(edges), func(k int) bool { return edges[k].After(r.T) }) - 1
+		if i >= 0 && i < len(pts) {
+			pts[i].Up += r.Up
+			pts[i].Down += r.Down
+		}
+	}
+	return pts
 }
 
 // Bucketize groups points into fixed buckets between start and end.

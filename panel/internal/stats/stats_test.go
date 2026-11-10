@@ -78,3 +78,69 @@ func TestParseNetDevSkipsVirtual(t *testing.T) {
 		t.Fatalf("rx=%d tx=%d", rx, tx)
 	}
 }
+
+func dayKeys(es []time.Time, loc *time.Location) []string {
+	out := make([]string, len(es))
+	for i, e := range es {
+		out[i] = e.In(loc).Format("01-02 15:04")
+	}
+	return out
+}
+
+// Day buckets are calendar days in the panel zone, also across daylight
+// saving changes (23- and 25-hour days), and the last bucket holds now.
+func TestEdgesDSTCalendarDays(t *testing.T) {
+	ber, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		t.Skip("no tzdata")
+	}
+	// 2026-03-29 02:00 CET -> 03:00 CEST; 2026-10-25 03:00 CEST -> 02:00 CET
+	now := time.Date(2026, 3, 30, 10, 0, 0, 0, ber)
+	es := Edges(now, 3*24*time.Hour, 24*time.Hour, ber)
+	got := dayKeys(es, ber)
+	want := []string{"03-28 00:00", "03-29 00:00", "03-30 00:00", "03-31 00:00"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("spring edges %v", got)
+	}
+	if d := es[2].Sub(es[1]); d != 23*time.Hour {
+		t.Fatalf("spring-forward day is %v", d)
+	}
+	now = time.Date(2026, 10, 25, 23, 59, 0, 0, ber)
+	es = Edges(now, 2*24*time.Hour, 24*time.Hour, ber)
+	if es[2].Sub(es[1]) != 25*time.Hour || es[1].In(ber).Hour() != 0 {
+		t.Fatalf("fall-back day: %v", dayKeys(es, ber))
+	}
+	// 6-hour buckets keep local wall times on the change day
+	es = Edges(time.Date(2026, 3, 29, 20, 0, 0, 0, ber), 24*time.Hour, 6*time.Hour, ber)
+	if strings.Join(dayKeys(es, ber), ",") != "03-29 00:00,03-29 06:00,03-29 12:00,03-29 18:00,03-30 00:00" {
+		t.Fatalf("6h edges %v", dayKeys(es, ber))
+	}
+}
+
+// Midnight boundaries in a non-UTC zone: a point one minute before local
+// midnight lands in the old day, one at midnight in the new day.
+func TestTrafficMidnightBoundaryTehran(t *testing.T) {
+	teh, err := time.LoadLocation("Asia/Tehran")
+	if err != nil {
+		t.Skip("no tzdata")
+	}
+	mid := time.Date(2026, 11, 10, 0, 0, 0, 0, teh)
+	rows := []db.TrafficPoint{
+		{T: mid.Add(-time.Minute).UTC(), Up: 1},
+		{T: mid.UTC(), Up: 10},
+		{T: mid.Add(23*time.Hour + 59*time.Minute).UTC(), Up: 100},
+	}
+	es := Edges(mid.Add(12*time.Hour), 7*24*time.Hour, 24*time.Hour, teh)
+	if len(es) != 8 || !es[len(es)-2].Equal(mid) {
+		t.Fatalf("edges %v", dayKeys(es, teh))
+	}
+	pts := BucketizeEdges(rows, es)
+	if pts[5].Up != 1 || pts[6].Up != 110 {
+		t.Fatalf("points %+v", pts)
+	}
+	// hour buckets at 00:00 Tehran = 20:30 UTC
+	es = Edges(mid.Add(30*time.Minute), 24*time.Hour, time.Hour, teh)
+	if got := es[len(es)-2].UTC().Format("15:04"); got != "20:30" {
+		t.Fatalf("hour bucket start %s UTC", got)
+	}
+}
