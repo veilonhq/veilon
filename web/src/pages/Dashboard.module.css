@@ -167,6 +167,10 @@
 }
 html[lang='fa'] .big {
   font-family: var(--font-fa);
+  line-height: 1.25; /* Persian digits sit higher than Latin ones */
+}
+html[lang='fa'] .huge {
+  line-height: 1.15;
 }
 .big small {
   font-size: 16px;

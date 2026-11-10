@@ -139,7 +139,10 @@ export default function DashboardPage() {
               </strong>
               <CorePowerSwitch core={d?.core} stoppedCores={d?.stopped_cores} />
               <CoreVersionField core={d?.core} />
-              {d?.core.running && d.core.started_at && <span className={s.meta}>{t('dash.coreSince', { time: duration(Date.now() - new Date(d.core.started_at).getTime()) })}</span>}
+              {/* always one line tall (empty while loading or stopped), so data arriving never resizes the tile */}
+              <span className={s.meta} aria-hidden={!(d?.core.running && d.core.started_at)}>
+                {d?.core.running && d.core.started_at ? t('dash.coreSince', { time: duration(Date.now() - new Date(d.core.started_at).getTime()) }) : '\u00a0'}
+              </span>
               {d?.core.error && (
                 <span className={s.coreErr} title={d.core.error}>
                   {t('dash.coreError')}: <span className="ltr">{d.core.error}</span>
@@ -174,7 +177,7 @@ export default function DashboardPage() {
               {t('dash.online')}
             </h2>
             <strong className={`display ${s.huge}`}>{d ? <CountUp id="dash.usersOnline" value={d.users_online} format={(v) => n(Math.round(v))} /> : '—'}</strong>
-            <span className={s.meta}>{d ? t('dash.onlineOf', { n: d.users_total }) : ''}</span>
+            <span className={s.meta}>{d ? t('dash.onlineOf', { n: d.users_total }) : '\u00a0'}</span>
           </div>
           <div className={s.orbitWrap}>
             <OnlineOrbit names={onlineNames} total={d?.users_online ?? 0} size={190} />

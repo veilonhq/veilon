@@ -26,10 +26,11 @@
   white-space: nowrap;
 }
 .versionSelect {
-  flex: 0 1 auto;
-  width: auto;
-  min-width: 0;
-  max-width: 170px;
+  /* one fixed width, loaded or not, so the field never reflows the tile;
+     wide enough for a full tag like v26.10.31 */
+  flex: 0 0 auto;
+  width: 10.5rem;
+  max-width: 100%;
 }
 .note {
   flex-basis: 100%;

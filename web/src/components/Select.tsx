@@ -32,6 +32,8 @@ interface SelectProps<V extends string | number> {
   mono?: boolean;
   invalid?: boolean;
   disabled?: boolean;
+  /** show the selected option's hint inside the closed field (default true) */
+  valueHint?: boolean;
 }
 
 const MOBILE_Q = '(max-width: 720px)';
@@ -57,6 +59,7 @@ export function Select<V extends string | number>({
   mono,
   invalid,
   disabled,
+  valueHint = true,
 }: SelectProps<V>) {
   const { t, dir } = useI18n();
   const [open, setOpen] = useState(false);
@@ -260,7 +263,7 @@ export function Select<V extends string | number>({
         <span className={`${s.value} ${selected ? '' : s.placeholder} ${ltr && selected ? 'ltr' : ''} ${mono && selected ? 'mono' : ''}`}>
           {selected ? selected.label : placeholder ?? t('common.choose')}
         </span>
-        {selected?.hint && <span className={`${s.valueHint} ltr`}>{selected.hint}</span>}
+        {valueHint && selected?.hint && <span className={`${s.valueHint} ltr`}>{selected.hint}</span>}
         <ChevronDown size={18} className={`${s.chev} ${open ? s.chevOpen : ''}`} aria-hidden="true" />
       </button>
       {open &&

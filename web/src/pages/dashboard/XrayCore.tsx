@@ -122,6 +122,7 @@ export function CoreVersionField({ core }: { core?: CoreInfo }) {
         ltr
         mono
         className={s.versionSelect}
+        valueHint={false}
         value={current || null}
         placeholder="—"
         onChange={choose}
