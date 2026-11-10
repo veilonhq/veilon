@@ -15,6 +15,8 @@ func TestParseAccessLineRealXray(t *testing.T) {
 		{"2026/11/08 17:34:41.990991 from 10.231.0.2:56408 accepted tcp:10.231.0.1:18080 [inbound-9 >> direct] email: 7.alice", "7.alice", "10.231.0.2"},
 		{"2026/11/08 17:34:41.990991 from tcp:[2001:db8::1]:50000 accepted udp:1.1.1.1:53 [inbound-1 -> direct] email: 12.bob", "12.bob", "2001:db8::1"},
 		{"2026/11/08 17:34:41.990991 from [::ffff:5.6.7.8]:443 accepted tcp:x.com:443 [inbound-1 >> direct] email: 3.c", "3.c", "5.6.7.8"},
+		// real Xray line for a link-local IPv6 client: the zone is dropped
+		{"2026/11/10 17:22:41.990991 from [fe80::10b0:acff:fe10:cc5%eth0]:55832 accepted tcp:speed.cloudflare.com:80 [inbound-1 >> direct] email: 1.alice", "1.alice", "fe80::10b0:acff:fe10:cc5"},
 	}
 	for _, c := range cases {
 		e, ip, ok := ParseAccessLine(c.line)

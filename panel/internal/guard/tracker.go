@@ -196,6 +196,11 @@ func ParseAccessLine(line string) (email, ip string, ok bool) {
 	if err != nil {
 		host = strings.Trim(src, "[]")
 	}
+	// An IPv6 link-local source carries its zone ("fe80::1%eth0"); the IP
+	// itself is what counts.
+	if k := strings.IndexByte(host, '%'); k >= 0 {
+		host = host[:k]
+	}
 	p := net.ParseIP(host)
 	if p == nil || p.IsLoopback() || p.IsUnspecified() || email == "" {
 		return "", "", false
