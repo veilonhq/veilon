@@ -103,7 +103,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer
 - 🧭 **پیکربندی Xray:** خروجی ها، قوانین مسیریابی، متعادل کننده ها، DNS و ویرایشگر JSON؛ هر تغییر قبل از اعمال توسط خود Xray بررسی می شود و در صورت خطا پیکربندی قبلی برمی گردد
 - 🌐 **هاست ها:** برای هر ورودی چند لینک با آدرس، پورت، SNI یا مسیر دیگر (مثلا CDN یا دامنه دیگر) در اشتراک کاربران
 - 🔄 **به روزرسانی از داخل پنل:** اعلان نسخه تازه، بررسی checksum، پشتیبان برنامه و پایگاه داده، و برگشت خودکار اگر نسخه تازه سالم بالا نیاید
-- 🛰️ **نودها (اختیاری):** سرورهای دیگر با همان کاربران، با ارتباط mTLS، ارسال خودکار پیکربندی، آمار ترافیک و وضعیت هر نود
+- 🛰️ **نودها (اختیاری):** سرورهای دیگر با همان کاربران، با ارتباط mTLS، ارسال خودکار پیکربندی و وضعیت هر نود؛ برای هر ورودی انتخاب می کنید روی سرور اصلی اجرا شود یا روی نودها؛ محدودیت IP و سرعت روی همه سرورها؛ ترافیک به تفکیک هر سرور
 - 🗄️ **پایگاه داده:** PostgreSQL (پیش فرض) یا SQLite
 - 💻 **منوی خط فرمان `veilon`:** به روزرسانی، ری استارت، لاگ ها، تغییر رمز، پورت، مسیر، SSL، BBR و فایروال
 - 🌗 **رابط کاربری:** واکنش گرا برای موبایل و دسکتاپ، تم تیره و روشن، فارسی (پیش فرض) و انگلیسی
@@ -316,7 +316,7 @@ veilon cert list
 ## اولین ورود، ساخت ورودی و کاربر
 
 1. آدرس پنل را در مرورگر باز کنید و با نام کاربری و رمز وارد شوید.
-2. **ساخت ورودی:** به بخش **ورودی ها** بروید ← **ورودی جدید**. برای شروع **VLESS + Reality** پیشنهاد می شود: پروتکل VLESS، انتقال tcp، امنیت Reality، پورت 443. کلیدهای Reality خودکار ساخته می شوند. پورت و نام هر ورودی باید یکتا باشد؛ اگر تکراری باشد، پنل همان لحظه هشدار می دهد.
+2. **ساخت ورودی:** به بخش **ورودی ها** بروید ← **ورودی جدید**. برای شروع **VLESS + Reality** پیشنهاد می شود: پروتکل VLESS، انتقال tcp، امنیت Reality، پورت 443. کلیدهای Reality خودکار ساخته می شوند. وارد کردن پورت الزامی است و پورت و نام هر ورودی باید یکتا باشد؛ اگر تکراری باشد، پنل همان لحظه هشدار می دهد.
 3. **ساخت کاربر:** به بخش **کاربران** بروید ← **کاربر جدید**. نام، سقف حجم (۰ یعنی نامحدود)، تاریخ انقضا و ورودی هایی که کاربر به آن ها دسترسی دارد را انتخاب کنید.
 4. روی کاربر بزنید تا **لینک اشتراک**، **کد QR** و لینک های تکی را ببینید.
 
@@ -327,7 +327,7 @@ veilon cert list
 
 5. **محدودیت ها (اختیاری):** در فرم کاربر، بخش محدودیت ها را باز کنید. مثلا «IP همزمان» را ۲ بگذارید تا کاربر فقط با دو IP همزمان وصل شود، یا سرعت دانلود را محدود کنید. هر مقدار ۰ یعنی بدون محدودیت. در زبانه **اتصال ها** IP ها و دستگاه های کاربر را می بینید و می توانید هر کدام را مسدود کنید.
 6. **گروه ها (اختیاری):** در بخش **گروه ها** یک گروه بسازید، ورودی ها و مقادیر پیش فرض آن را تعیین کنید و هنگام ساخت کاربر، گروه را انتخاب کنید.
-7. **مدیران (اختیاری):** در بخش **مدیران** مدیر جدید بسازید و برای او مشخص کنید چه کارهایی مجاز است (مثلا فقط دیدن کاربران). دکمه هایی که مدیر اجازه آن را ندارد در پنل نمایش داده نمی شوند.
+7. **مدیران (اختیاری):** در بخش **مدیران** مدیر جدید بسازید و برای او مشخص کنید چه کارهایی مجاز است (مثلا فقط دیدن کاربران). دکمه هایی که مدیر اجازه آن را ندارد در پنل نمایش داده نمی شوند. مدیری که هنوز کاربر دارد حذف نمی شود؛ اول کاربرانش را منتقل یا حذف کنید.
 8. **TUIC:** در ورودی جدید پروتکل TUIC را انتخاب کنید (به گواهی TLS نیاز دارد، بخش SSL را ببینید). محدودیت های کاربر برای TUIC هم اعمال می شوند.
 9. **هسته Xray:** در کارت هسته در **داشبورد** می توانید هسته را خاموش و روشن کنید، روی شماره نسخه بزنید و نسخه دیگری نصب کنید، یا فایل های geo را به روز کنید.
 10. **منطقه زمانی:** در **تنظیمات** منطقه زمانی پنل را انتخاب کنید (مثلا تهران؛ پیش فرض UTC). زمان لاگ ها، نمودار ترافیک و ریست های روزانه، هفتگی و ماهانه طبق آن است.
@@ -355,6 +355,11 @@ veilon cert list
 - **هاست ها:** در **ورودی ها** روی دکمه هاست ها در ردیف هر ورودی بزنید تا لینک های اضافه (CDN، دامنه یا پورت دیگر) بسازید. فیلدهای خالی همان مقدار ورودی را نگه می دارند. [راهنما](docs/fa/hosts.md)
 - **به روزرسانی از داخل پنل:** وقتی نسخه تازه بیاید، بالای پنل اعلان نمایش داده می شود و با **نصب به روزرسانی** نصب می شود. سرورهایی که نسخه v0.2.2 یا قدیمی تر دارند باید یک بار دستور نصب را دوباره روی سرور اجرا کنند (اطلاعات می ماند). [راهنما](docs/fa/self-update.md)
 - **نودها (اختیاری):** برای پنل فقط یک VPS لازم است. اگر سرور دیگری دارید، در **بیشتر ← نودها ← افزودن نود** آن را اضافه کنید و دستوری را که پنل نشان می دهد روی سرور نود اجرا کنید (به شکل `install.sh node --token ...`). [راهنما](docs/fa/nodes.md)
+  - **محل اجرا:** در فرم هر ورودی گزینه **محل اجرا** را می بینید: سرور اصلی یا یک یا چند نود. ورودی ای که روی نود است فقط روی همان نودها اجرا می شود و لینک کاربران به آدرس نود اشاره می کند. ورودی هایی که در نسخه های قبل به نود داده شده بودند روی سرور اصلی هم اجرا می مانند تا کاربران قطع نشوند (گزینه **روی سرور اصلی هم اجرا شود**).
+  - **محدودیت IP روی همه سرورها:** IP های هر کاربر روی سرور اصلی و همه نودها با هم شمرده می شوند و IP های اضافه روی همه سرورها مسدود می شوند. برای این کار نودها باید برنامه نود را به روز کنند (در صفحه نودها **دستور نصب تازه** را بزنید و روی سرور نود اجرا کنید).
+  - **ترافیک به تفکیک سرور:** داشبورد و صفحه نودها سهم هر سرور از ترافیک کاربران را نشان می دهند.
+
+> **⚠️ هشدار:** پنل را روی سروری که نود است نصب نکنید. روی سرور نود فقط دستور نصب نود را اجرا کنید؛ نصب پنل و نود روی یک سرور باعث تداخل پورت ها و Xray می شود.
 
 ---
 
@@ -396,6 +401,7 @@ veilon
 | دیدن لاگ ها | `veilon logs -f` |
 | آدرس و تنظیمات پنل | `veilon info` |
 | تغییر نام کاربری و رمز | `veilon admin reset-credentials --username admin --password NEW_PASSWORD` |
+| حذف یک مدیر | `veilon admin delete USERNAME` (آخرین مدیر کامل و مدیری که کاربر دارد حذف نمی شوند) |
 | تغییر پورت پنل | `veilon set-port 2053` |
 | تغییر مسیر پنل | `veilon set-path random` |
 | تغییر زبان پیش فرض | `veilon set-language fa` یا `veilon set-language en` |
@@ -561,7 +567,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer
 - 🧭 **Xray config:** Outbounds, routing rules, balancers, DNS and a JSON editor; every change is checked by Xray before it is applied and rolled back if Xray does not stay up
 - 🌐 **Hosts:** Several links per inbound with another address, port, SNI or path (e.g. a CDN or another domain) in users' subscriptions
 - 🔄 **In-panel updates:** New-version banner, checksum check, backup of program and database, automatic rollback if the new version is not healthy
-- 🛰️ **Nodes (optional):** Extra servers with the same users, over mTLS, with automatic config push, traffic stats and health per node
+- 🛰️ **Nodes (optional):** Extra servers with the same users, over mTLS, with automatic config push and health per node; choose per inbound whether it runs on the main server or on nodes; IP and speed limits on every server; traffic broken down per server
 - 🗄️ **Database:** PostgreSQL (default) or SQLite
 - 💻 **`veilon` CLI menu:** Update, restart, logs, credentials, port, path, SSL, BBR and firewall
 - 🌗 **UI:** Responsive for phone and desktop, dark and light themes, Persian (default) and English
@@ -713,7 +719,7 @@ veilon cert issue --ip auto --panel
 ## First steps
 
 1. Open the panel URL and sign in.
-2. **Inbounds → New inbound.** VLESS + Reality on port 443 is a good start. Ports and names must be unique.
+2. **Inbounds → New inbound.** VLESS + Reality on port 443 is a good start. The port is required; ports and names must be unique.
 3. **Users → New user.** Set a data cap (0 = unlimited), expiry and the inbounds.
 4. Open the user to get the subscription link, QR codes and per-inbound links.
 
@@ -724,7 +730,7 @@ veilon cert issue --ip auto --panel
 
 5. **Limits (optional):** in the user form, open the limits section, e.g. concurrent IPs = 2 or a download speed cap. 0 always means no limit. The **Connections** tab lists the user's IPs and devices and lets you block any of them.
 6. **Groups (optional):** create a group under **Groups**, set its inbounds and defaults, and pick it when creating users.
-7. **Admins (optional):** create a sub-admin under **Admins** and choose what it may do (e.g. only view users). Buttons an admin may not use are hidden.
+7. **Admins (optional):** create a sub-admin under **Admins** and choose what it may do (e.g. only view users). Buttons an admin may not use are hidden. An admin who still owns users cannot be deleted; move or delete their users first.
 8. **TUIC:** pick TUIC in the inbound wizard (needs a TLS certificate, see SSL). User limits apply to TUIC as well.
 9. **Xray core:** the core card on the **Dashboard** switches the core on or off, installs another version (tap the version number) and updates the geo files.
 10. **Timezone:** choose the panel timezone in **Settings** (e.g. Tehran; default UTC). Log times, the traffic chart and daily, weekly and monthly resets follow it.
@@ -748,6 +754,11 @@ veilon cert issue --ip auto --panel
 - **Hosts:** on **Inbounds**, press the hosts button on an inbound row to add extra links (a CDN, another domain or port). Empty fields keep the inbound's value. [Guide](docs/en/hosts.md)
 - **In-panel updates:** a banner appears when a new release is out; **Install update** installs it. Servers on v0.2.2 or older need to run the install command on the server once first (data is kept). [Guide](docs/en/self-update.md)
 - **Nodes (optional):** the panel needs only one VPS. To add another server, open **More → Nodes → Add node** and run the command the panel shows on the node server (in the form `install.sh node --token ...`). [Guide](docs/en/nodes.md)
+  - **Runs on:** the inbound form has a **Runs on** choice: the main server, or one or more nodes. An inbound on nodes runs only there and users' links point at the node address. Inbounds assigned to a node by an earlier version keep running on the main server too so users are not cut off (**Also run on the main server**).
+  - **IP limits across nodes:** a user's IPs on the main server and all nodes are counted together, and IPs over the limit are blocked on every server. Nodes need an updated node agent for this (on the Nodes page choose **New install command** and run it on the node server).
+  - **Traffic by server:** the Dashboard and the Nodes page show each server's share of users' traffic.
+
+> **⚠️ Warning:** do not install the panel on a server that is a node. A node server runs only the node install command; the panel and a node on the same server conflict over ports and Xray.
 
 ## Management
 
@@ -763,6 +774,7 @@ veilon
 | Logs | `veilon logs -f` |
 | URL and settings | `veilon info` |
 | Change username and password | `veilon admin reset-credentials --username admin --password NEW_PASSWORD` |
+| Delete an admin | `veilon admin delete USERNAME` (refuses the last full admin and an admin who owns users) |
 | Change panel port | `veilon set-port 2053` |
 | Change panel path | `veilon set-path random` |
 | Default language | `veilon set-language fa` or `veilon set-language en` |
