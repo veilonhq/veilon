@@ -294,6 +294,8 @@ const en: Record<MessageKey, string> = {
   'inb.ssNoTls': 'Shadowsocks encrypts on its own; no transport security needed.',
   'inb.review.hint': 'All good? The core reloads automatically after saving.',
   'inb.portInvalid': 'Port must be between 1 and 65535.',
+  'inb.portRequired': 'Enter a port.',
+  'inb.portPlaceholder': 'e.g. {port}',
   'inb.portTaken': 'This port is already used by inbound “{name}”.',
   'inb.portPanel': 'This port is used by the panel itself.',
   'inb.nameTaken': 'This name is already used by inbound “{name}”.',

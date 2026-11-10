@@ -9,8 +9,14 @@ import { Field, Switch } from '@/components/misc';
 import { useI18n, type MessageKey } from '@/i18n';
 import {
   PROTOCOL_GROUPS,
-  defaultPort,
+  MASQUE_PATH,
+  SS_METHODS,
+  emptyReality,
   emptySettings,
+  emptyTls,
+  inboundDefaults,
+  portHint,
+  quicTls,
   engineName,
   engineOf,
   hasPort,
@@ -34,9 +40,7 @@ const SECURITIES: Security[] = ['none', 'tls', 'reality'];
 const FPS = ['chrome', 'firefox', 'safari', 'edge', 'ios', 'android', 'random', 'randomized'];
 // Reality only works with these client fingerprints.
 const REALITY_FPS = ['chrome', 'firefox', 'safari'];
-const SS_METHODS = ['2022-blake3-aes-128-gcm', '2022-blake3-aes-256-gcm', 'aes-128-gcm', 'aes-256-gcm', 'chacha20-ietf-poly1305'];
 const ALPNS = ['h3', 'h2', 'http/1.1'];
-const MASQUE_PATH = '/.well-known/masque/ip/{target}/{ipproto}/';
 
 type StepId = 'protocol' | 'connection' | 'security' | 'keys' | 'review';
 const STEP_LABEL: Record<StepId, MessageKey> = {
@@ -52,59 +56,7 @@ function stepsFor(p: Protocol): StepId[] {
   return ['protocol', 'connection', 'review'];
 }
 
-const emptyTls = () => ({ cert_id: null, sni: '', alpn: ['h2', 'http/1.1'], fingerprint: 'chrome', allow_insecure: false });
-const quicTls = (alpn = ['h3']) => ({ cert_id: null, sni: '', alpn, fingerprint: 'chrome', allow_insecure: false });
-const emptyReality = () => ({ dest: 'www.microsoft.com:443', server_names: ['www.microsoft.com'], private_key: '', public_key: '', short_ids: [] as string[], fingerprint: 'chrome', spider_x: '/' });
-
-function defaults(p: Protocol): InboundInput {
-  const base: InboundInput = {
-    remark: '',
-    enabled: true,
-    protocol: p,
-    port: defaultPort(p),
-    listen: '',
-    network: 'tcp',
-    security: 'none',
-    tls: null,
-    reality: null,
-    transport: { path: '', host: '', service_name: '', mode: '' },
-    flow: '',
-    ss_method: '',
-    sniffing: sniffingApplies(p),
-    address_override: '',
-    settings: emptySettings(),
-  };
-  const st = (x: Partial<InboundSettings>) => ({ ...base.settings, ...x });
-  switch (p) {
-    case 'vless':
-      return { ...base, security: 'reality', reality: emptyReality(), flow: 'xtls-rprx-vision' };
-    case 'vmess':
-      return { ...base, network: 'ws', transport: { ...base.transport, path: '/ws' } };
-    case 'trojan':
-      return { ...base, security: 'tls', tls: emptyTls() };
-    case 'shadowsocks':
-      return { ...base, ss_method: SS_METHODS[0] };
-    case 'hysteria':
-      return { ...base, security: 'tls', tls: quicTls() };
-    case 'tuic':
-      return { ...base, security: 'tls', tls: quicTls(), settings: st({ congestion: 'bbr' }) };
-    case 'masque':
-      return { ...base, security: 'tls', tls: quicTls(), settings: st({ pool: ['10.14.0.1/24', 'fd14::1/64'], mtu: 1280, path: MASQUE_PATH }) };
-    case 'wireguard':
-    case 'amneziawg':
-      return { ...base, settings: st({ dns: ['1.1.1.1', '8.8.8.8'], mtu: 1420, keepalive: 25 }) };
-    case 'tun':
-      return { ...base, settings: st({ tun_name: 'veilon-tun', gateway: ['10.77.0.1/24'], routes: [], mtu: 1500 }) };
-    case 'mixed':
-      return { ...base, settings: st({ udp: true }) };
-    case 'tunnel':
-      return { ...base, settings: st({ tunnel_network: 'tcp', target_port: 0 }) };
-    case 'mtproto':
-      return { ...base, settings: st({ faketls_domain: 'www.cloudflare.com' }) };
-    default:
-      return base;
-  }
-}
+const defaults = inboundDefaults;
 
 export const realityAllowed = (d: Pick<InboundInput, 'protocol' | 'network'>) =>
   (d.protocol === 'vless' || d.protocol === 'trojan') && (d.network === 'tcp' || d.network === 'grpc' || d.network === 'xhttp');
@@ -234,7 +186,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
   const patchReality = (x: Partial<NonNullable<InboundInput['reality']>>) => setD((v) => ({ ...v, reality: { ...(v.reality ?? emptyReality()), ...x } }));
   const patchAwg = (x: Partial<AwgParams>) => setD((v) => ({ ...v, settings: { ...v.settings, awg: { ...(v.settings.awg ?? { jc: 4, jmin: 40, jmax: 70, s1: 0, s2: 0, h1: 1, h2: 2, h3: 3, h4: 4 }), ...x } } }));
 
-  const pickProtocol = (np: Protocol) => setD((x) => ({ ...defaults(np), remark: x.remark }));
+  const pickProtocol = (np: Protocol) => setD((x) => ({ ...defaults(np), remark: x.remark, port: hasPort(np) ? x.port : 0 }));
   const setNetwork = (net: Network) => {
     setD((x) => {
       const next = { ...x, network: net };
@@ -314,7 +266,8 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
     const range = (min: number, max: number) => t('inb.range', { min: n(min), max: n(max) });
     if (step >= 1) {
       if (!d.remark.trim()) e.remark = t('form.required');
-      if (hasPort(p) && !(d.port >= 1 && d.port <= 65535)) e.port = t('inb.portInvalid');
+      if (hasPort(p) && !d.port) e.port = t('inb.portRequired');
+      else if (hasPort(p) && !(d.port >= 1 && d.port <= 65535)) e.port = t('inb.portInvalid');
       if (d.listen.trim() && !isIP(d.listen.trim())) e.listen = t('inb.invalidHost');
       if (p === 'hysteria') {
         if (!between(st.up_mbps, 0, 100000)) e.up = range(0, 100000);
@@ -637,7 +590,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
                 <>
                   <Field label={portLabel} error={err('port')}>
                     <span className={s.portField}>
-                      <input className="input num ltr" type="number" inputMode="numeric" min={1} max={65535} value={d.port || ''} onChange={(e) => patch({ port: Number(e.target.value) })} aria-invalid={!!err('port')} />
+                      <input className="input num ltr" type="number" inputMode="numeric" min={1} max={65535} value={d.port || ''} placeholder={portHint(p) ? t('inb.portPlaceholder', { port: portHint(p) }) : undefined} aria-required onChange={(e) => patch({ port: e.target.value === '' ? 0 : Number(e.target.value) })} aria-invalid={!!err('port')} />
                       {transportLabel(tr) && <span className={s.portTag}>{transportLabel(tr)}</span>}
                     </span>
                   </Field>

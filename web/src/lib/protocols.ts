@@ -135,24 +135,86 @@ export const withSettings = (s: Partial<InboundSettings> | null | undefined): In
   return out;
 };
 
-/** Port a fresh inbound of this protocol gets by default. */
-export function defaultPort(p: Protocol): number {
-  const rnd = 20000 + Math.floor(Math.random() * 30000);
+/**
+ * A typical port for the protocol, shown only as a placeholder hint. A new
+ * inbound never starts with a port: the admin always types one in.
+ */
+export function portHint(p: Protocol): string {
   switch (p) {
     case 'vless':
+    case 'trojan':
     case 'hysteria':
-      return 443;
+    case 'tuic':
+    case 'masque':
+      return '443';
     case 'wireguard':
-      return 51820;
+      return '51820';
     case 'amneziawg':
-      return 51821;
+      return '51821';
     case 'http':
-      return 8080;
+      return '8080';
     case 'mixed':
-      return 1080;
+      return '1080';
     case 'tun':
-      return 0;
+      return '';
     default:
-      return rnd;
+      return '2096';
+  }
+}
+
+export const SS_METHODS = ['2022-blake3-aes-128-gcm', '2022-blake3-aes-256-gcm', 'aes-128-gcm', 'aes-256-gcm', 'chacha20-ietf-poly1305'];
+export const MASQUE_PATH = '/.well-known/masque/ip/{target}/{ipproto}/';
+export const emptyTls = () => ({ cert_id: null, sni: '', alpn: ['h2', 'http/1.1'], fingerprint: 'chrome', allow_insecure: false });
+export const quicTls = (alpn = ['h3']) => ({ cert_id: null, sni: '', alpn, fingerprint: 'chrome', allow_insecure: false });
+export const emptyReality = () => ({ dest: 'www.microsoft.com:443', server_names: ['www.microsoft.com'], private_key: '', public_key: '', short_ids: [] as string[], fingerprint: 'chrome', spider_x: '/' });
+
+/** The form of a fresh inbound of this protocol. The port is always empty (0). */
+export function inboundDefaults(p: Protocol): InboundInput {
+  const base: InboundInput = {
+    remark: '',
+    enabled: true,
+    protocol: p,
+    port: 0,
+    listen: '',
+    network: 'tcp',
+    security: 'none',
+    tls: null,
+    reality: null,
+    transport: { path: '', host: '', service_name: '', mode: '' },
+    flow: '',
+    ss_method: '',
+    sniffing: sniffingApplies(p),
+    address_override: '',
+    settings: emptySettings(),
+  };
+  const st = (x: Partial<InboundSettings>) => ({ ...base.settings, ...x });
+  switch (p) {
+    case 'vless':
+      return { ...base, security: 'reality', reality: emptyReality(), flow: 'xtls-rprx-vision' };
+    case 'vmess':
+      return { ...base, network: 'ws', transport: { ...base.transport, path: '/ws' } };
+    case 'trojan':
+      return { ...base, security: 'tls', tls: emptyTls() };
+    case 'shadowsocks':
+      return { ...base, ss_method: SS_METHODS[0] };
+    case 'hysteria':
+      return { ...base, security: 'tls', tls: quicTls() };
+    case 'tuic':
+      return { ...base, security: 'tls', tls: quicTls(), settings: st({ congestion: 'bbr' }) };
+    case 'masque':
+      return { ...base, security: 'tls', tls: quicTls(), settings: st({ pool: ['10.14.0.1/24', 'fd14::1/64'], mtu: 1280, path: MASQUE_PATH }) };
+    case 'wireguard':
+    case 'amneziawg':
+      return { ...base, settings: st({ dns: ['1.1.1.1', '8.8.8.8'], mtu: 1420, keepalive: 25 }) };
+    case 'tun':
+      return { ...base, settings: st({ tun_name: 'veilon-tun', gateway: ['10.77.0.1/24'], routes: [], mtu: 1500 }) };
+    case 'mixed':
+      return { ...base, settings: st({ udp: true }) };
+    case 'tunnel':
+      return { ...base, settings: st({ tunnel_network: 'tcp', target_port: 0 }) };
+    case 'mtproto':
+      return { ...base, settings: st({ faketls_domain: 'www.cloudflare.com' }) };
+    default:
+      return base;
   }
 }

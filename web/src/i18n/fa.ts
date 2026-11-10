@@ -293,6 +293,8 @@ const fa = {
   'inb.ssNoTls': 'Shadowsocks رمزنگاری خودش را دارد؛ امنیت لایهٔ انتقال لازم نیست.',
   'inb.review.hint': 'همه چیز درست است؟ پس از ذخیره، هسته خودکار به روز می شود.',
   'inb.portInvalid': 'پورت باید بین ۱ تا ۶۵۵۳۵ باشد.',
+  'inb.portRequired': 'پورت را وارد کنید.',
+  'inb.portPlaceholder': 'مثلا {port}',
   'inb.portTaken': 'این پورت قبلا برای ورودی «⁨{name}⁩» استفاده شده',
   'inb.portPanel': 'این پورت برای خود پنل استفاده می شود',
   'inb.nameTaken': 'این نام قبلا برای ورودی «⁨{name}⁩» استفاده شده',
