@@ -3,6 +3,7 @@ package users
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/testutil"
@@ -64,5 +65,40 @@ func TestServiceCRUD(t *testing.T) {
 	}
 	if changes == 0 {
 		t.Fatal("OnChange never called")
+	}
+}
+
+// On SQLite the pool has one connection: editing an active user (which
+// recomputes the time-window suspension) must not read through the pool
+// inside its own transaction, or it waits for itself forever.
+func TestUpdateActiveUserDoesNotDeadlockOnSQLite(t *testing.T) {
+	gdb := testutil.DB(t)
+	ib := db.Inbound{Remark: "x", Enabled: true, Protocol: "vless", Port: 1000, Network: "tcp", Security: "none"}
+	gdb.Create(&ib)
+	_ = db.SetSetting(gdb, db.KeyTimezone, "Asia/Tehran")
+	s := &Service{DB: gdb, SubURL: func(tok, host string) string { return tok }}
+	var in Input
+	_ = json.Unmarshal([]byte(`{"username":"alice","inbound_ids":[1]}`), &in)
+	v, err := s.Create(&in, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		var p Input
+		_ = json.Unmarshal([]byte(`{"note":"x","inbound_ids":[1]}`), &p)
+		_, err := s.Update(v.ID, &p, "")
+		if err == nil {
+			err = s.ResetTraffic(v.ID)
+		}
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("updating an active user deadlocked")
 	}
 }

@@ -421,7 +421,7 @@ func (s *Service) CreateOwned(in *Input, host string, owner *int64) (*View, erro
 		req = in.Status.Val
 	}
 	decideStatus(u, req, now)
-	s.suspend(u, now)
+	s.suspend(u, now, s.loc())
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
 		var n int64
 		tx.Model(&db.User{}).Where("username = ?", u.Username).Count(&n)
@@ -452,6 +452,7 @@ func (s *Service) CreateOwned(in *Input, host string, owner *int64) (*View, erro
 
 // Update patches a user.
 func (s *Service) Update(id int64, in *Input, host string) (*View, error) {
+	loc := s.loc()
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
 		var u db.User
 		if err := tx.First(&u, id).Error; err != nil {
@@ -481,7 +482,7 @@ func (s *Service) Update(id int64, in *Input, host string) (*View, error) {
 			req = in.Status.Val
 		}
 		decideStatus(&u, req, s.now())
-		s.suspend(&u, s.now())
+		s.suspend(&u, s.now(), loc)
 		if err := tx.Omit("up", "down", "daily_used").Save(&u).Error; err != nil {
 			return err
 		}
@@ -530,6 +531,7 @@ func (s *Service) Delete(ids ...int64) (int64, error) {
 // ResetTraffic zeroes usage and re-evaluates status.
 func (s *Service) ResetTraffic(ids ...int64) error {
 	now := s.now()
+	loc := s.loc()
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
 		var rows []db.User
 		if err := tx.Where("id IN ?", ids).Find(&rows).Error; err != nil {
@@ -540,7 +542,7 @@ func (s *Service) ResetTraffic(ids ...int64) error {
 			u.Up, u.Down, u.DailyUsed = 0, 0, 0
 			u.LastResetAt, u.DailyResetAt = &now, &now
 			Evaluate(u, now)
-			s.suspend(u, now)
+			s.suspend(u, now, loc)
 			if err := tx.Save(u).Error; err != nil {
 				return err
 			}

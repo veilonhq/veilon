@@ -21,10 +21,13 @@ func (s *Service) loc() *time.Location {
 }
 
 // suspend recomputes the window / daily-cap suspension right after an edit
-// so a change takes effect without waiting for the minute job.
-func (s *Service) suspend(u *db.User, now time.Time) {
+// so a change takes effect without waiting for the minute job. loc is read
+// with s.loc() before any transaction: on SQLite the pool has a single
+// connection, so reading through s.DB inside a transaction would wait for
+// itself forever.
+func (s *Service) suspend(u *db.User, now time.Time, loc *time.Location) {
 	if IsServed(u.Status) {
-		u.SuspendReason = Suspension(u, now, s.loc())
+		u.SuspendReason = Suspension(u, now, loc)
 	} else {
 		u.SuspendReason = ""
 	}
