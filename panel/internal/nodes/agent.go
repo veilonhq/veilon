@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -99,7 +100,7 @@ func (a *Agent) Serve(ctx context.Context, listen string) error {
 	if err != nil {
 		return err
 	}
-	hs := &http.Server{Handler: a.Handler(), TLSConfig: tc, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 2 * time.Minute, WriteTimeout: 2 * time.Minute, IdleTimeout: 2 * time.Minute}
+	hs := &http.Server{Handler: a.Handler(), TLSConfig: tc, ErrorLog: log.New(&serverErrLog{}, "", 0), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 2 * time.Minute, WriteTimeout: 2 * time.Minute, IdleTimeout: 2 * time.Minute}
 	go func() {
 		<-ctx.Done()
 		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -115,6 +116,44 @@ func (a *Agent) Serve(ctx context.Context, listen string) error {
 	a.collect(context.Background())
 	a.Core.Stop()
 	return err
+}
+
+// serverErrLog takes the agent's http.Server errors. The agent port is open
+// to the internet, so port scanners and "veilon node status" (which only
+// checks that the port answers) end in failed handshakes all day; those are
+// dropped. A handshake refused for its certificate (a wrong or old master)
+// is worth seeing, at most once a minute so a retrying client cannot flood
+// the journal. Everything else is logged as it comes.
+type serverErrLog struct {
+	mu   sync.Mutex
+	last time.Time
+	now  func() time.Time
+}
+
+func (l *serverErrLog) Write(p []byte) (int, error) {
+	msg := strings.TrimSpace(string(p))
+	if !strings.Contains(msg, "TLS handshake error") {
+		slog.Warn(msg)
+		return len(p), nil
+	}
+	if !strings.Contains(msg, "failed to verify certificate") {
+		return len(p), nil
+	}
+	now := time.Now
+	if l.now != nil {
+		now = l.now
+	}
+	l.mu.Lock()
+	t := now()
+	show := l.last.IsZero() || t.Sub(l.last) >= time.Minute
+	if show {
+		l.last = t
+	}
+	l.mu.Unlock()
+	if show {
+		slog.Warn("refused a client certificate (repeats are hidden for a minute)", "err", msg)
+	}
+	return len(p), nil
 }
 
 func (a *Agent) statsLoop(ctx context.Context) {

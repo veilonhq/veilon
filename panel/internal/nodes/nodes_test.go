@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -499,5 +500,35 @@ func TestServiceValidationAndEnrollment(t *testing.T) {
 	v2, err := r.svc.Update(v.ID, Input{Address: s("2001:db8::1"), InboundIDs: ids()})
 	if err != nil || v2.Address != "2001:db8::1" || len(v2.InboundIDs) != 0 {
 		t.Fatalf("update %+v %v", v2, err)
+	}
+}
+
+func TestAgentServerErrorLogDropsHandshakeNoise(t *testing.T) {
+	var buf strings.Builder
+	old := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	defer slog.SetDefault(old)
+	now := time.Unix(1000, 0)
+	l := &serverErrLog{now: func() time.Time { return now }}
+	w := func(s string) { _, _ = l.Write([]byte(s + "\n")) }
+	w("http: TLS handshake error from 127.0.0.1:5000: EOF")
+	w("http: TLS handshake error from 1.2.3.4:5000: read: connection reset by peer")
+	w("http: TLS handshake error from 1.2.3.4:5000: tls: client didn't provide a certificate")
+	if buf.Len() != 0 {
+		t.Fatalf("scanner noise was logged: %q", buf.String())
+	}
+	w("http: TLS handshake error from 5.6.7.8:1: tls: failed to verify certificate: x509: certificate signed by unknown authority")
+	w("http: TLS handshake error from 5.6.7.8:2: tls: failed to verify certificate: x509: certificate signed by unknown authority")
+	if n := strings.Count(buf.String(), "refused a client certificate"); n != 1 {
+		t.Fatalf("want 1 certificate refusal in a minute, got %d: %q", n, buf.String())
+	}
+	now = now.Add(61 * time.Second)
+	w("http: TLS handshake error from 5.6.7.8:3: tls: failed to verify certificate: x509: certificate signed by unknown authority")
+	if n := strings.Count(buf.String(), "refused a client certificate"); n != 2 {
+		t.Fatalf("want the refusal again after a minute, got %d", n)
+	}
+	w("http: panic serving 1.2.3.4:1: boom")
+	if !strings.Contains(buf.String(), "panic serving") {
+		t.Fatal("other server errors must still be logged")
 	}
 }
