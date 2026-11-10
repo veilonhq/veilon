@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"time"
+
+	"github.com/veilonhq/veilon/panel/internal/guard"
 )
 
 // DefaultPort is the port "veilon node" listens on.
@@ -43,6 +45,18 @@ type StatsReply struct {
 	Users map[int64][2]int64 `json:"users"`
 	Up    int64              `json:"up"`
 	Down  int64              `json:"down"`
+	// IPs are the client IPs seen per user since the previous batch (from
+	// the node's Xray access log), for IP limits across servers.
+	IPs []guard.SeenIP `json:"ips,omitempty"`
+	// Now is the node's clock when it answered (the master corrects the
+	// IP times for clock differences with it).
+	Now time.Time `json:"now"`
+}
+
+// BansPush is the body of PUT /v1/bans: the client IPs the master drops for
+// the IP limit, which the node drops on its inbound ports too.
+type BansPush struct {
+	Bans []guard.Ban `json:"bans"`
 }
 
 // Hash is the config hash both sides agree on.

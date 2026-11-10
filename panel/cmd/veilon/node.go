@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/veilonhq/veilon/panel/internal/guard"
 	"github.com/veilonhq/veilon/panel/internal/nodes"
 	"github.com/veilonhq/veilon/panel/internal/version"
 	"github.com/veilonhq/veilon/panel/internal/xray"
@@ -135,8 +136,10 @@ func nodeServe(dir, token, listen string) error {
 	if v, err := strconv.Atoi(os.Getenv("VEILON_NODE_API_PORT")); err == nil && v > 0 {
 		apiPort = v
 	}
-	core := &nodes.ProcCore{Bin: filepath.Join(nodeXrayDir(dir), "xray"), Dir: dir, APIPort: apiPort}
-	a := &nodes.Agent{Enrollment: e, Dir: dir, Core: core, APIPort: apiPort, Version: version.Version}
+	ips := &guard.IPCollector{}
+	core := &nodes.ProcCore{Bin: filepath.Join(nodeXrayDir(dir), "xray"), Dir: dir, APIPort: apiPort, OnLine: ips.ObserveLine}
+	a := &nodes.Agent{Enrollment: e, Dir: dir, Core: core, APIPort: apiPort, Version: version.Version,
+		IPs: ips, Firewall: &guard.NodeFirewall{}}
 	a.Restore(ctx)
 	return a.Serve(ctx, listen)
 }

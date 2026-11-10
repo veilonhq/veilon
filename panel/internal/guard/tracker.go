@@ -68,6 +68,30 @@ func (t *Tracker) Observe(id int64, ip string, at time.Time) {
 	s.hits++
 }
 
+// ObserveSpan records hits connections from ip for user id between first
+// and last (a node's report). Unlike Observe it never moves an IP's last
+// sighting backwards, so reports that arrive late or twice are harmless.
+func (t *Tracker) ObserveSpan(id int64, ip string, first, last time.Time, hits int64) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	m := t.live[id]
+	if m == nil {
+		m = map[string]*seen{}
+		t.live[id] = m
+	}
+	s := m[ip]
+	switch {
+	case s == nil:
+		s = &seen{first: first, last: last}
+		m[ip] = s
+	case first.Sub(s.last) > LiveWindow:
+		s.first, s.last = first, last // a new live session
+	case last.After(s.last):
+		s.last = last
+	}
+	s.hits += hits
+}
+
 // Live returns the user's live IPs at now, oldest session first.
 func (t *Tracker) Live(id int64, now time.Time) []string {
 	t.mu.Lock()

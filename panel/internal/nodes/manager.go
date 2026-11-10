@@ -13,12 +13,14 @@ import (
 	"net/url"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"gorm.io/gorm"
 
 	"github.com/veilonhq/veilon/panel/internal/db"
+	"github.com/veilonhq/veilon/panel/internal/guard"
 	"github.com/veilonhq/veilon/panel/internal/util"
 	"github.com/veilonhq/veilon/panel/internal/xray"
 )
@@ -66,6 +68,12 @@ type Manager struct {
 	ApplyTraffic func(gdb *gorm.DB, deltas map[int64][2]int64, now time.Time) error
 	// BuildConfig renders a node's Xray config (default xray.NodeConfig).
 	BuildConfig func(gdb *gorm.DB, dataDir string, inboundIDs []int64, apiPort int) ([]byte, []string, error)
+	// OnIPs receives the client IPs a node reported (with the master-minus-
+	// node clock difference), for IP limits across servers (nil = ignored).
+	OnIPs func(ips []guard.SeenIP, skew time.Duration)
+	// Bans lists the IPs dropped for the IP limit; every node gets them
+	// (nil = no bans are sent).
+	Bans func() []guard.Ban
 
 	once     sync.Once
 	mu       sync.Mutex
@@ -73,8 +81,15 @@ type Manager struct {
 	inflight map[int64]bool
 	clients  map[int64]*nodeClient
 	rejected map[int64]rejection
+	bansSent map[int64]bansState
 	kick     chan struct{}
 	trafMu   sync.Mutex
+}
+
+type bansState struct {
+	sig         string
+	at          time.Time
+	unsupported bool // the agent is older than v0.3.2 (no /v1/bans)
 }
 
 type rejection struct {
@@ -108,6 +123,7 @@ func (m *Manager) init() {
 		m.inflight = map[int64]bool{}
 		m.clients = map[int64]*nodeClient{}
 		m.rejected = map[int64]rejection{}
+		m.bansSent = map[int64]bansState{}
 		m.kick = make(chan struct{}, 1)
 	})
 }
@@ -182,6 +198,7 @@ func (m *Manager) Round(ctx context.Context) {
 			delete(m.states, id)
 			delete(m.clients, id)
 			delete(m.rejected, id)
+			delete(m.bansSent, id)
 		}
 	}
 	m.mu.Unlock()
@@ -217,6 +234,7 @@ func (m *Manager) Forget(id int64) {
 	delete(m.clients, id)
 	delete(m.states, id)
 	delete(m.rejected, id)
+	delete(m.bansSent, id)
 }
 
 func (m *Manager) setState(id int64, st *State) {
@@ -355,11 +373,20 @@ func (m *Manager) SyncNode(parent context.Context, n *db.Node) {
 	} else if sr.Seq != "" && sr.Seq != n.StatsSeq {
 		if err := m.storeTraffic(n, &sr); err != nil {
 			slog.Warn("node traffic not stored", "node", n.Name, "err", err)
+		} else if m.OnIPs != nil && len(sr.IPs) > 0 && n.Enabled {
+			skew := time.Duration(0)
+			if !sr.Now.IsZero() {
+				skew = time.Now().UTC().Sub(sr.Now)
+			}
+			ips := sr.IPs
+			util.Safe("node ips", func() { m.OnIPs(ips, skew) })
 		}
 	} else {
 		now := time.Now().UTC()
 		m.DB.Model(&db.Node{}).Where("id = ?", n.ID).Update("last_seen_at", now)
 	}
+
+	m.sendBans(ctx, hc, n)
 
 	switch {
 	case pushErr != "":
@@ -496,4 +523,54 @@ func compact(cfg []byte) ([]byte, error) {
 		return nil, fmt.Errorf("node config is not valid JSON: %w", err)
 	}
 	return b.Bytes(), nil
+}
+
+// sendBans gives the node the IPs dropped for the IP limit when the list
+// changed (and at least every minute, so a restarted node gets them again).
+// It never fails the round: an old agent without the endpoint is noted and
+// asked again ten minutes later.
+func (m *Manager) sendBans(ctx context.Context, hc *http.Client, n *db.Node) {
+	if m.Bans == nil || !n.Enabled {
+		return
+	}
+	var bans []guard.Ban
+	util.Safe("node bans", func() { bans = m.Bans() })
+	if bans == nil {
+		bans = []guard.Ban{}
+	}
+	ips := make([]string, len(bans))
+	for i, b := range bans {
+		ips[i] = b.IP
+	}
+	sig := strings.Join(ips, ",")
+	m.mu.Lock()
+	prev := m.bansSent[n.ID]
+	m.mu.Unlock()
+	switch {
+	case prev.unsupported && time.Since(prev.at) < 10*time.Minute:
+		return
+	case !prev.unsupported && prev.sig == sig && time.Since(prev.at) < time.Minute:
+		return
+	case !prev.unsupported && prev.at.IsZero() && len(bans) == 0:
+		m.mu.Lock()
+		m.bansSent[n.ID] = bansState{sig: sig, at: time.Now()}
+		m.mu.Unlock()
+		return
+	}
+	err := m.call(ctx, hc, http.MethodPut, baseURL(n)+"/v1/bans", BansPush{Bans: bans}, nil)
+	st := bansState{sig: sig, at: time.Now()}
+	if err != nil {
+		if strings.Contains(err.Error(), "HTTP 404") || strings.Contains(err.Error(), "HTTP 405") {
+			if !prev.unsupported {
+				slog.Warn("node does not take IP-limit bans (update the node to v0.3.2 or later)", "node", n.Name)
+			}
+			st.unsupported = true
+		} else {
+			st.sig = "" // retry next round
+			slog.Debug("node bans not sent", "node", n.Name, "err", err)
+		}
+	}
+	m.mu.Lock()
+	m.bansSent[n.ID] = st
+	m.mu.Unlock()
 }

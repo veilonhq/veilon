@@ -1,6 +1,7 @@
 package nodes
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
@@ -23,6 +24,9 @@ type ProcCore struct {
 	Bin     string
 	Dir     string // config.json is written here
 	APIPort int
+	// OnLine receives every Xray output line (the access log feeds the
+	// IP limits). Access log lines are not written to xray.log.
+	OnLine func(string)
 
 	mu      sync.Mutex
 	cmd     *exec.Cmd
@@ -73,7 +77,8 @@ func (c *ProcCore) start() error {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGTERM}
 	logf, err := os.OpenFile(filepath.Join(c.Dir, "xray.log"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err == nil {
-		cmd.Stdout, cmd.Stderr = logf, logf
+		lw := &lineWriter{file: logf, onLine: c.OnLine}
+		cmd.Stdout, cmd.Stderr = lw, lw
 	}
 	if err := cmd.Start(); err != nil {
 		if logf != nil {
@@ -189,4 +194,38 @@ func lastLines(s string, n int) string {
 		ls = ls[len(ls)-n:]
 	}
 	return strings.TrimSpace(strings.Join(ls, " | "))
+}
+
+// lineWriter splits Xray's output into lines: every line goes to onLine,
+// and all but access log lines (one per connection) go to the log file, so
+// the file does not grow with traffic.
+type lineWriter struct {
+	mu     sync.Mutex
+	file   *os.File
+	onLine func(string)
+	buf    []byte
+}
+
+func (w *lineWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.buf = append(w.buf, p...)
+	for {
+		i := bytes.IndexByte(w.buf, '\n')
+		if i < 0 {
+			break
+		}
+		line := string(w.buf[:i])
+		w.buf = w.buf[i+1:]
+		if w.onLine != nil {
+			w.onLine(line)
+		}
+		if !(strings.Contains(line, " accepted ") && strings.Contains(line, " from ")) {
+			_, _ = w.file.WriteString(line + "\n")
+		}
+	}
+	if len(w.buf) > 64<<10 {
+		w.buf = w.buf[:0] // a line this long is not Xray's; drop it
+	}
+	return len(p), nil
 }

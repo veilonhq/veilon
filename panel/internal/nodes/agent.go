@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/veilonhq/veilon/panel/internal/guard"
 	"github.com/veilonhq/veilon/panel/internal/util"
 	"github.com/veilonhq/veilon/panel/internal/xray"
 )
@@ -45,6 +46,10 @@ type Agent struct {
 	Version    string
 	// StatsEvery is how often Xray's counters are read (default 10s).
 	StatsEvery time.Duration
+	// IPs collects client IPs from Xray's access log (nil = not reported).
+	IPs *guard.IPCollector
+	// Firewall drops the IPs the master bans (nil = bans are ignored).
+	Firewall *guard.NodeFirewall
 
 	mu      sync.Mutex
 	hash    string
@@ -87,6 +92,40 @@ func (a *Agent) Restore(ctx context.Context) {
 	a.mu.Lock()
 	a.hash = Hash(cfg)
 	a.mu.Unlock()
+	a.setPorts(cfg)
+}
+
+// setPorts tells the firewall which ports the config's inbounds use.
+func (a *Agent) setPorts(cfg []byte) {
+	if a.Firewall == nil {
+		return
+	}
+	var c struct {
+		Inbounds []struct {
+			Tag  string `json:"tag"`
+			Port any    `json:"port"`
+		} `json:"inbounds"`
+	}
+	if json.Unmarshal(cfg, &c) != nil {
+		return
+	}
+	var ports []int
+	for _, ib := range c.Inbounds {
+		if ib.Tag == "api" {
+			continue
+		}
+		switch v := ib.Port.(type) {
+		case float64:
+			if v >= 1 && v <= 65535 {
+				ports = append(ports, int(v))
+			}
+		case string:
+			if n, err := strconv.Atoi(v); err == nil && n >= 1 && n <= 65535 {
+				ports = append(ports, n)
+			}
+		}
+	}
+	a.Firewall.SetPorts(ports)
 }
 
 // Serve listens with mutual TLS until ctx ends.
@@ -198,6 +237,7 @@ func (a *Agent) Handler() http.Handler {
 	m.HandleFunc("GET /v1/info", func(w http.ResponseWriter, r *http.Request) { writeJ(w, 200, a.info()) })
 	m.HandleFunc("PUT /v1/config", a.putConfig)
 	m.HandleFunc("GET /v1/stats", a.stats)
+	m.HandleFunc("PUT /v1/bans", a.putBans)
 	return m
 }
 
@@ -240,6 +280,7 @@ func (a *Agent) putConfig(w http.ResponseWriter, r *http.Request) {
 	a.mu.Lock()
 	a.hash = p.Hash
 	a.mu.Unlock()
+	a.setPorts(p.Config)
 	slog.Info("node config applied", "hash", p.Hash[:12])
 	writeJ(w, 200, a.info())
 }
@@ -255,10 +296,32 @@ func (a *Agent) stats(w http.ResponseWriter, r *http.Request) {
 		a.batch++
 		b := a.pending
 		b.Seq = a.boot + ":" + strconv.Itoa(a.batch)
+		if a.IPs != nil {
+			b.IPs = a.IPs.Drain()
+		}
 		a.unacked = &b
 		a.pending = StatsReply{Users: map[int64][2]int64{}}
 	}
+	a.unacked.Now = time.Now().UTC()
 	writeJ(w, 200, a.unacked)
+}
+
+// putBans drops the IPs the master banned for the IP limit.
+func (a *Agent) putBans(w http.ResponseWriter, r *http.Request) {
+	var p BansPush
+	if err := json.NewDecoder(io.LimitReader(r.Body, 4<<20)).Decode(&p); err != nil {
+		writeJ(w, 400, map[string]string{"error": "bad request: " + err.Error()})
+		return
+	}
+	if a.Firewall == nil {
+		writeJ(w, 200, map[string]bool{"ok": false})
+		return
+	}
+	if err := a.Firewall.Apply(p.Bans); err != nil {
+		writeJ(w, 200, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	writeJ(w, 200, map[string]bool{"ok": true})
 }
 
 func writeJ(w http.ResponseWriter, code int, v any) {

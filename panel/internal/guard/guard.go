@@ -31,6 +31,8 @@ type Guard struct {
 	// Dev is the interface to shape ("" = default route interface).
 	Dev string
 	Now func() time.Time
+	// LookPath finds nft and tc (nil = exec.LookPath; tests replace it).
+	LookPath func(string) (string, error)
 
 	mu        sync.Mutex
 	limits    map[int64]limit
@@ -56,6 +58,13 @@ type limit struct {
 func New(gdb *gorm.DB, geoip string) *Guard {
 	return &Guard{DB: gdb, GeoIP: geoip, Tracker: NewTracker(), Run: ExecRunner,
 		banned: map[string]time.Time{}, countries: map[string]string{}}
+}
+
+func (g *Guard) lookPath(f string) (string, error) {
+	if g.LookPath != nil {
+		return g.LookPath(f)
+	}
+	return lookPath(f)
 }
 
 func (g *Guard) now() time.Time {
@@ -267,7 +276,7 @@ func (g *Guard) applyBans(bans []string) {
 		if len(fresh) == 0 {
 			return // build the table lazily, on the first ban
 		}
-		if _, err := lookPath("nft"); err != nil {
+		if _, err := g.lookPath("nft"); err != nil {
 			if !failed {
 				slog.Warn("ip limit: nft not found; install nftables to enforce IP limits")
 			}
@@ -332,7 +341,7 @@ func (g *Guard) applyTC(shapes []Shape) {
 	if dev == "" {
 		return
 	}
-	if _, err := lookPath("tc"); err != nil {
+	if _, err := g.lookPath("tc"); err != nil {
 		if !failed {
 			slog.Warn("speed limit: tc not found; install iproute2 to enforce speed limits")
 		}
