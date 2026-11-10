@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: veilon
+          POSTGRES_PASSWORD: veilon
+          POSTGRES_DB: veilon
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U veilon" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: make fmt-check
+      - name: go vet
+        run: go vet ./...
+      - name: go test
+        run: go test -count=1 ./...
+      - name: build
+        run: make build
+      - name: smoke test (PostgreSQL)
+        env:
+          VEILON_CONFIG: /dev/null
+          VEILON_DB_DRIVER: postgres
+          VEILON_DB_DSN: host=127.0.0.1 port=5432 user=veilon password=veilon dbname=veilon sslmode=disable
+          VEILON_DATA_DIR: ${{ runner.temp }}/veilon
+          VEILON_PANEL_PORT: "18080"
+          VEILON_PANEL_PATH: ci
+          VEILON_XRAY_AUTO_DOWNLOAD: "false"
+        run: |
+          ./bin/veilon admin create --username admin --password ci-password-1
+          ./bin/veilon serve & PID=$!
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:18080/ci/api/v1/health && break; sleep 1; done
+          TOK=$(curl -sf -X POST http://127.0.0.1:18080/ci/api/v1/auth/login -H 'content-type: application/json' \
+            -d '{"username":"admin","password":"ci-password-1"}' | jq -r .token)
+          curl -sf -X POST http://127.0.0.1:18080/ci/api/v1/inbounds -H "Authorization: Bearer $TOK" \
+            -d '{"remark":"ci","protocol":"vless","port":24443,"security":"reality","reality":{"dest":"www.example.com"}}'
+          SUB=$(curl -sf -X POST http://127.0.0.1:18080/ci/api/v1/users -H "Authorization: Bearer $TOK" \
+            -d '{"username":"ciuser","inbound_ids":[1]}' | jq -r .sub_token)
+          curl -sf http://127.0.0.1:18080/sub/$SUB | base64 -d | grep '^vless://'
+          kill $PID
+
+  web:
+    runs-on: ubuntu-latest
+    if: ${{ hashFiles('web/package.json') != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npm test
+        working-directory: web
+      - run: npm run build
+        working-directory: web
+
+  race:
+    # Informational: the race detector runs separately and does not block CI.
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go test -race -count=1 ./...
+
+  installer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash -n installer/install.sh
+      - run: shellcheck installer/install.sh

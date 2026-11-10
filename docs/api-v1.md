@@ -1,4 +1,4 @@
-# Veilon API v1 (phase 1 contract)
+# Veilon API v1
 
 Base: `/<panel_path>/api/v1` (panel_path is random, set at install; the web UI is served at `/<panel_path>/`). JSON everywhere. Auth: `Authorization: Bearer <jwt>`.
 Errors: `{"error": {"code": "string_code", "message": "human text"}}` with proper HTTP status.
@@ -153,6 +153,38 @@ Implemented in the backend (schema 5) and covered by unit tests; the web UI cove
 - `POST /users/{id}/ips` `{ip, blocked}`, `DELETE /users/{id}/ips/{ip_id}`, `PATCH /users/{id}/devices/{device_id}` `{blocked}`, `DELETE /users/{id}/devices/{device_id}`
 - Groups: `GET|POST /groups`, `PATCH|DELETE /groups/{id}`; Group `{id, name, color, ad_block, inbound_ids, defaults, users, created_at}`.
 - Admins: `PATCH /admins/{id}` also accepts `permissions` (`users_view, users_create, users_edit, users_delete, all_users, inbounds, settings, certs, logs, groups`), `user_quota` and `traffic_quota`. Sub-admins created before permissions existed keep full access; a new sub-admin without `permissions` gets the four `users_*` flags and sees only its own users.
+
+## Xray config (sudo only)
+The panel builds the Xray config from the inbounds plus an admin-editable template (log, DNS, outbounds, routing rules, balancers, observatory). Inbounds keep the tags `inbound-<id>`; the outbound tags `direct` and `blocked` are reserved.
+- `GET /xray/template` → `{template, custom, inbounds:[{id, tag, remark, protocol}], reserved:["direct","blocked"]}`. `custom:false` means the built-in default is in use.
+- Template: `{log:{loglevel, dnsLog}, dns:{...}, outbounds:[{...}], routing:{domainStrategy, rules:[{...}], balancers:[{...}]}, observatory:{...}, burstObservatory:{...}, block_private}` (Xray JSON objects as Xray documents them; `block_private` adds the private-IP block rule).
+- `POST /xray/template/test` `{template}` → `TemplateResult` without applying: the full config is generated and checked with `xray run -test`.
+- `PUT /xray/template` `{template}` → `{result:TemplateResult, template}`. The template is tested first; only a passing template is saved and Xray restarted. If Xray does not stay up, the previous template is restored (`rolled_back:true`). `409 busy` while another change runs. Audit-logged as `xray.config`.
+- `TemplateResult` = `{ok, tested, applied, rolled_back, error?, warnings:[string]}`.
+- `POST /xray/outbounds/parse` `{link, tag}` → `{outbound}`: turns a share link (`vless://`, `vmess://`, `trojan://`, `ss://`, ...) into an outbound object for the template. `400 validation_error` for a link it cannot read.
+
+## Hosts (permission `inbounds`)
+Hosts change how an inbound appears in subscription links (address, port, SNI and more) without touching the server side. An inbound with enabled hosts gives one link per host, in order; without hosts it gives its normal link.
+- `GET /inbounds/{id}/hosts` → `[Host]`
+- `PUT /inbounds/{id}/hosts` `{hosts:[HostInput]}` → `[Host]` (replaces the whole list; order is kept). Audit-logged as `inbound.hosts`.
+- Host: `{id, inbound_id, remark, address, port, sni, host, path, fingerprint, alpn, enabled, sort}`. HostInput is the same without `id`, `inbound_id` and `sort`; `enabled` defaults to `true`. Empty fields (and `port: 0`) keep the inbound's own value. `address` and `sni` must be valid host names or IPs, `fingerprint` one of the uTLS names.
+
+## In-panel updates (sudo only)
+A background check reads the GitHub releases of this project one minute after the panel starts and then every 6 hours (stable releases only; builds without a release version do not check). There is no check-now endpoint by design.
+- `GET /system/update` → `{current, available:{tag, name, notes, url, published_at}|null, can_update, checked_at, status:UpdateStatus|null}`. `can_update:false` when the root updater unit (`veilon-updater.path`) is not installed; run `sudo veilon update` once on the server.
+- `POST /system/update` `{tag}` → `202 {ok, status}`. The root updater downloads the binary, checks it against `checksums.txt`, backs up the binary and the database to `/root/backups`, installs, restarts and waits for `/health`; if the new version does not come up healthy, the old binary is restored. `409 busy` while an update runs, `400 validation_error` for a tag that is not the available release. Audit-logged as `panel.update`.
+- UpdateStatus: `{tag, from, phase, running, message?, error?, backup_dir?, started_at, updated_at, finished_at?}`; `phase` is `queued`, `download`, `verify`, `backup`, `install`, `restart`, `health`, then `done`, `rolled_back` or `failed`. The status survives the restart; poll `GET /system/update` (and `GET /health` while the panel restarts).
+
+## Nodes (sudo only)
+A node is another server running `veilon node`. The panel pushes the Xray config of the inbounds assigned to it over mutual TLS and collects its traffic; each assigned inbound then also gives one subscription link per node. Default agent port `62050`.
+- `GET /nodes` → `[Node]`
+- `POST /nodes` `{name, address, api_port, enabled, inbound_ids}` → `201 {node:Node, install:Install}`. `409 conflict` for a duplicate name, `400 validation_error` for a bad address or port.
+- `PATCH /nodes/{id}` (partial, same fields) → `Node`; `DELETE /nodes/{id}` → `204`.
+- `POST /nodes/{id}/install` → `Install`: issues a new client certificate and a fresh one-time install command (the old certificate stops working).
+- `POST /nodes/sync` → `202`: runs a sync round now.
+- Install: `{token, command, port}`; `command` is the installer one-liner with `node --token <token>` to run as root on the node server.
+- Node: `{id, name, address, api_port, enabled, up, down, last_seen_at, created_at, inbound_ids, state}`; state: `{status, error?, checked_at, version, xray_version, xray_running, synced, skipped:[string], started_at, load1, mem_used, cpus, latency_ms}` with `status` one of `online`, `degraded` (reachable, but Xray is down or rejected the config), `offline`, `waiting` (never reached; agent not installed yet) and `disabled`. `skipped` lists inbounds the node cannot run.
+- Audit actions: `node.create`, `node.update`, `node.delete`, `node.install`.
 
 ## Extensions (implemented beyond the original contract)
 - `GET /health` (no auth) → `{status:"ok", version, schema}`.

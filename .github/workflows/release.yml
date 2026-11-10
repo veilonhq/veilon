@@ -1,0 +1,56 @@
+name: Release
+
+# Manual only. Releases are normally published with their binaries attached by
+# hand; this workflow never replaces or adds to assets that are already there.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build, e.g. v0.3.0"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build web UI
+        run: make web
+      - name: Test
+        run: go test ./...
+      - name: Cross-compile
+        run: make release VERSION="$TAG"
+      - name: Keep build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: veilon-${{ inputs.tag }}
+          path: dist/
+      - name: Check existing release
+        id: existing
+        run: |
+          n=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets | length' 2>/dev/null || echo none)
+          echo "assets=$n" >> "$GITHUB_OUTPUT"
+          echo "existing assets on $TAG: $n"
+      - name: Publish GitHub release
+        if: steps.existing.outputs.assets == 'none'
+        run: |
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --title "$TAG" --generate-notes \
+            dist/veilon-linux-amd64 dist/veilon-linux-arm64 dist/checksums.txt
+      - name: Skip upload
+        if: steps.existing.outputs.assets != 'none'
+        run: echo "Release $TAG already exists; its assets are left untouched. Build output is in the workflow artifact."

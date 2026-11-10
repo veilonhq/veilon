@@ -199,7 +199,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer
 برای نصب یک نسخه مشخص:
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer/install.sh) v0.2.2
+bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer/install.sh) v0.3.0
 ```
 
 اگر `curl` نصب نیست:
@@ -353,7 +353,7 @@ veilon cert list
 
 - **پیکربندی Xray:** در **بیشتر ← پیکربندی Xray** خروجی ها، قوانین مسیریابی، متعادل کننده ها و DNS هسته را تنظیم کنید. **آزمایش** پیکربندی را با خود Xray بررسی می کند و **اعمال** آن را با برگشت خودکار در صورت خطا اجرا می کند. [راهنما](docs/fa/xray-config.md)
 - **هاست ها:** در **ورودی ها** روی دکمه هاست ها در ردیف هر ورودی بزنید تا لینک های اضافه (CDN، دامنه یا پورت دیگر) بسازید. فیلدهای خالی همان مقدار ورودی را نگه می دارند. [راهنما](docs/fa/hosts.md)
-- **به روزرسانی از داخل پنل:** وقتی نسخه تازه بیاید، بالای پنل اعلان نمایش داده می شود و با **نصب به روزرسانی** نصب می شود. سرورهایی که نسخه v0.2.2 دارند باید یک بار `sudo veilon update` را روی سرور بزنند. [راهنما](docs/fa/self-update.md)
+- **به روزرسانی از داخل پنل:** وقتی نسخه تازه بیاید، بالای پنل اعلان نمایش داده می شود و با **نصب به روزرسانی** نصب می شود. سرورهایی که نسخه v0.2.2 یا قدیمی تر دارند باید یک بار دستور نصب را دوباره روی سرور اجرا کنند (اطلاعات می ماند). [راهنما](docs/fa/self-update.md)
 - **نودها (اختیاری):** برای پنل فقط یک VPS لازم است. اگر سرور دیگری دارید، در **بیشتر ← نودها ← افزودن نود** آن را اضافه کنید و دستوری را که پنل نشان می دهد روی سرور نود اجرا کنید (به شکل `install.sh node --token ...`). [راهنما](docs/fa/nodes.md)
 
 ---
@@ -511,7 +511,7 @@ AGPL-3.0. متن کامل در [LICENSE](LICENSE).
 
 # Veilon (English)
 
-**Developed by [@lxhosein](https://t.me/lxhosein)**
+**Developed by &lrm;[@lxhosein](https://t.me/lxhosein)**
 
 Free, open-source proxy panel. One binary, one-line install.
 
@@ -638,7 +638,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer
    A specific release:
 
    ```bash
-   bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer/install.sh) v0.2.2
+   bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer/install.sh) v0.3.0
    ```
 
 5. Answer the questions (Enter accepts the default): panel port (random free port), admin username (`admin`), admin password (random), panel path (random), then the certificate: `1` domain, `2` server IP (recommended without a domain), `3` skip (plain HTTP).
@@ -746,7 +746,7 @@ veilon cert issue --ip auto --panel
 
 - **Xray config:** **More → Xray config** sets the core's outbounds, routing rules, balancers and DNS. **Test** checks the config with Xray itself; **Apply** runs it with automatic rollback on failure. [Guide](docs/en/xray-config.md)
 - **Hosts:** on **Inbounds**, press the hosts button on an inbound row to add extra links (a CDN, another domain or port). Empty fields keep the inbound's value. [Guide](docs/en/hosts.md)
-- **In-panel updates:** a banner appears when a new release is out; **Install update** installs it. Servers on v0.2.2 need to run `sudo veilon update` on the server once first. [Guide](docs/en/self-update.md)
+- **In-panel updates:** a banner appears when a new release is out; **Install update** installs it. Servers on v0.2.2 or older need to run the install command on the server once first (data is kept). [Guide](docs/en/self-update.md)
 - **Nodes (optional):** the panel needs only one VPS. To add another server, open **More → Nodes → Add node** and run the command the panel shows on the node server (in the form `install.sh node --token ...`). [Guide](docs/en/nodes.md)
 
 ## Management

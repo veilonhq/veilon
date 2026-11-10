@@ -173,7 +173,9 @@ detect_os() {
 	# read only ID and ID_LIKE: sourcing os-release into this shell would
 	# overwrite our variables (it defines VERSION, NAME, ...)
 	local os_id os_like
+	# shellcheck source=/dev/null
 	os_id=$(. /etc/os-release && printf '%s' "${ID:-}")
+	# shellcheck source=/dev/null
 	os_like=$(. /etc/os-release && printf '%s' "${ID_LIKE:-}")
 	OS_ID="${os_id:-unknown}"
 	case "${os_id} ${os_like}" in

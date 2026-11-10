@@ -256,6 +256,7 @@ func cmdUpdate(args []string) error {
 	fmt.Printf("installed: %s   target: %s\n", bold(version.Version), bold(tag))
 	if tag == version.Version && !*force {
 		okf("already up to date")
+		ensureUpdaterUnits()
 		return nil
 	}
 	if !*yes && interactive() && !confirm("Update now? Data and settings are kept", true) {
@@ -431,4 +432,24 @@ func checksumFor(sums, name string) string {
 		}
 	}
 	return ""
+}
+
+// ensureUpdaterUnits adds the in-panel updater units when the panel service
+// is installed but the units are not (servers updated by an older CLI).
+func ensureUpdaterUnits() {
+	if _, err := os.Stat(unitFile); err != nil {
+		return
+	}
+	if _, err := os.Stat("/etc/systemd/system/veilon-updater.path"); err == nil {
+		return
+	}
+	self, err := os.Executable()
+	if err != nil {
+		return
+	}
+	if err := exec.Command(self, "self-update", "--install-units").Run(); err != nil {
+		warnf("panel updates not enabled: %v", err)
+		return
+	}
+	okf("panel updates enabled (veilon-updater.path)")
 }

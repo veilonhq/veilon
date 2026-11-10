@@ -13,11 +13,13 @@ If the new version is not healthy, the previous binary is restored automatically
 
 ## Servers on v0.2.2 or older
 
-In-panel updates need a small helper service that older installs do not have. Run this once on the server:
+In-panel updates need a small helper service that older installs do not have. Run the install command once on the server; it upgrades the panel to the latest release, adds the helper and keeps all data and settings:
 
 ```bash
-sudo veilon update
+bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer/install.sh)
 ```
+
+Or run `sudo veilon update` twice: the first run installs the new release, the second adds the helper.
 
 After that, every later update can be installed from the panel. `veilon update` on the server keeps working as before.
 
