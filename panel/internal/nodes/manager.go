@@ -21,6 +21,7 @@ import (
 
 	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/guard"
+	"github.com/veilonhq/veilon/panel/internal/usage"
 	"github.com/veilonhq/veilon/panel/internal/util"
 	"github.com/veilonhq/veilon/panel/internal/xray"
 )
@@ -64,7 +65,8 @@ type Manager struct {
 	Interval       time.Duration
 	Timeout        time.Duration
 	RequestTimeout time.Duration
-	// ApplyTraffic stores per-user traffic (default xray.ApplyUserTraffic).
+	// ApplyTraffic stores per-user traffic (nil = xray.ApplyUserTrafficFrom
+	// with the node's id, so the history keeps each node's traffic apart).
 	ApplyTraffic func(gdb *gorm.DB, deltas map[int64][2]int64, now time.Time) error
 	// BuildConfig renders a node's Xray config (default xray.NodeConfig).
 	BuildConfig func(gdb *gorm.DB, dataDir string, inboundIDs []int64, apiPort int) ([]byte, []string, error)
@@ -112,9 +114,6 @@ func (m *Manager) init() {
 		}
 		if m.RequestTimeout == 0 {
 			m.RequestTimeout = 8 * time.Second
-		}
-		if m.ApplyTraffic == nil {
-			m.ApplyTraffic = xray.ApplyUserTraffic
 		}
 		if m.BuildConfig == nil {
 			m.BuildConfig = xray.NodeConfig
@@ -407,16 +406,38 @@ func (m *Manager) storeTraffic(n *db.Node, sr *StatsReply) error {
 	m.trafMu.Lock()
 	defer m.trafMu.Unlock()
 	now := time.Now().UTC()
-	if len(sr.Users) > 0 {
-		if err := m.ApplyTraffic(m.DB, sr.Users, now); err != nil {
+	node := func(tx *gorm.DB) error {
+		return tx.Model(&db.Node{}).Where("id = ?", n.ID).Updates(map[string]any{
+			"up": gorm.Expr("up + ?", sr.Up), "down": gorm.Expr("down + ?", sr.Down),
+			"stats_seq": sr.Seq, "last_seen_at": now,
+		}).Error
+	}
+	if m.ApplyTraffic != nil { // tests
+		if len(sr.Users) > 0 {
+			if err := m.ApplyTraffic(m.DB, sr.Users, now); err != nil {
+				return err
+			}
+		}
+		n.StatsSeq = sr.Seq
+		return node(m.DB)
+	}
+	// Users' counters, the node's totals and the batch id commit together:
+	// a batch is counted exactly once even if the master stops halfway
+	// (the node sends it again until its id is stored).
+	var up, down int64
+	err := m.DB.Transaction(func(tx *gorm.DB) error {
+		var err error
+		if up, down, err = xray.ApplyUserTrafficTx(tx, sr.Users, now); err != nil {
 			return err
 		}
+		return node(tx)
+	})
+	if err != nil {
+		return err
 	}
 	n.StatsSeq = sr.Seq
-	return m.DB.Model(&db.Node{}).Where("id = ?", n.ID).Updates(map[string]any{
-		"up": gorm.Expr("up + ?", sr.Up), "down": gorm.Expr("down + ?", sr.Down),
-		"stats_seq": sr.Seq, "last_seen_at": now,
-	}).Error
+	usage.For(n.ID).Add(up, down)
+	return nil
 }
 
 // call does one JSON request; any non-2xx answer becomes an error.

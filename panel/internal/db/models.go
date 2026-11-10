@@ -297,6 +297,8 @@ type TrafficPoint struct {
 	T    time.Time
 	Up   int64
 	Down int64
+	// NodeID is the server that carried the traffic (0 = main server).
+	NodeID int64 `gorm:"column:node_id"`
 }
 
 // TableName pins the table name.

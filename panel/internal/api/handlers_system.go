@@ -40,7 +40,7 @@ func (s *Server) systemStats(w http.ResponseWriter, r *http.Request, a *db.Admin
 		writeServiceErr(w, err)
 		return
 	}
-	uUp, uDown := usage.Default.Rate(usage.LiveWindow)
+	uUp, uDown := usage.RateAll(usage.LiveWindow)
 	writeJSON(w, 200, map[string]any{
 		"cpu_percent": h.CPUPercent, "mem_used": h.MemUsed, "mem_total": h.MemTotal,
 		"disk_used": h.DiskUsed, "disk_total": h.DiskTotal, "uptime_sec": h.UptimeSec,
@@ -76,8 +76,23 @@ func (s *Server) systemTraffic(w http.ResponseWriter, r *http.Request, a *db.Adm
 		writeErr(w, http.StatusBadRequest, "bad_request", "bucket does not fit the range")
 		return
 	}
+	// server: "" or "all" = every server, "main" (or 0) = the main server,
+	// a node id = that node.
+	var server *int64
+	switch v := q.Get("server"); v {
+	case "", "all":
+	case "main":
+		server = new(int64)
+	default:
+		id, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || id < 0 {
+			writeErr(w, http.StatusBadRequest, "bad_request", "server must be all, main or a node id")
+			return
+		}
+		server = &id
+	}
 	loc := users.LoadLocation(s.Settings().Timezone)
-	pts, err := stats.Traffic(s.DB, window, bucket, time.Now(), loc)
+	pts, servers, err := stats.TrafficByServer(s.DB, window, bucket, time.Now(), loc, server)
 	if err != nil {
 		writeServiceErr(w, err)
 		return
@@ -90,6 +105,8 @@ func (s *Server) systemTraffic(w http.ResponseWriter, r *http.Request, a *db.Adm
 	writeJSON(w, 200, map[string]any{
 		"points": pts, "bucket_sec": int(bucket.Seconds()), "range": window.String(),
 		"timezone": loc.String(), "total_up": tu, "total_down": td,
+		// each server's share of the window (sums to the all-servers total)
+		"servers": servers,
 	})
 }
 

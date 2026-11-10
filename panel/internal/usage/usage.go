@@ -109,6 +109,63 @@ func (m *Meter) trim(now time.Time) {
 	}
 }
 
+// Per-server meters: 0 is the main server, any other id a node. A user's
+// usage is the sum over all servers; the history keeps the servers apart.
+var (
+	srcMu   sync.Mutex
+	sources = map[int64]*Meter{0: Default}
+)
+
+// For returns the meter of a server (0 = main server).
+func For(id int64) *Meter {
+	srcMu.Lock()
+	defer srcMu.Unlock()
+	m := sources[id]
+	if m == nil {
+		m = NewMeter()
+		sources[id] = m
+	}
+	return m
+}
+
+func all() map[int64]*Meter {
+	srcMu.Lock()
+	defer srcMu.Unlock()
+	out := make(map[int64]*Meter, len(sources))
+	for k, v := range sources {
+		out[k] = v
+	}
+	return out
+}
+
+// TakeAll returns and clears the pending usage of every server.
+func TakeAll() map[int64][2]int64 {
+	out := map[int64][2]int64{}
+	for id, m := range all() {
+		if u, d := m.Take(); u > 0 || d > 0 {
+			out[id] = [2]int64{u, d}
+		}
+	}
+	return out
+}
+
+// RestoreAll puts back what TakeAll returned (when storing failed).
+func RestoreAll(v map[int64][2]int64) {
+	for id, x := range v {
+		For(id).Restore(x[0], x[1])
+	}
+}
+
+// RateAll is the live usage rate summed over all servers.
+func RateAll(window time.Duration) (upBps, downBps float64) {
+	for _, m := range all() {
+		u, d := m.Rate(window)
+		upBps += u
+		downBps += d
+	}
+	return
+}
+
 // Totals returns the sum of all users' counted upload and download, the same
 // counters the users list shows.
 func Totals(gdb *gorm.DB) (up, down int64, err error) {

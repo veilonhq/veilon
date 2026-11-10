@@ -23,6 +23,11 @@ type Runner struct {
 	TakeUsage func() (up, down int64)
 	// RestoreUsage puts deltas back when storing them failed (may be nil).
 	RestoreUsage func(up, down int64)
+	// TakeServers / RestoreServers are TakeUsage / RestoreUsage per server
+	// (0 = main server, otherwise a node id); when set they are used
+	// instead, and each server gets its own history points.
+	TakeServers    func() map[int64][2]int64
+	RestoreServers func(map[int64][2]int64)
 	// OnUsersChanged is called when served users changed (Xray reload).
 	OnUsersChanged func()
 	// RenewCerts renews due certificates (may be nil).
@@ -80,6 +85,10 @@ func (r *Runner) Tick() {
 }
 
 func (r *Runner) recordTraffic() {
+	if r.TakeServers != nil {
+		r.recordServers()
+		return
+	}
 	if r.TakeUsage == nil {
 		return
 	}
@@ -91,6 +100,31 @@ func (r *Runner) recordTraffic() {
 		slog.Warn("store traffic point failed", "err", err)
 		if r.RestoreUsage != nil {
 			r.RestoreUsage(up, down)
+		}
+	}
+}
+
+// recordServers stores one history point per server that carried traffic
+// this minute, all in one transaction (all or nothing, so a failure puts
+// everything back and nothing is counted twice).
+func (r *Runner) recordServers() {
+	v := r.TakeServers()
+	if len(v) == 0 {
+		return
+	}
+	t := r.now().Truncate(time.Minute)
+	err := r.DB.Transaction(func(tx *gorm.DB) error {
+		for id, x := range v {
+			if err := tx.Create(&db.TrafficPoint{T: t, Up: x[0], Down: x[1], NodeID: id}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		slog.Warn("store traffic points failed", "err", err)
+		if r.RestoreServers != nil {
+			r.RestoreServers(v)
 		}
 	}
 }

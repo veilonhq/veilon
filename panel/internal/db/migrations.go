@@ -238,6 +238,13 @@ var migrations = []migration{
 	{8, "inbound placement", []string{
 		`ALTER TABLE inbounds ADD COLUMN serve_main BOOLEAN NOT NULL DEFAULT TRUE`,
 	}},
+	// Traffic history per server: node_id 0 is the main server, any other
+	// value the node that carried the traffic. Additive: existing points
+	// (written before the split) stay as they are and count as the main
+	// server's.
+	{9, "traffic history per server", []string{
+		`ALTER TABLE traffic_points ADD COLUMN node_id BIGINT NOT NULL DEFAULT 0`,
+	}},
 }
 
 type schemaMigration struct {

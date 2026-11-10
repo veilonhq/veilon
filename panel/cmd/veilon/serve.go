@@ -148,7 +148,7 @@ func cmdServe(args []string) error {
 	var plainPanelPort atomic.Int64
 	certSvc.PanelServesHTTP01 = func(port int) bool { return int64(port) == plainPanelPort.Load() }
 	runner := &jobs.Runner{
-		DB: gdb, TakeUsage: usagemeter.Default.Take, RestoreUsage: usagemeter.Default.Restore,
+		DB: gdb, TakeServers: usagemeter.TakeAll, RestoreServers: usagemeter.RestoreAll,
 		OnUsersChanged: reloadAll,
 		RenewCerts:     certSvc.RenewDue,
 	}

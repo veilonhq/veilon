@@ -81,6 +81,7 @@ func (a *Agent) init() {
 // that reboots serves its users before the master reaches it again.
 func (a *Agent) Restore(ctx context.Context) {
 	a.init()
+	a.loadStats()
 	cfg, err := os.ReadFile(filepath.Join(a.Dir, "config.json"))
 	if err != nil {
 		return
@@ -154,7 +155,63 @@ func (a *Agent) Serve(ctx context.Context, listen string) error {
 	}
 	a.collect(context.Background())
 	a.Core.Stop()
+	a.saveStats()
 	return err
+}
+
+// statsFile keeps traffic the master has not stored yet across a node
+// restart (an update or a reboot), so it is neither lost nor counted twice:
+// an unacknowledged batch keeps its id.
+func (a *Agent) statsFile() string { return filepath.Join(a.Dir, "stats-pending.json") }
+
+type savedStats struct {
+	Pending StatsReply  `json:"pending"`
+	Unacked *StatsReply `json:"unacked"`
+}
+
+func (a *Agent) saveStats() {
+	a.mu.Lock()
+	s := savedStats{Pending: a.pending, Unacked: a.unacked}
+	a.mu.Unlock()
+	if s.Unacked == nil && len(s.Pending.Users) == 0 && s.Pending.Up == 0 && s.Pending.Down == 0 {
+		_ = os.Remove(a.statsFile())
+		return
+	}
+	b, err := json.Marshal(s)
+	if err != nil || os.MkdirAll(a.Dir, 0o700) != nil {
+		return
+	}
+	tmp := a.statsFile() + ".tmp"
+	if os.WriteFile(tmp, b, 0o600) == nil {
+		_ = os.Rename(tmp, a.statsFile())
+	}
+}
+
+func (a *Agent) loadStats() {
+	b, err := os.ReadFile(a.statsFile())
+	if err != nil {
+		return
+	}
+	_ = os.Remove(a.statsFile())
+	var s savedStats
+	if json.Unmarshal(b, &s) != nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if s.Unacked != nil && s.Unacked.Seq != "" {
+		u := *s.Unacked
+		if u.Users == nil {
+			u.Users = map[int64][2]int64{}
+		}
+		a.unacked = &u
+	}
+	for id, v := range s.Pending.Users {
+		p := a.pending.Users[id]
+		a.pending.Users[id] = [2]int64{p[0] + v[0], p[1] + v[1]}
+	}
+	a.pending.Up += s.Pending.Up
+	a.pending.Down += s.Pending.Down
 }
 
 // serverErrLog takes the agent's http.Server errors. The agent port is open

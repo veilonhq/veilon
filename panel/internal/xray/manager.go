@@ -432,8 +432,35 @@ func (m *Manager) collect(ctx context.Context) {
 // a disconnected user "online". last_online_at is the time of the poll that
 // saw the client's bytes.
 func ApplyUserTraffic(gdb *gorm.DB, deltas map[int64][2]int64, now time.Time) error {
+	return ApplyUserTrafficFrom(gdb, deltas, now, 0)
+}
+
+// ApplyUserTrafficFrom is ApplyUserTraffic for traffic carried by a server
+// (0 = main server, otherwise a node id): users' counters get it the same
+// way, and the history records it under that server.
+func ApplyUserTrafficFrom(gdb *gorm.DB, deltas map[int64][2]int64, now time.Time, server int64) error {
 	if len(deltas) == 0 {
 		return nil
+	}
+	var addUp, addDown int64
+	err := gdb.Transaction(func(tx *gorm.DB) error {
+		var err error
+		addUp, addDown, err = ApplyUserTrafficTx(tx, deltas, now)
+		return err
+	})
+	if err == nil {
+		// History and live rate come from exactly the bytes added to users.
+		usage.For(server).Add(addUp, addDown)
+	}
+	return err
+}
+
+// ApplyUserTrafficTx adds the deltas to users inside tx and returns the
+// counted bytes added (deleted users' bytes are not counted). The caller
+// adds them to the server's usage meter once tx commits.
+func ApplyUserTrafficTx(tx *gorm.DB, deltas map[int64][2]int64, now time.Time) (addUp, addDown int64, err error) {
+	if len(deltas) == 0 {
+		return 0, 0, nil
 	}
 	ids := make([]int64, 0, len(deltas))
 	for id := range deltas {
@@ -444,42 +471,34 @@ func ApplyUserTraffic(gdb *gorm.DB, deltas map[int64][2]int64, now time.Time) er
 		ID                int64
 		TrafficMultiplier float64
 	}
-	gdb.Model(&db.User{}).Select("id", "traffic_multiplier").Where("id IN ?", ids).Scan(&ms)
+	tx.Model(&db.User{}).Select("id", "traffic_multiplier").Where("id IN ?", ids).Scan(&ms)
 	mult := make(map[int64]float64, len(ms))
 	for _, m := range ms {
 		mult[m.ID] = m.TrafficMultiplier
 	}
-	var addUp, addDown int64
-	err := gdb.Transaction(func(tx *gorm.DB) error {
-		for id, d := range deltas {
-			if d[0] <= 0 && d[1] <= 0 {
-				continue
-			}
-			up, down := users.Counted(d[0], mult[id]), users.Counted(d[1], mult[id])
-			upd := map[string]any{
-				"up":         gorm.Expr("up + ?", up),
-				"down":       gorm.Expr("down + ?", down),
-				"daily_used": gorm.Expr("daily_used + ?", up+down),
-			}
-			if d[0] > 0 {
-				upd["last_online_at"] = now
-			}
-			res := tx.Model(&db.User{}).Where("id = ?", id).Updates(upd)
-			if res.Error != nil {
-				return res.Error
-			}
-			if res.RowsAffected > 0 { // a deleted user's bytes are not counted
-				addUp += up
-				addDown += down
-			}
+	for id, d := range deltas {
+		if d[0] <= 0 && d[1] <= 0 {
+			continue
 		}
-		return nil
-	})
-	if err == nil {
-		// History and live rate come from exactly the bytes added to users.
-		usage.Default.Add(addUp, addDown)
+		up, down := users.Counted(d[0], mult[id]), users.Counted(d[1], mult[id])
+		upd := map[string]any{
+			"up":         gorm.Expr("up + ?", up),
+			"down":       gorm.Expr("down + ?", down),
+			"daily_used": gorm.Expr("daily_used + ?", up+down),
+		}
+		if d[0] > 0 {
+			upd["last_online_at"] = now
+		}
+		res := tx.Model(&db.User{}).Where("id = ?", id).Updates(upd)
+		if res.Error != nil {
+			return 0, 0, res.Error
+		}
+		if res.RowsAffected > 0 { // a deleted user's bytes are not counted
+			addUp += up
+			addDown += down
+		}
 	}
-	return err
+	return addUp, addDown, nil
 }
 
 // ErrNotRunning is returned when an operation needs a running core.

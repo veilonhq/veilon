@@ -3,6 +3,7 @@
 package stats
 
 import (
+	"fmt"
 	"sort"
 	"bufio"
 	"context"
@@ -404,15 +405,58 @@ func Edges(now time.Time, window, bucket time.Duration, loc *time.Location) []ti
 // Traffic aggregates stored points into the buckets of Edges, zero-filled
 // and in chronological order.
 func Traffic(gdb *gorm.DB, window, bucket time.Duration, now time.Time, loc *time.Location) ([]Point, error) {
+	pts, _, err := TrafficByServer(gdb, window, bucket, now, loc, nil)
+	return pts, err
+}
+
+// ServerTotal is one server's share of the traffic in a window (counted
+// bytes, the same units as users' usage). ID 0 is the main server.
+type ServerTotal struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+	// Removed: the node was deleted since.
+	Removed bool  `json:"removed,omitempty"`
+	Up      int64 `json:"up"`
+	Down    int64 `json:"down"`
+}
+
+// TrafficByServer is Traffic for one server (server != nil: 0 = main
+// server, otherwise a node id) or for all, plus every server's total over
+// the same window. The totals add up exactly to the sum of all points.
+func TrafficByServer(gdb *gorm.DB, window, bucket time.Duration, now time.Time, loc *time.Location, server *int64) ([]Point, []ServerTotal, error) {
 	edges := Edges(now, window, bucket, loc)
 	if len(edges) < 2 {
-		return []Point{}, nil
+		return []Point{}, []ServerTotal{}, nil
 	}
 	var rows []db.TrafficPoint
 	if err := gdb.Where("t >= ? AND t < ?", edges[0].UTC(), edges[len(edges)-1].UTC()).Order("t").Find(&rows).Error; err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return BucketizeEdges(rows, edges), nil
+	by := map[int64]*ServerTotal{0: {ID: 0}}
+	var ns []db.Node
+	gdb.Select("id", "name").Order("id").Find(&ns)
+	for _, n := range ns {
+		by[n.ID] = &ServerTotal{ID: n.ID, Name: n.Name}
+	}
+	kept := rows[:0:0]
+	for _, r := range rows {
+		st := by[r.NodeID]
+		if st == nil {
+			st = &ServerTotal{ID: r.NodeID, Name: fmt.Sprintf("#%d", r.NodeID), Removed: true}
+			by[r.NodeID] = st
+		}
+		st.Up += r.Up
+		st.Down += r.Down
+		if server == nil || *server == r.NodeID {
+			kept = append(kept, r)
+		}
+	}
+	out := make([]ServerTotal, 0, len(by))
+	for _, v := range by {
+		out = append(out, *v)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return BucketizeEdges(kept, edges), out, nil
 }
 
 // BucketizeEdges groups points into the buckets between consecutive edges.

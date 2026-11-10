@@ -82,12 +82,18 @@ type rig struct {
 // startAgent enrolls node n and serves its agent on 127.0.0.1.
 func startAgent(t *testing.T, r *rig, n *db.Node) (*Agent, *fakeCore) {
 	t.Helper()
+	return startAgentIn(t, r, n, t.TempDir())
+}
+
+// startAgentIn is startAgent with a given state directory (a restart).
+func startAgentIn(t *testing.T, r *rig, n *db.Node, dir string) (*Agent, *fakeCore) {
+	t.Helper()
 	e, pin, err := r.pki.Enroll(n.ID, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	core := &fakeCore{traffic: xray.Traffic{Users: map[int64][2]int64{}}}
-	a := &Agent{Enrollment: e, Dir: t.TempDir(), Core: core, Version: "test"}
+	a := &Agent{Enrollment: e, Dir: dir, Core: core, Version: "test"}
 	ts := httptest.NewUnstartedServer(a.Handler())
 	tc, err := ServerTLS(e)
 	if err != nil {
