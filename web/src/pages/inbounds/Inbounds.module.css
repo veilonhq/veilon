@@ -1154,3 +1154,74 @@
     grid-template-columns: minmax(0, 1fr) 92px;
   }
 }
+
+/* where an inbound runs: node multi-select */
+.nodePick {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.nodeOpt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line-2);
+  background: var(--panel-2);
+  color: var(--text);
+  text-align: start;
+  cursor: pointer;
+}
+.nodeOpt:hover {
+  border-color: var(--line-3, var(--line-2));
+}
+.nodeOn {
+  border-color: var(--accent);
+  background: var(--accent-soft, var(--panel-3));
+}
+.nodeCheck {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 20px;
+  block-size: 20px;
+  border-radius: 7px;
+  border: 1.5px solid var(--line-2);
+  color: var(--on-accent, #fff);
+}
+.nodeOn .nodeCheck {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.nodeText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.nodeText strong,
+.nodeText small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nodeText small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.nodePick + .field__error,
+.nodePick ~ .infoNote,
+.nodePick ~ .switchLine {
+  margin-top: 10px;
+}
+.nodeChip {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--info-fg);
+  background: var(--info-soft);
+}

@@ -353,6 +353,12 @@ export interface Inbound {
   user_count: number;
   /** number of hosts (link overrides) */
   host_count?: number;
+  /** nodes that run the inbound ([] = the main server only) */
+  node_ids?: number[];
+  /** the main server runs it as well as its nodes (older assignments) */
+  serve_main?: boolean;
+  /** read-only: the main server runs it (no nodes, or serve_main) */
+  on_main?: boolean;
   created_at: string;
 }
 
@@ -372,7 +378,10 @@ export interface InboundHost {
   enabled: boolean;
 }
 
-export type InboundInput = Omit<Inbound, 'id' | 'user_count' | 'host_count' | 'created_at'>;
+export type InboundInput = Omit<Inbound, 'id' | 'user_count' | 'host_count' | 'created_at' | 'on_main' | 'node_ids' | 'serve_main'> & {
+  node_ids: number[];
+  serve_main: boolean;
+};
 
 export interface RealityKeys {
   private_key: string;
@@ -489,6 +498,7 @@ export interface VNode {
   down: number;
   last_seen_at: string | null;
   created_at: string;
+  /** read-only: inbounds this node runs (chosen in each inbound's form) */
   inbound_ids: number[];
   state: NodeState;
 }
@@ -497,7 +507,6 @@ export interface NodeInput {
   address: string;
   api_port: number;
   enabled: boolean;
-  inbound_ids: number[];
 }
 export interface NodeInstall {
   token: string;

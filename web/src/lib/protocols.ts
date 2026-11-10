@@ -60,6 +60,8 @@ export const isQuic = (p: Protocol) => p === 'hysteria' || p === 'tuic' || p ===
 export const isWG = (p: Protocol) => p === 'wireguard' || p === 'amneziawg';
 export const hasUsers = (p: Protocol) => p !== 'tunnel' && p !== 'tun';
 export const hasPort = (p: Protocol) => p !== 'tun';
+/** Inbounds a node can run: Xray-core ones, except TUN. */
+export const nodeCapable = (p: Protocol) => engineOf(p) === 'xray' && p !== 'tun';
 export const sniffingApplies = (p: Protocol) => !(p === 'tun' || p === 'tunnel' || p === 'amneziawg' || p === 'mtproto');
 /** protocols that need root-level network capability on the host */
 export const needsNetAdmin = (p: Protocol) => p === 'tun' || p === 'amneziawg';
@@ -186,6 +188,8 @@ export function inboundDefaults(p: Protocol): InboundInput {
     sniffing: sniffingApplies(p),
     address_override: '',
     settings: emptySettings(),
+    node_ids: [],
+    serve_main: true,
   };
   const st = (x: Partial<InboundSettings>) => ({ ...base.settings, ...x });
   switch (p) {

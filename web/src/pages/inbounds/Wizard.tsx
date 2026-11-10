@@ -1,8 +1,8 @@
 import { AlertTriangle, ArrowLeft, ArrowRight, Check, KeyRound, Loader2, Lock, ShieldCheck, ShieldOff, Shuffle, Sparkles } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { genRealityKeys, genWgKeys, useCerts, useInbounds, useSaveInbound, useSettings } from '@/api/hooks';
-import type { AwgParams, Inbound, InboundInput, InboundSettings, Network, Protocol, Security } from '@/api/types';
+import { genRealityKeys, genWgKeys, useCerts, useInbounds, useNodes, useSaveInbound, useSettings } from '@/api/hooks';
+import type { AwgParams, Inbound, InboundInput, InboundSettings, Network, Protocol, Security, VNode } from '@/api/types';
 import { Sheet } from '@/components/Overlay';
 import { Select } from '@/components/Select';
 import { Field, Switch } from '@/components/misc';
@@ -15,6 +15,7 @@ import {
   emptySettings,
   emptyTls,
   inboundDefaults,
+  nodeCapable,
   portHint,
   quicTls,
   engineName,
@@ -63,12 +64,14 @@ export const realityAllowed = (d: Pick<InboundInput, 'protocol' | 'network'>) =>
 
 function toInput(ib: Inbound): InboundInput {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { id, user_count, created_at, ...rest } = ib;
-  return { ...rest, settings: withSettings(rest.settings) };
+  const { id, user_count, created_at, on_main, host_count, ...rest } = ib;
+  return { ...rest, node_ids: rest.node_ids ?? [], serve_main: rest.serve_main ?? true, settings: withSettings(rest.settings) };
 }
 
 /** Strip fields that do not apply to the protocol before sending. */
-function toBody(d: InboundInput): InboundInput {
+function toBody(d0: InboundInput): InboundInput {
+  // Placement: no nodes (or a protocol a node cannot run) = main server.
+  const d = !nodeCapable(d0.protocol) || !d0.node_ids.length ? { ...d0, node_ids: [], serve_main: true } : d0;
   const p = d.protocol;
   if (isV2(p)) {
     const r = d.reality && !REALITY_FPS.includes(d.reality.fingerprint) ? { ...d.reality, fingerprint: 'chrome' } : d.reality;
@@ -166,11 +169,19 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
   const save = useSaveInbound();
   const allInbounds = useInbounds();
   const panelSettings = useSettings();
+  const nodesQ = useNodes();
+  const nodes: VNode[] = nodesQ.data ?? [];
+  // "where it runs": main server, or nodes (multi-select). Inbounds placed
+  // on a node by an older version also keep the main server; that is shown
+  // as a switch only for them.
+  const [onNodes, setOnNodes] = useState(false);
+  const legacyBoth = !!editing && editing.serve_main && (editing.node_ids?.length ?? 0) > 0;
 
   useEffect(() => {
     if (!open) return;
     setStep(editing ? 1 : 0);
     setD(editing ? toInput(editing) : defaults('vless'));
+    setOnNodes(!!editing && (editing.node_ids?.length ?? 0) > 0);
     setShowErr(false);
     setServerErr(null);
   }, [open, editing]);
@@ -186,7 +197,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
   const patchReality = (x: Partial<NonNullable<InboundInput['reality']>>) => setD((v) => ({ ...v, reality: { ...(v.reality ?? emptyReality()), ...x } }));
   const patchAwg = (x: Partial<AwgParams>) => setD((v) => ({ ...v, settings: { ...v.settings, awg: { ...(v.settings.awg ?? { jc: 4, jmin: 40, jmax: 70, s1: 0, s2: 0, h1: 1, h2: 2, h3: 3, h4: 4 }), ...x } } }));
 
-  const pickProtocol = (np: Protocol) => setD((x) => ({ ...defaults(np), remark: x.remark, port: hasPort(np) ? x.port : 0 }));
+  const pickProtocol = (np: Protocol) => setD((x) => ({ ...defaults(np), remark: x.remark, port: hasPort(np) ? x.port : 0, node_ids: x.node_ids, serve_main: x.serve_main }));
   const setNetwork = (net: Network) => {
     setD((x) => {
       const next = { ...x, network: net };
@@ -330,9 +341,10 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
           e.awg = t('inb.awgRule');
       }
     }
+    if (step >= 1 && onNodes && nodeCapable(p) && nodes.length > 0 && d.node_ids.length === 0) e.nodes = t('inb.pickNodes');
     if (step >= 1) Object.assign(e, dupErrors);
     return e;
-  }, [d, step, steps, p, t, n, dupErrors]);
+  }, [d, step, steps, p, t, n, dupErrors, onNodes, nodes.length]);
   // Only errors that belong to steps up to the current one block "next".
   const stepValid = Object.keys(errors).length === 0;
 
@@ -357,7 +369,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
     }
     setServerErr(null);
     save.mutate(
-      { id: editing?.id, body: toBody(d) },
+      { id: editing?.id, body: toBody(onNodes ? d : { ...d, node_ids: [], serve_main: true }) },
       {
         onSuccess: () => {
           toast.success(editing ? t('inb.saved') : t('inb.created'));
@@ -419,6 +431,10 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
   const reviewRows: [string, ReactNode][] = [];
   {
     const st = d.settings;
+    if (nodes.length > 0 && nodeCapable(p)) {
+      const picked = onNodes ? nodes.filter((x) => d.node_ids.includes(x.id)).map((x) => x.name) : [];
+      reviewRows.push([t('inb.runsOn'), picked.length ? (d.serve_main && legacyBoth ? [t('inb.runMain'), ...picked] : picked).join('، ') : t('inb.runMain')]);
+    }
     reviewRows.push([
       t('inb.engine'),
       <span key="eng" className={s.engineTag} data-engine={engineOf(p)}>
@@ -568,6 +584,71 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
                   <input className="input" value={d.remark} onChange={(e) => patch({ remark: e.target.value })} aria-invalid={!!err('remark')} data-autofocus placeholder={`${protoName(p)} · Main`} maxLength={128} />
                 </Field>
               </div>
+
+              {nodes.length > 0 && nodeCapable(p) && (
+                <div className={s.span2}>
+                  <span className="field__label">{t('inb.runsOn')}</span>
+                  <div className="seg" role="radiogroup" aria-label={t('inb.runsOn')}>
+                    <button type="button" role="radio" aria-checked={!onNodes} onClick={() => setOnNodes(false)}>
+                      {t('inb.runMain')}
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={onNodes}
+                      onClick={() => {
+                        setOnNodes(true);
+                        // A fresh choice of nodes runs on the nodes only.
+                        if (!legacyBoth) patch({ serve_main: false });
+                      }}
+                    >
+                      {t('inb.runNodes')}
+                    </button>
+                  </div>
+                  {onNodes ? (
+                    <>
+                      <div className={s.nodePick} role="group" aria-label={t('inb.runNodes')}>
+                        {nodes.map((nd) => {
+                          const on = d.node_ids.includes(nd.id);
+                          return (
+                            <button
+                              key={nd.id}
+                              type="button"
+                              role="checkbox"
+                              aria-checked={on}
+                              className={`${s.nodeOpt} ${on ? s.nodeOn : ''}`}
+                              onClick={() => patch({ node_ids: on ? d.node_ids.filter((x) => x !== nd.id) : [...d.node_ids, nd.id] })}
+                            >
+                              <span className={s.nodeCheck}>{on && <Check size={13} strokeWidth={3} />}</span>
+                              <span className={s.nodeText}>
+                                <strong>{nd.name}</strong>
+                                <small className="ltr">{nd.address}</small>
+                              </span>
+                              {!nd.enabled && <span className="chip chip--disabled">{t('inb.nodeOff')}</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {err('nodes') && <span className="field__error">{err('nodes')}</span>}
+                      {legacyBoth ? (
+                        <div className={s.switchLine}>
+                          <span>
+                            {t('inb.alsoMain')}
+                            <small className="field__hint" style={{ display: 'block' }}>
+                              {t('inb.alsoMainHint')}
+                            </small>
+                          </span>
+                          <Switch checked={d.serve_main} onChange={(v) => patch({ serve_main: v })} label={t('inb.alsoMain')} />
+                        </div>
+                      ) : (
+                        <p className={s.infoNote}>{t('inb.nodesOnlyNote')}</p>
+                      )}
+                    </>
+                  ) : (
+                    <span className="field__hint">{t('inb.runsOnHint')}</span>
+                  )}
+                </div>
+              )}
 
               {isV2(p) && (
                 <div className={s.span2}>

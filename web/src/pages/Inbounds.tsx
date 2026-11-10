@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { Pencil, Plus, Trash2, Users as UsersIcon } from 'lucide-react';
 import { useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useDeleteInbound, useInbounds, useToggleInbound } from '@/api/hooks';
+import { useDeleteInbound, useInbounds, useNodes, useToggleInbound } from '@/api/hooks';
 import { EmptyState, ErrorState, PageHeader, Skeleton, Switch } from '@/components/misc';
 import { useI18n } from '@/i18n';
 import { confirmAction, toast } from '@/store/feedback';
@@ -17,6 +17,8 @@ import s from './inbounds/Inbounds.module.css';
 export default function InboundsPage() {
   const { t, n } = useI18n();
   const q = useInbounds();
+  const nodesQ = useNodes();
+  const nodeName = (id: number) => nodesQ.data?.find((x) => x.id === id)?.name;
   const toggle = useToggleInbound();
   const del = useDeleteInbound();
   const [params, setParams] = useSearchParams();
@@ -101,6 +103,11 @@ export default function InboundsPage() {
                     {ib.security === 'tls' && <span className="chip chip--active">TLS</span>}
                     {eng !== 'xray' && <span className="chip chip--violet">{engineName(eng)}</span>}
                   </>
+                )}
+                {!!ib.node_ids?.length && (
+                  <span className={`chip ${s.nodeChip}`} title={ib.node_ids.map(nodeName).filter(Boolean).join('، ')}>
+                    {t('inb.onNodes', { names: ib.node_ids.map(nodeName).filter(Boolean).join('، ') || n(ib.node_ids.length) })}
+                  </span>
                 )}
               </>
             );

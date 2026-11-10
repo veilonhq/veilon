@@ -1,11 +1,11 @@
 import { Check, KeyRound, Loader2, ShieldCheck, Terminal, Trash2, TriangleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useDeleteNode, useNodeInstall, useSaveNode } from '@/api/hooks';
-import type { Inbound, NodeInstall, Protocol, VNode } from '@/api/types';
+import type { Inbound, NodeInstall, VNode } from '@/api/types';
+import { Link } from 'react-router-dom';
 import { CopyButton, Field, Switch } from '@/components/misc';
 import { Sheet } from '@/components/Overlay';
 import { useI18n } from '@/i18n';
-import { engineOf } from '@/lib/protocols';
 import { confirmAction, toast } from '@/store/feedback';
 import u from '../users/Users.module.css';
 import s from './Nodes.module.css';
@@ -17,8 +17,6 @@ export const okNodeAddr = (v: string) => {
   const a = v.trim().replace(/^\[|\]$/g, '');
   return IPV4_RE.test(a) || (a.includes(':') && IPV6_RE.test(a)) || (HOST_RE.test(a) && !/^\d+(\.\d+)*$/.test(a));
 };
-/** Inbounds a node can serve: Xray-core ones, except TUN. */
-export const nodeCapable = (p: string) => engineOf(p as Protocol) === 'xray' && p !== 'tun';
 const DEFAULT_PORT = 62050;
 
 interface Props {
@@ -39,7 +37,6 @@ export function NodeSheet({ open, node, onClose, inbounds, onCreated }: Props) {
   const [addr, setAddr] = useState('');
   const [port, setPort] = useState(DEFAULT_PORT);
   const [enabled, setEnabled] = useState(true);
-  const [ibs, setIbs] = useState<number[]>([]);
   const [touched, setTouched] = useState(false);
   const [serverErr, setServerErr] = useState<string | null>(null);
   const [install, setInstall] = useState<NodeInstall | null>(null);
@@ -55,11 +52,10 @@ export function NodeSheet({ open, node, onClose, inbounds, onCreated }: Props) {
     setAddr(node?.address ?? '');
     setPort(node?.api_port ?? DEFAULT_PORT);
     setEnabled(node?.enabled ?? true);
-    setIbs(node?.inbound_ids ?? []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, node?.id]);
 
-  const capable = inbounds.filter((i) => nodeCapable(i.protocol));
+  const onNode = node ? inbounds.filter((i) => node.inbound_ids.includes(i.id)) : [];
   const nameErr = !name.trim() || name.trim().length > 48 ? t('node.nameErr') : null;
   const addrErr = !okNodeAddr(addr) ? t('node.addrErr') : null;
   const portErr = !Number.isInteger(port) || port < 1 || port > 65535 ? t('node.portErr') : null;
@@ -79,7 +75,6 @@ export function NodeSheet({ open, node, onClose, inbounds, onCreated }: Props) {
           address: addr.trim().replace(/^\[|\]$/g, ''),
           api_port: port,
           enabled,
-          inbound_ids: ibs,
         },
       },
       {
@@ -250,38 +245,28 @@ export function NodeSheet({ open, node, onClose, inbounds, onCreated }: Props) {
           </span>
           <Switch checked={enabled} onChange={setEnabled} label={t('node.enabled')} />
         </div>
-        <fieldset className={u.fs}>
-          <legend className="field__label">{t('node.inbounds')}</legend>
-          {capable.length === 0 ? (
-            <span className="field__hint">{t('node.noInbounds')}</span>
-          ) : (
-            <div className={u.ibGrid}>
-              {capable.map((ib) => {
-                const on = ibs.includes(ib.id);
-                return (
-                  <button
-                    type="button"
-                    key={ib.id}
-                    role="checkbox"
-                    aria-checked={on}
-                    className={`${u.ibOpt} ${on ? u.ibOn : ''}`}
-                    onClick={() => setIbs((x) => (on ? x.filter((y) => y !== ib.id) : [...x, ib.id]))}
-                  >
-                    <span className={u.ibCheck}>{on && <Check size={13} strokeWidth={3} />}</span>
-                    <span className={u.ibText}>
-                      <strong>{ib.remark}</strong>
-                      <small className="ltr">
-                        {ib.protocol} · {ib.network} · :{ib.port}
-                      </small>
-                    </span>
-                    {!ib.enabled && <span className="chip chip--disabled">{t('common.disabled')}</span>}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          <span className="field__hint">{t('node.inboundsHint')}</span>
-        </fieldset>
+        {editing && (
+          <div className={u.fs}>
+            <span className="field__label">{t('node.inbounds')}</span>
+            {onNode.length ? (
+              <span className={s.roChips}>
+                {onNode.map((ib) => (
+                  <span key={ib.id} className={s.chip}>
+                    {ib.remark}
+                  </span>
+                ))}
+              </span>
+            ) : (
+              <span className="field__hint">{t('node.inboundsN', { n: n(0) })}</span>
+            )}
+            <span className="field__hint">
+              {t('node.inboundsHint')}{' '}
+              <Link to="/inbounds" onClick={onClose}>
+                {t('node.toInbounds')}
+              </Link>
+            </span>
+          </div>
+        )}
         {editing && (
           <button type="button" className={`btn ${s.reinstall}`} onClick={newCommand} disabled={reinstall.isPending}>
             {reinstall.isPending ? <Loader2 size={16} className="spin" /> : <Terminal size={16} />}
@@ -292,3 +277,4 @@ export function NodeSheet({ open, node, onClose, inbounds, onCreated }: Props) {
     </Sheet>
   );
 }
+

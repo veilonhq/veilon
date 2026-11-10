@@ -447,7 +447,10 @@ export function useSaveInbound() {
   return useMutation({
     mutationFn: (v: { id?: number; body: InboundInput }) =>
       v.id ? api<Inbound>(`/inbounds/${v.id}`, { method: 'PATCH', body: v.body }) : api<Inbound>('/inbounds', { method: 'POST', body: v.body }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.inbounds }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.inbounds });
+      qc.invalidateQueries({ queryKey: qk.nodes });
+    },
   });
 }
 export function useToggleInbound() {

@@ -328,3 +328,9 @@
 .reinstall {
   align-self: flex-start;
 }
+
+.roChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
