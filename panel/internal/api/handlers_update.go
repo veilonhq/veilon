@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"time"
@@ -14,8 +15,15 @@ import (
 // updateInfo tells sudo admins whether a newer stable release exists, and
 // reports the current or last update (it survives the restart).
 func (s *Server) updateInfo(w http.ResponseWriter, r *http.Request, a *db.Admin) {
-	out := map[string]any{"current": version.Version, "available": nil, "can_update": false, "checked_at": nil, "status": nil}
+	writeJSON(w, 200, s.updatePayload())
+}
+
+func (s *Server) updatePayload() map[string]any {
+	out := map[string]any{"current": version.Version, "available": nil, "can_update": false, "checked_at": nil, "next_check_at": nil, "status": nil}
 	if s.Update != nil {
+		if n := s.Update.Checker.NextCheck(); !n.IsZero() {
+			out["next_check_at"] = n.UTC()
+		}
 		rel, at := s.Update.Checker.Latest()
 		if rel != nil {
 			out["available"] = map[string]any{"tag": rel.Tag, "name": rel.Name, "notes": rel.Notes, "url": rel.URL, "published_at": rel.PublishedAt}
@@ -31,6 +39,46 @@ func (s *Server) updateInfo(w http.ResponseWriter, r *http.Request, a *db.Admin)
 			out["status"] = st
 		}
 	}
+	return out
+}
+
+// checkTimeout bounds a manual check.
+const checkTimeout = 20 * time.Second
+
+// checkUpdate asks the release source right away (at most one real request
+// per selfupdate.ManualGap; inside it the last outcome is returned with
+// cached:true). The answer has the shape of GET /system/update plus cached.
+func (s *Server) checkUpdate(w http.ResponseWriter, r *http.Request, a *db.Admin) {
+	if s.Update == nil {
+		writeErr(w, http.StatusNotImplemented, "unsupported", "updates are not available")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), checkTimeout)
+	defer cancel()
+	cached, retry, err := s.Update.Checker.CheckNow(ctx)
+	if !cached {
+		res := "ok"
+		if err != nil {
+			res = "failed"
+		}
+		audit.Log(s.DB, a, "panel.update_check", res, s.clientIP(r))
+	}
+	if err != nil {
+		status, code, msg := http.StatusBadGateway, "update_check_failed", "could not reach the release server; check the server's internet connection and try again"
+		switch {
+		case errors.Is(err, selfupdate.ErrRateLimited):
+			status, code, msg = http.StatusServiceUnavailable, "rate_limited", "GitHub's rate limit was reached; try again later"
+		case errors.Is(err, context.DeadlineExceeded):
+			status, code, msg = http.StatusGatewayTimeout, "timeout", "the release server did not answer in time; try again"
+		}
+		writeJSON(w, status, map[string]any{
+			"error":       map[string]any{"code": code, "message": msg, "detail": err.Error()},
+			"retry_after": int((retry + time.Second - 1) / time.Second),
+		})
+		return
+	}
+	out := s.updatePayload()
+	out["cached"] = cached
 	writeJSON(w, 200, out)
 }
 

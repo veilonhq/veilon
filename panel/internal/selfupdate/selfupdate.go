@@ -109,6 +109,10 @@ func FetchLatest(ctx context.Context, client *http.Client, url, current string) 
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
+		if resp.StatusCode == http.StatusTooManyRequests ||
+			(resp.StatusCode == http.StatusForbidden && resp.Header.Get("X-RateLimit-Remaining") == "0") {
+			return nil, fmt.Errorf("%w (%s)", ErrRateLimited, resp.Status)
+		}
 		return nil, fmt.Errorf("release list: %s", resp.Status)
 	}
 	var list []ghRelease
@@ -143,6 +147,14 @@ func FetchLatest(ctx context.Context, client *http.Client, url, current string) 
 	return out, nil
 }
 
+// ErrRateLimited means the release source refused the request because of
+// its rate limit (GitHub allows 60 unauthenticated requests per hour).
+var ErrRateLimited = errors.New("the release source rate limit was reached")
+
+// ManualGap is the shortest time between two release-source requests
+// started by an admin; a check inside it answers from the last result.
+const ManualGap = 30 * time.Second
+
 // Checker polls the release list in the background. It never fails loudly:
 // an unreachable release source keeps the last answer and is retried later.
 type Checker struct {
@@ -157,6 +169,71 @@ type Checker struct {
 	latest    *Release
 	checkedAt time.Time
 	failures  int
+
+	// manual serializes admin-started checks; lastTry/lastErr remember the
+	// last one for the rate limit.
+	manual  sync.Mutex
+	lastTry time.Time
+	lastErr error
+	now     func() time.Time
+	// gap overrides ManualGap (tests).
+	gap time.Duration
+
+	// fetch serializes requests: a manual check and the automatic loop
+	// never query the release source at the same time.
+	fetch sync.Mutex
+	// nextAt is when the automatic loop checks next (zero when off).
+	nextAt time.Time
+}
+
+func (c *Checker) manualGap() time.Duration {
+	if c.gap > 0 {
+		return c.gap
+	}
+	return ManualGap
+}
+
+// NextCheck returns when the automatic loop checks next (zero when the
+// loop is off, e.g. in a development build).
+func (c *Checker) NextCheck() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.nextAt
+}
+
+// recentManual reports whether an admin-started check ran within the gap
+// (the automatic loop then skips its own request: no double checks).
+func (c *Checker) recentManual(now time.Time) bool {
+	if !c.manual.TryLock() {
+		return true // a manual check is running right now
+	}
+	defer c.manual.Unlock()
+	return !c.lastTry.IsZero() && now.Sub(c.lastTry) < c.manualGap()
+}
+
+func (c *Checker) clock() time.Time {
+	if c.now != nil {
+		return c.now()
+	}
+	return time.Now()
+}
+
+// CheckNow is an admin-started check: it queries the release source right
+// away unless another manual check ran less than ManualGap ago, in which
+// case it returns that check's outcome (cached=true) without a request.
+// Concurrent calls wait for the one in flight and share its result.
+func (c *Checker) CheckNow(ctx context.Context) (cached bool, retryAfter time.Duration, err error) {
+	c.manual.Lock()
+	defer c.manual.Unlock()
+	now := c.clock()
+	if !c.lastTry.IsZero() {
+		if since := now.Sub(c.lastTry); since >= 0 && since < c.manualGap() {
+			return true, c.manualGap() - since, c.lastErr
+		}
+	}
+	err = c.CheckOnce(ctx)
+	c.lastTry, c.lastErr = c.clock(), err
+	return false, 0, err
 }
 
 // Latest returns the newest stable release newer than the running version
@@ -167,8 +244,11 @@ func (c *Checker) Latest() (*Release, time.Time) {
 	return c.latest, c.checkedAt
 }
 
-// CheckOnce queries the release source once.
+// CheckOnce queries the release source once. The automatic loop and
+// manual checks both go through it and share the cached answer.
 func (c *Checker) CheckOnce(ctx context.Context) error {
+	c.fetch.Lock()
+	defer c.fetch.Unlock()
 	cl := c.Client
 	if cl == nil {
 		cl = &http.Client{Timeout: 30 * time.Second}
@@ -199,7 +279,10 @@ func (c *Checker) CheckOnce(ctx context.Context) error {
 }
 
 // Run checks after FirstDelay and then every Interval (default 6h). After
-// failures it backs off (30 min, doubling, capped at the interval).
+// failures it backs off (30 min, doubling, capped at the interval). Manual
+// checks (CheckNow) do not move this schedule; when one ran moments before
+// a scheduled check, the scheduled check reuses its answer instead of
+// querying the release source again.
 func (c *Checker) Run(ctx context.Context) {
 	if _, ok := ParseVersion(c.Current); !ok {
 		slog.Info("update checks off: not a release build", "version", c.Current)
@@ -209,17 +292,24 @@ func (c *Checker) Run(ctx context.Context) {
 	if every <= 0 {
 		every = 6 * time.Hour
 	}
+	defer c.setNext(time.Time{})
 	wait := c.FirstDelay
 	for {
+		c.setNext(c.clock().Add(wait))
+		t := time.NewTimer(wait)
 		select {
 		case <-ctx.Done():
+			t.Stop()
 			return
-		case <-time.After(wait):
+		case <-t.C:
+		}
+		wait = every
+		if c.recentManual(c.clock()) {
+			continue
 		}
 		cctx, cancel := context.WithTimeout(ctx, time.Minute)
 		err := c.CheckOnce(cctx)
 		cancel()
-		wait = every
 		if err != nil {
 			c.mu.Lock()
 			n := c.failures
@@ -230,6 +320,12 @@ func (c *Checker) Run(ctx context.Context) {
 			}
 		}
 	}
+}
+
+func (c *Checker) setNext(t time.Time) {
+	c.mu.Lock()
+	c.nextAt = t
+	c.mu.Unlock()
 }
 
 // --- request / status files shared by the panel and the updater ---------

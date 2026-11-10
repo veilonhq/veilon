@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -338,4 +339,115 @@ func TestLockLeftByDeadUpdaterIsCleared(t *testing.T) {
 		t.Fatalf("second lock = %v, want ErrBusy", err)
 	}
 	unlock()
+}
+
+func TestCheckNowRateLimit(t *testing.T) {
+	src := newSource(t)
+	src.publish("v0.3.0", script("v0.3.0", true), false, false)
+	now := time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)
+	c := &Checker{Current: "v0.2.2", URL: src.srv.URL + "/releases", now: func() time.Time { return now }}
+	cached, _, err := c.CheckNow(context.Background())
+	if err != nil || cached || src.hits != 1 {
+		t.Fatalf("first check cached=%v err=%v hits=%d", cached, err, src.hits)
+	}
+	// Inside the gap: no request, the cached answer.
+	now = now.Add(10 * time.Second)
+	cached, retry, err := c.CheckNow(context.Background())
+	if err != nil || !cached || src.hits != 1 || retry != 20*time.Second {
+		t.Fatalf("second check cached=%v retry=%v err=%v hits=%d", cached, retry, err, src.hits)
+	}
+	if r, _ := c.Latest(); r == nil || r.Tag != "v0.3.0" {
+		t.Fatalf("latest %+v", r)
+	}
+	// After the gap a failure is reported and remembered inside the next gap.
+	now = now.Add(ManualGap)
+	src.mu.Lock()
+	src.fail = true
+	src.mu.Unlock()
+	if cached, _, err = c.CheckNow(context.Background()); err == nil || cached || src.hits != 2 {
+		t.Fatalf("failing check cached=%v err=%v hits=%d", cached, err, src.hits)
+	}
+	if cached, _, err = c.CheckNow(context.Background()); err == nil || !cached || src.hits != 2 {
+		t.Fatalf("cached failure cached=%v err=%v hits=%d", cached, err, src.hits)
+	}
+	if r, _ := c.Latest(); r == nil {
+		t.Fatal("last answer lost after a failed check")
+	}
+}
+
+func TestFetchLatestRateLimited(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-RateLimit-Remaining", "0")
+		http.Error(w, `{"message":"API rate limit exceeded"}`, http.StatusForbidden)
+	}))
+	defer srv.Close()
+	_, err := FetchLatest(context.Background(), srv.Client(), srv.URL, "v0.2.2")
+	if !errors.Is(err, ErrRateLimited) {
+		t.Fatalf("want ErrRateLimited, got %v", err)
+	}
+}
+
+// The automatic loop keeps its schedule after a manual check, skips a
+// scheduled request that would duplicate a manual one, and both share the
+// cached answer.
+func TestAutoLoopSurvivesManualCheck(t *testing.T) {
+	src := newSource(t)
+	src.publish("v0.3.0", script("v0.3.0", true), false, false)
+	c := &Checker{Current: "v0.2.2", URL: src.srv.URL + "/releases", FirstDelay: 20 * time.Millisecond, Interval: 60 * time.Millisecond, gap: 40 * time.Millisecond}
+	hits := func() int { src.mu.Lock(); defer src.mu.Unlock(); return src.hits }
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { c.Run(ctx); close(done) }()
+	waitFor := func(n int) {
+		t.Helper()
+		deadline := time.Now().Add(3 * time.Second)
+		for hits() < n {
+			if time.Now().After(deadline) {
+				t.Fatalf("want %d hits, got %d", n, hits())
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	waitFor(1) // first automatic check
+	if c.NextCheck().IsZero() {
+		t.Fatal("next automatic check unknown while the loop runs")
+	}
+	if _, _, err := c.CheckNow(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	before := hits()
+	_, at1 := c.Latest()
+	waitFor(before + 2) // the loop keeps checking after the manual check
+	if r, at2 := c.Latest(); r == nil || r.Tag != "v0.3.0" || !at2.After(at1) {
+		t.Fatalf("shared cache not updated: %+v %v %v", r, at1, at2)
+	}
+	cancel()
+	<-done
+	if !c.NextCheck().IsZero() {
+		t.Fatal("next check should clear when the loop stops")
+	}
+}
+
+func TestAutoLoopSkipsRightAfterManual(t *testing.T) {
+	src := newSource(t)
+	src.publish("v0.3.0", script("v0.3.0", true), false, false)
+	c := &Checker{Current: "v0.2.2", URL: src.srv.URL + "/releases", FirstDelay: 50 * time.Millisecond, Interval: time.Hour, gap: time.Minute}
+	if _, _, err := c.CheckNow(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { c.Run(ctx); close(done) }()
+	time.Sleep(150 * time.Millisecond)
+	src.mu.Lock()
+	h := src.hits
+	src.mu.Unlock()
+	if h != 1 {
+		t.Fatalf("scheduled check duplicated a manual one: %d hits", h)
+	}
+	if n := c.NextCheck(); n.Before(time.Now().Add(50 * time.Minute)) {
+		t.Fatalf("schedule should move on to the next interval, next=%v", n)
+	}
+	cancel()
+	<-done
 }
