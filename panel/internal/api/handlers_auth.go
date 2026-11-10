@@ -170,16 +170,21 @@ func (s *Server) deleteAdmin(w http.ResponseWriter, r *http.Request, a *db.Admin
 		writeErr(w, http.StatusNotFound, "not_found", "admin not found")
 		return
 	}
-	if t.IsSudo {
-		var n int64
-		s.DB.Model(&db.Admin{}).Where("is_sudo = ?", true).Count(&n)
-		if n <= 1 {
+	// Same rules as `veilon admin delete`: never the last full (sudo) admin,
+	// never an admin who still owns users. Checks and delete share one
+	// transaction.
+	if _, err := auth.DeleteAdmin(s.DB, t.Username); err != nil {
+		var owns *auth.AdminOwnsUsersError
+		switch {
+		case errors.Is(err, auth.ErrAdminNotFound):
+			writeErr(w, http.StatusNotFound, "not_found", "admin not found")
+		case errors.Is(err, auth.ErrLastSudo):
 			writeErr(w, http.StatusBadRequest, "validation_error", "cannot delete the last sudo admin")
-			return
+		case errors.As(err, &owns):
+			writeErr(w, http.StatusConflict, "conflict", err.Error())
+		default:
+			writeServiceErr(w, err)
 		}
-	}
-	if err := s.DB.Delete(&db.Admin{}, id).Error; err != nil {
-		writeServiceErr(w, err)
 		return
 	}
 	audit.Log(s.DB, a, "admin.delete", t.Username, s.clientIP(r))

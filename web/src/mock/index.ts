@@ -901,6 +901,9 @@ function route(method: string, path: string, q: URLSearchParams, body: Body): un
     }
     if (method === 'DELETE') {
       const a = byId(admins, id);
+      if (a.is_sudo && admins.filter((x) => x.is_sudo).length <= 1) throw new HttpError(400, 'validation_error', 'cannot delete the last sudo admin');
+      const owned = users.filter((u) => u.admin_id === a.id).length;
+      if (owned > 0) throw new HttpError(409, 'conflict', `this admin owns ${owned} users; move or delete them first`);
       admins.splice(admins.indexOf(a), 1);
       return { ok: true };
     }
