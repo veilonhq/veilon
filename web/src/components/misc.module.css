@@ -25,6 +25,11 @@
   font-weight: 700;
   margin-top: 6px;
 }
+/* Persian glyphs reach far below the baseline; give them room so a
+   subtitle or a wrapped second line never touches them */
+[dir='rtl'] .phTitle {
+  line-height: 1.3;
+}
 .phSub {
   margin-top: 8px;
   color: var(--muted);
