@@ -77,6 +77,12 @@ func main() {
 		fmt.Fprint(os.Stderr, usage)
 		os.Exit(2)
 	}
+	if os.Geteuid() == 0 && os.Getenv("VEILON_CRED_CHILD") != "1" && os.Getenv("VEILON_NO_REEXEC") != "1" &&
+		credentialChanging(os.Args[1:]) {
+		if _, err := os.Stat(credFile); err == nil {
+			os.Exit(runRefreshingCredFile())
+		}
+	}
 	if dbCommands[os.Args[1]] {
 		dropToServiceUser()
 	}
