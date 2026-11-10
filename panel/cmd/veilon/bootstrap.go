@@ -58,6 +58,7 @@ func openDB() (*config.Config, *gorm.DB, error) {
 	if err := bootstrap(gdb, cfg); err != nil {
 		return nil, nil, fmt.Errorf("bootstrap settings: %w", err)
 	}
+	setCLILoc(db.GetSetting(gdb, db.KeyTimezone))
 	return cfg, gdb, nil
 }
 

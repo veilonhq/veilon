@@ -327,7 +327,7 @@ func cmdInfo(args []string) error {
 	if st.PanelCertID != nil {
 		var c db.Cert
 		if gdb.First(&c, *st.PanelCertID).Error == nil {
-			fmt.Printf("Panel TLS:  certificate #%d (%s), expires %s\n", c.ID, c.Domain, c.NotAfter.Format("2006-01-02 15:04 MST"))
+			fmt.Printf("Panel TLS:  certificate #%d (%s), expires %s\n", c.ID, c.Domain, fmtTime(c.NotAfter))
 		}
 	} else {
 		fmt.Println("Panel TLS:  none (plain HTTP)")

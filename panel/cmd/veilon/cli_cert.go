@@ -5,6 +5,7 @@ package main
 // certificate and hot-reloads the panel and inbounds).
 
 import (
+	"github.com/veilonhq/veilon/panel/internal/users"
 	"errors"
 	"flag"
 	"fmt"
@@ -51,6 +52,12 @@ func cmdCert(args []string) error {
 	c, err := ctl()
 	if err != nil {
 		return err
+	}
+	// times are printed in the panel's time zone (best effort)
+	if _, gdb, err := openDB(); err == nil {
+		if sdb, err := gdb.DB(); err == nil {
+			sdb.Close()
+		}
 	}
 	rest := args[1:]
 	switch args[0] {
@@ -169,7 +176,15 @@ func certID(args []string) (int64, error) {
 	return id, nil
 }
 
-func fmtTime(t time.Time) string { return t.Local().Format("2006-01-02 15:04 MST") }
+// cliLoc is the panel's time zone (the CLI prints every time in it, like
+// the panel does); UTC until it is known.
+var cliLoc = time.UTC
+
+// setCLILoc sets the zone from the panel's timezone setting.
+func setCLILoc(name string) { cliLoc = users.LoadLocation(name) }
+
+// fmtTime prints t in the panel's time zone (ISO 8601 date).
+func fmtTime(t time.Time) string { return t.In(cliLoc).Format("2006-01-02 15:04 MST") }
 
 func panelCertID(c ctlClient) int64 {
 	var p struct {
