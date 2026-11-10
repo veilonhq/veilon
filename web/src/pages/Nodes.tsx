@@ -4,7 +4,7 @@ import { useInbounds, useNodes } from '@/api/hooks';
 import type { VNode } from '@/api/types';
 import { EmptyState, ErrorState, PageHeader, Skeleton } from '@/components/misc';
 import { formatClock, formatIsoDay, useI18n } from '@/i18n';
-import { NodeSheet } from './nodes/NodeSheet';
+import { NodeSheet, NoPanelWarning } from './nodes/NodeSheet';
 import s from './nodes/Nodes.module.css';
 
 /** "2026-11-10 18:20" in the panel's zone (ISO 8601, Latin digits). */
@@ -44,6 +44,9 @@ export default function NodesPage() {
         actions={newBtn}
       />
       <p className={s.intro}>{t('node.intro')}</p>
+      <div className={s.pageWarn}>
+        <NoPanelWarning />
+      </div>
       {q.isError ? (
         <ErrorState error={q.error} onRetry={() => q.refetch()} />
       ) : q.isPending ? (

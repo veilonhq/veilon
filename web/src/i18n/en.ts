@@ -994,6 +994,8 @@ const en: Record<MessageKey, string> = {
   'upd.step.health': 'Health check',
   'nav.nodes': 'Nodes',
   'node.toInbounds': 'Go to inbounds',
+  'node.noPanelTitle': 'Do not install the panel on a node server',
+  'node.noPanelBody': 'It is strongly recommended not to install the Veilon panel on a server that is a node. Running the panel and a node on the same server causes conflicts (ports and Xray). On a node server, run only the node install command, on a separate server.',
   'inb.runsOn': 'Runs on',
   'inb.runsOnHint': 'The inbound runs on the main server, or on one or more nodes.',
   'inb.runMain': 'Main server',

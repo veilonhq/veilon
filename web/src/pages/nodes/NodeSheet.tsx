@@ -138,6 +138,7 @@ export function NodeSheet({ open, node, onClose, inbounds, onCreated }: Props) {
         }
       >
         <div className={u.form}>
+          <NoPanelWarning />
           <p className={s.sheetIntro}>{t('node.installIntro')}</p>
           <div className={s.cmd}>
             <code className="ltr" dir="ltr">
@@ -193,6 +194,7 @@ export function NodeSheet({ open, node, onClose, inbounds, onCreated }: Props) {
       }
     >
       <form id="node-form" className={u.form} onSubmit={submit} noValidate>
+        {!editing && <NoPanelWarning />}
         {serverErr && (
           <div className={u.formErr} role="alert">
             {serverErr}
@@ -278,3 +280,16 @@ export function NodeSheet({ open, node, onClose, inbounds, onCreated }: Props) {
   );
 }
 
+/** The strong warning against installing the panel on a node server. */
+export function NoPanelWarning() {
+  const { t } = useI18n();
+  return (
+    <div className={s.noPanel} role="note">
+      <TriangleAlert size={20} aria-hidden="true" />
+      <span>
+        <strong>{t('node.noPanelTitle')}</strong>
+        <span>{t('node.noPanelBody')}</span>
+      </span>
+    </div>
+  );
+}

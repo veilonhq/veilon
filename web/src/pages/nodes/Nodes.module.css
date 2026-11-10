@@ -329,6 +329,38 @@
   align-self: flex-start;
 }
 
+/* strong warning: never install the panel on a node server */
+.noPanel {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1.5px solid var(--warn);
+  background: var(--warn-soft);
+  color: var(--warn-fg);
+  line-height: 1.75;
+}
+.noPanel > svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--warn);
+}
+.noPanel > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: 13.5px;
+}
+.noPanel strong {
+  font-size: 15px;
+  font-weight: 700;
+}
+.pageWarn {
+  margin: 0 0 20px;
+  max-width: 760px;
+}
 .roChips {
   display: flex;
   flex-wrap: wrap;
