@@ -184,6 +184,28 @@ type Inbound struct {
 	UpdatedAt time.Time
 }
 
+// Host overrides how clients reach an inbound: one share/subscription link
+// per enabled host, in Sort order. Empty fields keep the inbound's value.
+type Host struct {
+	ID          int64     `gorm:"primaryKey" json:"id"`
+	InboundID   int64     `json:"inbound_id"`
+	Remark      string    `json:"remark"`
+	Address     string    `json:"address"`
+	Port        int       `json:"port"`
+	SNI         string    `gorm:"column:sni" json:"sni"`
+	Host        string    `json:"host"`
+	Path        string    `json:"path"`
+	Fingerprint string    `json:"fingerprint"`
+	ALPN        string    `gorm:"column:alpn" json:"alpn"`
+	Enabled     bool      `json:"enabled"`
+	Sort        int       `json:"sort"`
+	CreatedAt   time.Time `json:"-"`
+	UpdatedAt   time.Time `json:"-"`
+}
+
+// TableName pins the table name.
+func (Host) TableName() string { return "inbound_hosts" }
+
 // WGPeer is the auto-generated WireGuard / AmneziaWG peer of a user on one
 // inbound: its key pair, preshared key and tunnel address.
 type WGPeer struct {

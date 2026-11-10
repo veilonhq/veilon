@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/veilonhq/veilon/panel/internal/audit"
 	"github.com/veilonhq/veilon/panel/internal/db"
@@ -112,4 +113,39 @@ func (s *Server) wireguardKeys(w http.ResponseWriter, r *http.Request, a *db.Adm
 		return
 	}
 	writeJSON(w, 200, map[string]any{"private_key": priv, "public_key": pub, "awg": inbounds.DefaultAWG()})
+}
+
+// inboundHosts lists an inbound's hosts (link overrides) in order.
+func (s *Server) inboundHosts(w http.ResponseWriter, r *http.Request, a *db.Admin) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	hs, err := s.Inbounds.Hosts(id)
+	if err != nil {
+		writeServiceErr(w, err)
+		return
+	}
+	writeJSON(w, 200, hs)
+}
+
+// setInboundHosts replaces an inbound's hosts ({"hosts": [...]}, in order).
+func (s *Server) setInboundHosts(w http.ResponseWriter, r *http.Request, a *db.Admin) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		Hosts []inbounds.HostInput `json:"hosts"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	hs, err := s.Inbounds.SetHosts(id, body.Hosts)
+	if err != nil {
+		writeServiceErr(w, err)
+		return
+	}
+	audit.Log(s.DB, a, "inbound.hosts", strconv.FormatInt(id, 10), s.clientIP(r))
+	writeJSON(w, 200, hs)
 }

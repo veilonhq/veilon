@@ -187,6 +187,27 @@ var migrations = []migration{
 		`ALTER TABLE admins ADD COLUMN user_quota INTEGER NOT NULL DEFAULT 0`,
 		`ALTER TABLE admins ADD COLUMN traffic_quota BIGINT NOT NULL DEFAULT 0`,
 	}},
+	// Hosts: per-inbound address / SNI / port / host / path / fingerprint /
+	// ALPN overrides for share and subscription links. Inbounds without
+	// hosts keep producing exactly the links they did before.
+	{6, "inbound hosts", []string{
+		`CREATE TABLE inbound_hosts (
+			id {{PK}},
+			inbound_id BIGINT NOT NULL,
+			remark VARCHAR(64) NOT NULL DEFAULT '',
+			address VARCHAR(255) NOT NULL DEFAULT '',
+			port INTEGER NOT NULL DEFAULT 0,
+			sni VARCHAR(255) NOT NULL DEFAULT '',
+			host VARCHAR(255) NOT NULL DEFAULT '',
+			path VARCHAR(255) NOT NULL DEFAULT '',
+			fingerprint VARCHAR(32) NOT NULL DEFAULT '',
+			alpn VARCHAR(64) NOT NULL DEFAULT '',
+			enabled BOOLEAN NOT NULL DEFAULT TRUE,
+			sort INTEGER NOT NULL DEFAULT 0,
+			created_at {{TS}} NOT NULL,
+			updated_at {{TS}} NOT NULL)`,
+		`CREATE INDEX idx_inbound_hosts_inbound ON inbound_hosts(inbound_id)`,
+	}},
 }
 
 type schemaMigration struct {

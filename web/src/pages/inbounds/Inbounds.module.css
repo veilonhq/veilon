@@ -1012,3 +1012,145 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ---------- hosts (link overrides) ---------- */
+.hostsOn {
+  position: relative;
+  color: var(--accent-fg);
+}
+.hostsBadge {
+  position: absolute;
+  top: -2px;
+  inset-inline-end: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+}
+.hostIntro {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.hostList {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.hostCard {
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  overflow: hidden;
+}
+.hostOff .hostText {
+  opacity: 0.55;
+}
+.hostErr {
+  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+}
+.hostHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-inline-end: 12px;
+}
+.hostToggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: start;
+}
+.hostIdx {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: var(--panel-2);
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.hostText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.hostText strong,
+.hostText small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hostText small {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-family: var(--font-mono);
+}
+:global([dir='rtl']) .hostText small {
+  text-align: right;
+}
+.hostChev {
+  flex: none;
+  margin-inline-start: auto;
+  color: var(--muted);
+  transition: transform 0.2s;
+}
+.hostToggle[aria-expanded='true'] .hostChev {
+  transform: rotate(180deg);
+}
+.hostBody {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 14px 14px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+.hostAddr {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px;
+  gap: 12px;
+}
+.hostGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.hostAlpn {
+  align-self: flex-start;
+}
+.hostTools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.hostTools > :last-child {
+  margin-inline-start: auto;
+}
+@media (max-width: 520px) {
+  .hostGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .hostAddr {
+    grid-template-columns: minmax(0, 1fr) 92px;
+  }
+}

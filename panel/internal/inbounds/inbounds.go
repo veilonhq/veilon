@@ -66,7 +66,9 @@ type View struct {
 	AddressOverride string    `json:"address_override"`
 	Settings        Settings  `json:"settings"`
 	UserCount       int64     `json:"user_count"`
-	CreatedAt       time.Time `json:"created_at"`
+	// HostCount is the number of hosts (link overrides) of the inbound.
+	HostCount int64     `json:"host_count"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // Tag is the Xray inbound tag for this inbound.
@@ -438,10 +440,12 @@ func (s *Service) List() ([]View, error) {
 	for _, c := range cs {
 		counts[c.InboundID] = c.N
 	}
+	hosts := HostCounts(s.DB)
 	out := make([]View, 0, len(rows))
 	for i := range rows {
 		v := FromModel(&rows[i])
 		v.UserCount = counts[v.ID]
+		v.HostCount = hosts[v.ID]
 		out = append(out, v)
 	}
 	return out, nil
@@ -458,6 +462,7 @@ func (s *Service) Get(id int64) (*View, error) {
 	}
 	v := FromModel(&m)
 	s.DB.Model(&db.UserInbound{}).Where("inbound_id = ?", id).Count(&v.UserCount)
+	s.DB.Model(&db.Host{}).Where("inbound_id = ?", id).Count(&v.HostCount)
 	return &v, nil
 }
 
@@ -651,6 +656,9 @@ func (s *Service) Delete(id int64) error {
 			return ErrNotFound
 		}
 		if err := tx.Where("inbound_id = ?", id).Delete(&db.WGPeer{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("inbound_id = ?", id).Delete(&db.Host{}).Error; err != nil {
 			return err
 		}
 		return tx.Where("inbound_id = ?", id).Delete(&db.UserInbound{}).Error

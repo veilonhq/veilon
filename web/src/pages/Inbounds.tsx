@@ -9,6 +9,7 @@ import { confirmAction, toast } from '@/store/feedback';
 import { ProtoGlyph, protoColor } from './inbounds/ProtoGlyph';
 import { engineName, engineOf, hasUsers, isV2, isWG, protoName, transportLabel, transportsOf, withSettings } from '@/lib/protocols';
 import { InboundWizard } from './inbounds/Wizard';
+import { HostsIcon, HostsSheet } from './inbounds/HostsSheet';
 import { DensityToggle } from '@/components/DensityToggle';
 import { useUi } from '@/store/ui';
 import s from './inbounds/Inbounds.module.css';
@@ -23,6 +24,8 @@ export default function InboundsPage() {
   const creating = params.get('new') === '1';
   const editing = useMemo(() => (editId ? q.data?.find((i) => i.id === editId) ?? null : null), [editId, q.data]);
   const close = () => setParams({}, { replace: false });
+  const hostsId = Number(params.get('hosts')) || null;
+  const hostsOf = useMemo(() => (hostsId ? q.data?.find((i) => i.id === hostsId) ?? null : null), [hostsId, q.data]);
   const compact = useUi((x) => x.density) === 'compact';
 
   const remove = async (id: number, name: string) => {
@@ -110,6 +113,17 @@ export default function InboundsPage() {
             );
             const actions = (
               <div className={s.cardActions}>
+                {hasUsers(ib.protocol) && (
+                  <button
+                    className={`btn btn--sm btn--icon btn--ghost ${ib.host_count ? s.hostsOn : ''}`}
+                    onClick={() => setParams({ hosts: String(ib.id) })}
+                    aria-label={`${t('hosts.title')} ${ib.remark}`}
+                    title={ib.host_count ? t('hosts.count', { n: n(ib.host_count) }) : t('hosts.title')}
+                  >
+                    <HostsIcon size={16} />
+                    {!!ib.host_count && <span className={s.hostsBadge}>{n(ib.host_count)}</span>}
+                  </button>
+                )}
                 <button className="btn btn--sm btn--icon btn--ghost" onClick={() => setParams({ edit: String(ib.id) })} aria-label={`${t('common.edit')} ${ib.remark}`}>
                   <Pencil size={16} />
                 </button>
@@ -219,6 +233,7 @@ export default function InboundsPage() {
         </div>
       )}
       <InboundWizard open={creating || !!editing} onClose={close} editing={editing} />
+      <HostsSheet inbound={hostsOf} onClose={close} />
     </div>
   );
 }

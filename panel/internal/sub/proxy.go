@@ -78,6 +78,9 @@ type Extras struct {
 	Pins map[int64]certs.Pins
 	// Peers by inbound id (the user's WireGuard/AmneziaWG peer).
 	Peers map[int64]db.WGPeer
+	// Hosts by inbound id (enabled hosts, in order). An inbound with hosts
+	// gets one proxy per host instead of the plain one.
+	Hosts map[int64][]db.Host
 }
 
 // Address picks the address clients should connect to for an inbound.
@@ -126,12 +129,6 @@ func BuildProxiesX(u *db.User, ibs []inbounds.View, s db.Settings, reqHost strin
 			Network: ib.Network, Security: ib.Security, Flow: ib.Flow,
 			Path: ib.Transport.Path, Host: ib.Transport.Host, ServiceName: ib.Transport.ServiceName, Mode: ib.Transport.Mode,
 		}
-		name := ib.Remark
-		used[name]++
-		if used[name] > 1 {
-			name = fmt.Sprintf("%s %d", name, used[name])
-		}
-		p.Name = name
 		switch ib.Protocol {
 		case "vless", "vmess":
 			p.UUID = u.UUID
@@ -195,7 +192,58 @@ func BuildProxiesX(u *db.User, ibs []inbounds.View, s db.Settings, reqHost strin
 				p.SpiderX = r.SpiderX
 			}
 		}
-		out = append(out, p)
+		for _, v := range withHosts(p, ib, ex.Hosts[ib.ID]) {
+			name := v.Name
+			used[name]++
+			if used[name] > 1 {
+				name = fmt.Sprintf("%s %d", name, used[name])
+			}
+			v.Name = name
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// withHosts expands a proxy into one proxy per host. Empty host fields keep
+// the inbound's own value; with no hosts the proxy is returned unchanged.
+func withHosts(p Proxy, ib *inbounds.View, hosts []db.Host) []Proxy {
+	p.Name = ib.Remark
+	if len(hosts) == 0 {
+		return []Proxy{p}
+	}
+	out := make([]Proxy, 0, len(hosts))
+	for _, h := range hosts {
+		v := p
+		if h.Remark != "" {
+			v.Name = h.Remark
+		}
+		if h.Address != "" {
+			v.Server = h.Address
+		}
+		if h.Port > 0 {
+			v.Port = h.Port
+		}
+		if h.SNI != "" {
+			v.SNI = h.SNI
+		}
+		if h.Host != "" {
+			v.Host = h.Host
+		}
+		if h.Path != "" {
+			v.Path = h.Path
+		}
+		if h.Fingerprint != "" {
+			v.Fingerprint = h.Fingerprint
+		}
+		if h.ALPN != "" {
+			v.ALPN = strings.Split(h.ALPN, ",")
+		}
+		if p.WG != nil {
+			wg := *p.WG
+			v.WG = &wg
+		}
+		out = append(out, v)
 	}
 	return out
 }

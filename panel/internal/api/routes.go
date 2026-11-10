@@ -63,6 +63,8 @@ func (s *Server) routes() http.Handler {
 	m.HandleFunc("GET /inbounds/{id}", s.perm(auth.PermInbounds, s.getInbound))
 	m.HandleFunc("PATCH /inbounds/{id}", s.perm(auth.PermInbounds, s.updateInbound))
 	m.HandleFunc("DELETE /inbounds/{id}", s.perm(auth.PermInbounds, s.deleteInbound))
+	m.HandleFunc("GET /inbounds/{id}/hosts", s.perm(auth.PermInbounds, s.inboundHosts))
+	m.HandleFunc("PUT /inbounds/{id}/hosts", s.perm(auth.PermInbounds, s.setInboundHosts))
 
 	m.HandleFunc("GET /certs", s.perm(auth.PermCerts, s.listCerts))
 	m.HandleFunc("POST /certs/acme", s.perm(auth.PermCerts, s.acmeCert))

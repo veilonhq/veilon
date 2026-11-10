@@ -1,6 +1,7 @@
 package db
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -197,5 +198,49 @@ func TestOpenConcurrentSQLiteProcesses(t *testing.T) {
 		if err != nil {
 			t.Fatalf("open %d: %v", i, err)
 		}
+	}
+}
+
+// Upgrading a schema-5 database (the v0.2.x releases) applies the new
+// migrations without touching existing users, inbounds or settings, and a
+// second start is a no-op.
+func TestUpgradeFromSchema5KeepsData(t *testing.T) {
+	gdb := rawSQLite(t, filepath.Join(t.TempDir(), "u.db"))
+	saved := migrations
+	migrations = saved[:5]
+	if err := Migrate(gdb, "sqlite"); err != nil {
+		t.Fatal(err)
+	}
+	migrations = saved
+	if v := SchemaVersion(gdb); v != 5 {
+		t.Fatalf("setup: schema %d", v)
+	}
+	now := time.Now().UTC()
+	gdb.Exec(`INSERT INTO users (username, status, uuid, password, sub_token, created_at, updated_at, data_limit, up, down, ip_limit)
+		VALUES ('alice','active','u-1','p-1','tok-1',?,?,1000,11,22,3)`, now, now)
+	gdb.Exec(`INSERT INTO inbounds (remark, protocol, port, network, security, created_at, updated_at) VALUES ('VL', 'vless', 443, 'tcp', 'reality', ?, ?)`, now, now)
+	gdb.Exec(`INSERT INTO user_inbounds (user_id, inbound_id) VALUES (1, 1)`)
+	gdb.Exec(`INSERT INTO settings (key, value) VALUES ('server_address', '1.2.3.4')`)
+	snap := func() string {
+		var rows []map[string]any
+		gdb.Raw("SELECT username, status, uuid, password, sub_token, data_limit, up, down, ip_limit FROM users").Scan(&rows)
+		var ibs []map[string]any
+		gdb.Raw("SELECT remark, protocol, port, network, security, enabled FROM inbounds").Scan(&ibs)
+		var links, st []map[string]any
+		gdb.Raw("SELECT * FROM user_inbounds").Scan(&links)
+		gdb.Raw("SELECT * FROM settings").Scan(&st)
+		return fmt.Sprint(rows, ibs, links, st)
+	}
+	before := snap()
+	for i := 0; i < 2; i++ {
+		if err := Migrate(gdb, "sqlite"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if v := SchemaVersion(gdb); v != len(migrations) {
+		t.Fatalf("schema %d, want %d", v, len(migrations))
+	}
+	if after := snap(); after != before {
+		t.Fatalf("data changed by the upgrade:\n%s\n%s", before, after)
 	}
 }

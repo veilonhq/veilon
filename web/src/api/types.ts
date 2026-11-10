@@ -351,10 +351,28 @@ export interface Inbound {
   address_override: string;
   settings: InboundSettings;
   user_count: number;
+  /** number of hosts (link overrides) */
+  host_count?: number;
   created_at: string;
 }
 
-export type InboundInput = Omit<Inbound, 'id' | 'user_count' | 'created_at'>;
+/** A link override of an inbound: one share/subscription link per enabled host. */
+export interface InboundHost {
+  id?: number;
+  remark: string;
+  address: string;
+  /** 0 = the inbound's port */
+  port: number;
+  sni: string;
+  host: string;
+  path: string;
+  fingerprint: string;
+  /** comma separated */
+  alpn: string;
+  enabled: boolean;
+}
+
+export type InboundInput = Omit<Inbound, 'id' | 'user_count' | 'host_count' | 'created_at'>;
 
 export interface RealityKeys {
   private_key: string;

@@ -14,6 +14,7 @@ import type {
   Cert,
   Inbound,
   InboundInput,
+  InboundHost,
   LoginResponse,
   Paged,
   PublicIP,
@@ -471,6 +472,20 @@ export function useDeleteInbound() {
     },
     onError: (_e, _v, ctx) => qc.setQueryData(qk.inbounds, ctx?.prev),
     onSettled: () => qc.invalidateQueries({ queryKey: qk.inbounds }),
+  });
+}
+export function useInboundHosts(id: number | null) {
+  return useQuery({ queryKey: ['inbound-hosts', id], queryFn: () => api<InboundHost[]>(`/inbounds/${id}/hosts`), enabled: !!id });
+}
+export function useSaveHosts() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: number; hosts: InboundHost[] }) => api<InboundHost[]>(`/inbounds/${v.id}/hosts`, { method: 'PUT', body: { hosts: v.hosts } }),
+    onSuccess: (r, v) => {
+      qc.setQueryData(['inbound-hosts', v.id], r);
+      qc.setQueryData<Inbound[]>(qk.inbounds, (old) => old?.map((i) => (i.id === v.id ? { ...i, host_count: r.length } : i)));
+      qc.invalidateQueries({ queryKey: ['users', 'links'] });
+    },
   });
 }
 export const genRealityKeys = () => api<RealityKeys>('/inbounds/reality-keys', { method: 'POST' });

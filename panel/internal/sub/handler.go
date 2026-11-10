@@ -76,7 +76,11 @@ func (s *Service) Resolve(token string) (*db.User, []inbounds.View, error) {
 
 // Extras loads certificate pins and the user's WireGuard peers.
 func (s *Service) Extras(u *db.User, ibs []inbounds.View) Extras {
-	ex := Extras{Pins: CertPinsFull(s.DB), Peers: map[int64]db.WGPeer{}}
+	ids := make([]int64, 0, len(ibs))
+	for i := range ibs {
+		ids = append(ids, ibs[i].ID)
+	}
+	ex := Extras{Pins: CertPinsFull(s.DB), Peers: map[int64]db.WGPeer{}, Hosts: inbounds.EnabledHosts(s.DB, ids)}
 	for i := range ibs {
 		if !inbounds.IsWG(ibs[i].Protocol) {
 			continue
