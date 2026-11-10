@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ArrowUpCircle, Check, ChevronLeft, ChevronRight, Loader2, RotateCcw, ShieldCheck } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api } from '@/api/client';
 import { API_BASE } from '@/app/base';
 import { useI18n, type MessageKey } from '@/i18n';
@@ -8,7 +8,7 @@ import { useSession } from '@/store/session';
 import { toast } from '@/store/feedback';
 import { Modal } from './Overlay';
 import s from './UpdateBanner.module.css';
-import { noteLine, noteLines } from './updateNotes';
+import { noteBlocks, noteLine, type Span } from './updateNotes';
 
 export interface UpdateStatus {
   tag: string;
@@ -38,7 +38,7 @@ const SEEN_KEY = 'veilon.update.seen';
  * follows it across the restart.
  */
 export function UpdateBanner() {
-  const { t, dir } = useI18n();
+  const { t, dir, lang } = useI18n();
   const admin = useSession((x) => x.admin);
   const sudo = !!admin?.is_sudo;
   const [open, setOpen] = useState(false);
@@ -71,7 +71,7 @@ export function UpdateBanner() {
   else if (unseenResult && st?.phase === 'done') label = t('upd.doneShort', { v: st.tag });
   else if (unseenResult) label = t('upd.failedShort', { v: st!.tag });
   else label = t('upd.available', { v: info.available!.tag });
-  const line = !busy && !unseenResult && info.available ? noteLine(info.available.notes) : '';
+  const line = !busy && !unseenResult && info.available ? noteLine(info.available.notes, lang) : '';
   const tone = unseenResult && st?.phase !== 'done' ? s.warn : unseenResult ? s.ok : '';
 
   return (
@@ -110,8 +110,64 @@ export function UpdateBanner() {
   );
 }
 
+function Spans({ spans }: { spans: Span[] }) {
+  return (
+    <>
+      {spans.map((x, i) =>
+        x.code ? (
+          <code key={i} className="ltr" dir="ltr">
+            {x.text}
+          </code>
+        ) : (
+          <span key={i}>{x.text}</span>
+        ),
+      )}
+    </>
+  );
+}
+
+/** Release notes in the panel's language, rendered from their markdown. */
+function Notes({ notes }: { notes: string }) {
+  const { lang, dir } = useI18n();
+  const blocks = noteBlocks(notes, lang);
+  const out: ReactNode[] = [];
+  let items: ReactNode[] = [];
+  const flushItems = () => {
+    if (items.length) out.push(<ul key={`u${out.length}`}>{items}</ul>);
+    items = [];
+  };
+  blocks.forEach((b, i) => {
+    if (b.kind === 'item') {
+      items.push(
+        <li key={i}>
+          <Spans spans={b.spans} />
+        </li>,
+      );
+      return;
+    }
+    flushItems();
+    out.push(
+      b.kind === 'heading' ? (
+        <h3 key={i}>
+          <Spans spans={b.spans} />
+        </h3>
+      ) : (
+        <p key={i}>
+          <Spans spans={b.spans} />
+        </p>
+      ),
+    );
+  });
+  flushItems();
+  return (
+    <div className={s.notes} dir={dir}>
+      {out}
+    </div>
+  );
+}
+
 function UpdateDialog({ open, info, result, onClose, onStarted, onSettled }: { open: boolean; info: UpdateInfo; result: boolean; onClose: () => void; onStarted: () => void; onSettled: () => void }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const qc = useQueryClient();
   const [starting, setStarting] = useState(false);
   const [down, setDown] = useState(false);
@@ -203,12 +259,8 @@ function UpdateDialog({ open, info, result, onClose, onStarted, onSettled }: { o
         )}
         {!showProgress && rel && (
           <>
-            {rel.notes ? (
-              <div className={s.notes} dir="auto">
-                {noteLines(rel.notes).map((l, i) => (
-                  <p key={i}>{l || '\u00a0'}</p>
-                ))}
-              </div>
+            {rel.notes && noteBlocks(rel.notes, lang).length ? (
+              <Notes notes={rel.notes} />
             ) : (
               <p className={s.muted}>{t('upd.noNotes')}</p>
             )}
