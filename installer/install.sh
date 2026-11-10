@@ -691,6 +691,7 @@ do_uninstall() {
 			rm -f /etc/sysctl.d/99-veilon-bbr.conf
 			info "removed /etc/sysctl.d/99-veilon-bbr.conf (BBR stays on until the next reboot)"
 		fi
+		rm -f /etc/modules-load.d/veilon-bbr.conf
 		ok "configuration, data and database removed"
 		[[ $was_pg -eq 1 ]] && info "PostgreSQL itself is left installed; remove it with your package manager if nothing else uses it."
 	else
