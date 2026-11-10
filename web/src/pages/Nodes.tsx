@@ -1,6 +1,7 @@
 import { Activity, ArrowDown, ArrowUp, Clock, Cpu, MemoryStick, Plus, Server, Waypoints } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import { useInbounds, useNodes } from '@/api/hooks';
+import { useInbounds, useNodes, useTraffic } from '@/api/hooks';
+import { ServerTraffic } from '@/components/ServerTraffic';
 import type { VNode } from '@/api/types';
 import { EmptyState, ErrorState, PageHeader, Skeleton } from '@/components/misc';
 import { formatClock, formatIsoDay, useI18n } from '@/i18n';
@@ -14,6 +15,7 @@ export default function NodesPage() {
   const { t, n } = useI18n();
   const q = useNodes();
   const ibQ = useInbounds();
+  const traffic = useTraffic('30d');
   const [params, setParams] = useSearchParams();
   const editId = Number(params.get('n')) || null;
   const creating = params.get('new') === '1';
@@ -58,11 +60,16 @@ export default function NodesPage() {
       ) : list.length === 0 ? (
         <EmptyState kind="gates" title={t('node.empty')} body={t('node.emptyBody')} action={newBtn} />
       ) : (
-        <div className={s.grid}>
-          {list.map((x) => (
-            <NodeCard key={x.id} node={x} onOpen={() => go('n', String(x.id))} remark={remark} />
-          ))}
-        </div>
+        <>
+          <div className={s.grid}>
+            {list.map((x) => (
+              <NodeCard key={x.id} node={x} onOpen={() => go('n', String(x.id))} remark={remark} />
+            ))}
+          </div>
+          <section className={`glass ${s.servers}`}>
+            <ServerTraffic servers={traffic.data?.servers} range="30d" showTitle />
+          </section>
+        </>
       )}
       <NodeSheet open={creating || !!editing} node={editing} onClose={() => go(null)} inbounds={ibQ.data ?? []} onCreated={(id) => go('n', String(id))} />
     </div>
@@ -133,7 +140,7 @@ function NodeCard({ node: x, onOpen, remark }: { node: VNode; onOpen: () => void
       </span>
 
       <span className={s.foot}>
-        <span className={s.traffic}>
+        <span className={s.traffic} title={t('node.trafficAll')} aria-label={t('node.trafficAll')}>
           <span>
             <ArrowUp size={13} aria-hidden="true" />
             <bdi>{bytes(x.up)}</bdi>

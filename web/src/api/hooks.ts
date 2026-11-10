@@ -22,6 +22,7 @@ import type {
   Settings,
   SystemStats,
   TrafficPoint,
+  ServerTraffic,
   TrafficRange,
   User,
   UserInput,
@@ -97,7 +98,7 @@ export function useStats(intervalMs = 2000) {
 export function useTraffic(range: TrafficRange) {
   return useQuery({
     queryKey: qk.traffic(range),
-    queryFn: () => api<{ points: TrafficPoint[]; bucket_sec?: number }>('/system/traffic', { query: { range } }),
+    queryFn: () => api<{ points: TrafficPoint[]; bucket_sec?: number; total_up?: number; total_down?: number; servers?: ServerTraffic[] }>('/system/traffic', { query: { range } }),
     refetchInterval: 60_000,
   });
 }

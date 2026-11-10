@@ -100,6 +100,14 @@ export interface SystemStats {
 }
 
 export type TrafficRange = '24h' | '7d' | '30d';
+/** One server's share of the traffic in a window (id 0 = main server). */
+export interface ServerTraffic {
+  id: number;
+  name: string;
+  removed?: boolean;
+  up: number;
+  down: number;
+}
 export interface TrafficPoint {
   t: string;
   up: number;

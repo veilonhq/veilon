@@ -6,6 +6,7 @@ import { api } from '@/api/client';
 import { useStats, useTraffic } from '@/api/hooks';
 import type { Paged, TrafficRange, User } from '@/api/types';
 import { TrafficChart } from '@/components/TrafficChart';
+import { ServerTraffic } from '@/components/ServerTraffic';
 import { ErrorState, Skeleton } from '@/components/misc';
 import { ArcGauge, CorePulse, CountUp, OnlineOrbit } from '@/components/viz';
 import { LiveChart, useRateSeries } from '@/components/LiveChart';
@@ -295,6 +296,7 @@ export default function DashboardPage() {
             </div>
           </div>
           {traffic.data ? <TrafficChart points={traffic.data.points} range={range} bucketSec={traffic.data.bucket_sec} height={230} /> : <Skeleton h={230} r={16} />}
+          {traffic.data?.servers && traffic.data.servers.length > 1 && <ServerTraffic servers={traffic.data.servers} range={range} />}
         </section>
 
         {/* SHORTCUTS */}
