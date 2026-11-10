@@ -68,6 +68,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer
 - [گواهی SSL: دامنه یا IP سرور](#گواهی-ssl-دامنه-یا-ip-سرور)
 - [اولین ورود، ساخت ورودی و کاربر](#اولین-ورود-ساخت-ورودی-و-کاربر)
 - [اتصال با برنامه های کلاینت](#اتصال-با-برنامه-های-کلاینت)
+- [پیکربندی Xray، هاست ها، به روزرسانی و نودها](#پیکربندی-xray-هاست-ها-به-روزرسانی-و-نودها)
 - [منوی مدیریت veilon](#منوی-مدیریت-veilon)
 - [رفع مشکلات رایج](#رفع-مشکلات-رایج)
 - [حمایت از توسعه دهنده](#حمایت-از-توسعه-دهنده)
@@ -99,6 +100,10 @@ bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer
 - 🔍 **گزارش اتصال ها:** IP ها و دستگاه های هر کاربر با اولین و آخرین زمان دیده شدن، و مسدود یا آزاد کردن هر IP یا دستگاه
 - 🗂️ **گروه ها:** گروه بسازید، کاربران را در گروه بگذارید، برای گروه ورودی ها و مقادیر پیش فرض تعیین کنید و مسدودسازی تبلیغات را روشن کنید
 - 🧑‍💼 **چند مدیر با دسترسی جدا:** مدیر اصلی و مدیران زیرمجموعه؛ برای هر مدیر دیدن، ساختن، ویرایش و حذف کاربران و دسترسی به بخش ها جدا روشن یا خاموش می شود، به همراه سقف تعداد کاربر و حجم؛ ثبت رویدادها (Audit log)
+- 🧭 **پیکربندی Xray:** خروجی ها، قوانین مسیریابی، متعادل کننده ها، DNS و ویرایشگر JSON؛ هر تغییر قبل از اعمال توسط خود Xray بررسی می شود و در صورت خطا پیکربندی قبلی برمی گردد
+- 🌐 **هاست ها:** برای هر ورودی چند لینک با آدرس، پورت، SNI یا مسیر دیگر (مثلا CDN یا دامنه دیگر) در اشتراک کاربران
+- 🔄 **به روزرسانی از داخل پنل:** اعلان نسخه تازه، بررسی checksum، پشتیبان برنامه و پایگاه داده، و برگشت خودکار اگر نسخه تازه سالم بالا نیاید
+- 🛰️ **نودها (اختیاری):** سرورهای دیگر با همان کاربران، با ارتباط mTLS، ارسال خودکار پیکربندی، آمار ترافیک و وضعیت هر نود
 - 🗄️ **پایگاه داده:** PostgreSQL (پیش فرض) یا SQLite
 - 💻 **منوی خط فرمان `veilon`:** به روزرسانی، ری استارت، لاگ ها، تغییر رمز، پورت، مسیر، SSL، BBR و فایروال
 - 🌗 **رابط کاربری:** واکنش گرا برای موبایل و دسکتاپ، تم تیره و روشن، فارسی (پیش فرض) و انگلیسی
@@ -344,6 +349,15 @@ veilon cert list
 
 ---
 
+## پیکربندی Xray، هاست ها، به روزرسانی و نودها
+
+- **پیکربندی Xray:** در **بیشتر ← پیکربندی Xray** خروجی ها، قوانین مسیریابی، متعادل کننده ها و DNS هسته را تنظیم کنید. **آزمایش** پیکربندی را با خود Xray بررسی می کند و **اعمال** آن را با برگشت خودکار در صورت خطا اجرا می کند. [راهنما](docs/fa/xray-config.md)
+- **هاست ها:** در **ورودی ها** روی دکمه هاست ها در ردیف هر ورودی بزنید تا لینک های اضافه (CDN، دامنه یا پورت دیگر) بسازید. فیلدهای خالی همان مقدار ورودی را نگه می دارند. [راهنما](docs/fa/hosts.md)
+- **به روزرسانی از داخل پنل:** وقتی نسخه تازه بیاید، بالای پنل اعلان نمایش داده می شود و با **نصب به روزرسانی** نصب می شود. سرورهایی که نسخه v0.2.2 دارند باید یک بار `sudo veilon update` را روی سرور بزنند. [راهنما](docs/fa/self-update.md)
+- **نودها (اختیاری):** برای پنل فقط یک VPS لازم است. اگر سرور دیگری دارید، در **بیشتر ← نودها ← افزودن نود** آن را اضافه کنید و دستوری را که پنل نشان می دهد روی سرور نود اجرا کنید (به شکل `install.sh node --token ...`). [راهنما](docs/fa/nodes.md)
+
+---
+
 ## منوی مدیریت veilon
 
 با کاربر root این دستور را بزنید تا منوی مدیریت باز شود:
@@ -544,6 +558,10 @@ bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer
 - 🔍 **Connection log:** Each user's IPs and devices with first and last seen, block or unblock any IP or device
 - 🗂️ **Groups:** Create groups, put users in them, set a group's inbounds and defaults, turn on ad blocking
 - 🧑‍💼 **Multiple admins with permissions:** Per sub-admin toggles for viewing, creating, editing and deleting users and for each panel area, plus user and traffic quotas; audit log
+- 🧭 **Xray config:** Outbounds, routing rules, balancers, DNS and a JSON editor; every change is checked by Xray before it is applied and rolled back if Xray does not stay up
+- 🌐 **Hosts:** Several links per inbound with another address, port, SNI or path (e.g. a CDN or another domain) in users' subscriptions
+- 🔄 **In-panel updates:** New-version banner, checksum check, backup of program and database, automatic rollback if the new version is not healthy
+- 🛰️ **Nodes (optional):** Extra servers with the same users, over mTLS, with automatic config push, traffic stats and health per node
 - 🗄️ **Database:** PostgreSQL (default) or SQLite
 - 💻 **`veilon` CLI menu:** Update, restart, logs, credentials, port, path, SSL, BBR and firewall
 - 🌗 **UI:** Responsive for phone and desktop, dark and light themes, Persian (default) and English
@@ -723,6 +741,13 @@ veilon cert issue --ip auto --panel
 | **Streisand** | iOS, macOS | Import the subscription link or scan the QR code |
 | **AmneziaWG** | Android, iOS, Windows, macOS | For AmneziaWG inbounds: download the `.conf` file from the user page and import it |
 | **WireGuard** | All | For WireGuard inbounds: the `.conf` file or scan the QR code |
+
+## Xray config, hosts, updates and nodes
+
+- **Xray config:** **More → Xray config** sets the core's outbounds, routing rules, balancers and DNS. **Test** checks the config with Xray itself; **Apply** runs it with automatic rollback on failure. [Guide](docs/en/xray-config.md)
+- **Hosts:** on **Inbounds**, press the hosts button on an inbound row to add extra links (a CDN, another domain or port). Empty fields keep the inbound's value. [Guide](docs/en/hosts.md)
+- **In-panel updates:** a banner appears when a new release is out; **Install update** installs it. Servers on v0.2.2 need to run `sudo veilon update` on the server once first. [Guide](docs/en/self-update.md)
+- **Nodes (optional):** the panel needs only one VPS. To add another server, open **More → Nodes → Add node** and run the command the panel shows on the node server (in the form `install.sh node --token ...`). [Guide](docs/en/nodes.md)
 
 ## Management
 
