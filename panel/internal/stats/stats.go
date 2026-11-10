@@ -3,13 +3,13 @@
 package stats
 
 import (
-	"fmt"
-	"sort"
 	"bufio"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"

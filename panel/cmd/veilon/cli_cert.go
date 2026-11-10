@@ -5,7 +5,6 @@ package main
 // certificate and hot-reloads the panel and inbounds).
 
 import (
-	"github.com/veilonhq/veilon/panel/internal/users"
 	"errors"
 	"flag"
 	"fmt"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/veilonhq/veilon/panel/internal/certs"
 	"github.com/veilonhq/veilon/panel/internal/config"
+	"github.com/veilonhq/veilon/panel/internal/users"
 )
 
 const certUsage = `Usage:
