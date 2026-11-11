@@ -2,6 +2,20 @@
 
 Each release's notes, Persian first. Older releases: https://github.com/veilonhq/veilon/releases
 
+## Unreleased
+
+### فارسی
+
+- بررسی دستی به روزرسانی در تنظیمات؛ بررسی خودکار هر ۶ ساعت مثل قبل ادامه دارد
+- بنر به روزرسانی جمع و جور و یک خطی شد و در صفحه تنظیمات نمایش داده نمی شود
+- پیام موفقیت به روزرسانی بعد از ۱۰ ثانیه خودش بسته می شود و برای همان نسخه دوباره نمایش داده نمی شود
+
+### English
+
+- Manual update check in Settings; the automatic check every 6 hours stays
+- Compact one-row update banner, hidden on the Settings page
+- The update success notice closes by itself after 10 seconds and stays dismissed for that version
+
 ## v0.3.2 (2026-11-10)
 
 ### فارسی
