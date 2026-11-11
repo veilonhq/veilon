@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="fa" dir="rtl" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#07080C" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <title>Veilon</title>
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('veilon.sub.theme') === 'light' ? 'light' : 'dark';
+          var l = localStorage.getItem('veilon.sub.lang');
+          if (l !== 'fa' && l !== 'en') l = (window.__VEILON_SUB__ && window.__VEILON_SUB__.lang) === 'en' ? 'en' : 'fa';
+          var d = document.documentElement;
+          d.dataset.theme = t;
+          d.lang = l;
+          d.dir = l === 'fa' ? 'rtl' : 'ltr';
+          if (t === 'light') document.querySelector('meta[name="theme-color"]').setAttribute('content', '#F2F1EC');
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/sub/main.tsx"></script>
+  </body>
+</html>

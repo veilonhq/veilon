@@ -13,7 +13,10 @@ function runtimeBase(): Plugin {
     name: 'veilon-runtime-base',
     transformIndexHtml: {
       order: 'pre',
-      handler() {
+      handler(_html, ctx) {
+        // The subscription page gets its <base> from the server (it lives
+        // below the subscription path, never the panel path).
+        if (ctx.filename.endsWith('sub.html')) return [];
         return [
           {
             tag: 'script',
@@ -32,5 +35,12 @@ export default defineConfig(({ command }) => ({
   plugins: [react(), command === 'build' ? runtimeBase() : null],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   server: { host: true, port: 5173, open: false },
-  build: { outDir: 'dist', emptyOutDir: true, chunkSizeWarningLimit: 900, sourcemap: false },
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+    chunkSizeWarningLimit: 900,
+    sourcemap: false,
+    // index.html: the admin panel; sub.html: the subscription page users open in a browser.
+    rollupOptions: { input: { main: fileURLToPath(new URL('./index.html', import.meta.url)), sub: fileURLToPath(new URL('./sub.html', import.meta.url)) } },
+  },
 }));

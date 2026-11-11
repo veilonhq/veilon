@@ -2,6 +2,20 @@
 
 Each release's notes, Persian first. Older releases: https://github.com/veilonhq/veilon/releases
 
+## Unreleased
+
+### فارسی
+
+- صفحه اشتراک برای مرورگر: وقتی کاربر لینک اشتراک را در مرورگر باز می کند، صفحه ای با طراحی پنل می بیند: وضعیت، حلقه مصرف (حجم مصرف شده از کل یا ∞)، آپلود، دانلود، روز باقی مانده، تاریخ انقضا (تقویم شمسی، به وقت پنل)، آخرین اتصال، لینک اشتراک با کپی و QR، همه کانفیگ ها با کپی و QR و «کپی همه»، و فاصله به روزرسانی خودکار. تم تیره و روشن، فارسی و انگلیسی
+- برنامه های VPN (v2rayNG، Hiddify، Streisand، Shadowrocket، sing-box، کلش و ...) همان اشتراک قبلی را بدون هیچ تغییری می گیرند؛ با `?format=raw` در مرورگر هم خود اشتراک برگردانده می شود و `?format=status` داده صفحه را به صورت JSON می دهد
+- کاربران غیرفعال، منقضی یا با حجم تمام شده هم صفحه را با وضعیت خودشان می بینند
+
+### English
+
+- Subscription page for browsers: opening a subscription link in a browser shows a page in the panel's design: status, a usage ring (used of total, or ∞), upload, download, days left, expiry date (Persian calendar in Persian, panel time zone), last online, the subscription link with copy and QR, every config with copy and QR plus "copy all", and the auto-update interval. Dark and light themes, Persian and English
+- VPN clients (v2rayNG, Hiddify, Streisand, Shadowrocket, sing-box, clash and others) keep receiving the exact same subscription; `?format=raw` returns the subscription in a browser too, and `?format=status` returns the page data as JSON
+- Disabled, expired and out-of-data users also see the page, with their status
+
 ## v0.3.3 (2026-11-11)
 
 ### فارسی
