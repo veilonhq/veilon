@@ -291,7 +291,7 @@ func Build(in *Input) ([]byte, error) {
 		"api":   obj{"tag": "api", "services": []string{"StatsService"}},
 		"stats": obj{},
 		"policy": obj{
-			"levels": obj{"0": obj{"statsUserUplink": true, "statsUserDownlink": true}},
+			"levels": obj{"0": obj{"statsUserUplink": true, "statsUserDownlink": true, "statsUserOnline": true}},
 			"system": obj{
 				"statsInboundUplink": true, "statsInboundDownlink": true,
 				"statsOutboundUplink": true, "statsOutboundDownlink": true,

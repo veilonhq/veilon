@@ -9,6 +9,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/audit"
 	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/logbuf"
+	"github.com/veilonhq/veilon/panel/internal/presence"
 	"github.com/veilonhq/veilon/panel/internal/stats"
 	"github.com/veilonhq/veilon/panel/internal/usage"
 	"github.com/veilonhq/veilon/panel/internal/users"
@@ -32,7 +33,9 @@ func (s *Server) systemStats(w http.ResponseWriter, r *http.Request, a *db.Admin
 		total += c.N
 	}
 	var online int64
-	s.DB.Model(&db.User{}).Where("last_online_at > ?", time.Now().UTC().Add(-users.OnlineWindow)).Count(&online)
+	if ids := presence.Default.OnlineIDs(time.Now().UTC()); len(ids) > 0 {
+		s.DB.Model(&db.User{}).Where("id IN ?", ids).Count(&online)
+	}
 	// The total is the sum of every user's counters: the same source and
 	// units (counted bytes) as the users list.
 	up, down, err := usage.Totals(s.DB)

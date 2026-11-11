@@ -188,3 +188,62 @@ func ParseStats(stats []Stat) Traffic {
 	}
 	return t
 }
+
+// DecodeOnlineUsers decodes GetAllOnlineUsersResponse{repeated string
+// users=1} into user ids. Names look like "user>>>EMAIL>>>online".
+func DecodeOnlineUsers(b []byte) ([]int64, error) {
+	var out []int64
+	for len(b) > 0 {
+		num, typ, n := protowire.ConsumeTag(b)
+		if n < 0 {
+			return nil, protowire.ParseError(n)
+		}
+		b = b[n:]
+		if num == 1 && typ == protowire.BytesType {
+			v, m := protowire.ConsumeString(b)
+			if m < 0 {
+				return nil, protowire.ParseError(m)
+			}
+			b = b[m:]
+			if rest, ok := strings.CutPrefix(v, "user>>>"); ok {
+				if email, ok := strings.CutSuffix(rest, ">>>online"); ok {
+					if id, ok := ParseEmail(email); ok {
+						out = append(out, id)
+					}
+				}
+			}
+			continue
+		}
+		m := protowire.ConsumeFieldValue(num, typ, b)
+		if m < 0 {
+			return nil, protowire.ParseError(m)
+		}
+		b = b[m:]
+	}
+	return out, nil
+}
+
+// OnlineUsers calls GetAllOnlineUsers: the users with at least one open
+// connection (needs statsUserOnline in the policy). Xray versions without
+// the call answer codes.Unimplemented.
+func (c *StatsClient) OnlineUsers(ctx context.Context) ([]int64, error) {
+	req := []byte{}
+	var resp []byte
+	err := c.conn.Invoke(ctx, "/xray.app.stats.command.StatsService/GetAllOnlineUsers", &req, &resp, grpc.ForceCodec(rawCodec{}))
+	if err != nil {
+		return nil, err
+	}
+	return DecodeOnlineUsers(resp)
+}
+
+// TracksConnections reports whether this Xray version keeps an exact list
+// of users with open connections: since v26.3 the online map counts
+// connections (older versions kept users online after they left).
+func TracksConnections(version string) bool {
+	v := strings.TrimPrefix(strings.TrimSpace(version), "v")
+	var major, minor int
+	if _, err := fmt.Sscanf(v, "%d.%d", &major, &minor); err != nil {
+		return false
+	}
+	return major > 26 || (major == 26 && minor >= 3)
+}

@@ -3,6 +3,7 @@ package nodes
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -14,6 +15,9 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/veilonhq/veilon/panel/internal/xray"
 )
@@ -173,6 +177,33 @@ func (c *ProcCore) Collect(ctx context.Context) (xray.Traffic, error) {
 		return xray.Traffic{}, err
 	}
 	return xray.ParseStats(st), nil
+}
+
+// Online lists the users with open connections (GetAllOnlineUsers).
+func (c *ProcCore) Online(ctx context.Context) ([]int64, error) {
+	running, ver, _ := c.Status()
+	if !running {
+		return nil, errors.New("xray is not running")
+	}
+	if !xray.TracksConnections(ver) {
+		return nil, ErrOnlineUnsupported
+	}
+	c.mu.Lock()
+	if c.stats == nil {
+		sc, err := xray.NewStatsClient(net.JoinHostPort("127.0.0.1", strconv.Itoa(c.APIPort)))
+		if err != nil {
+			c.mu.Unlock()
+			return nil, err
+		}
+		c.stats = sc
+	}
+	sc := c.stats
+	c.mu.Unlock()
+	ids, err := sc.OnlineUsers(ctx)
+	if status.Code(err) == codes.Unimplemented {
+		return nil, ErrOnlineUnsupported
+	}
+	return ids, err
 }
 
 func xrayVersion(bin string) string {

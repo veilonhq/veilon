@@ -17,9 +17,12 @@ import (
 	"syscall"
 	"time"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
 
 	"github.com/veilonhq/veilon/panel/internal/db"
+	"github.com/veilonhq/veilon/panel/internal/presence"
 	"github.com/veilonhq/veilon/panel/internal/usage"
 	"github.com/veilonhq/veilon/panel/internal/users"
 	"github.com/veilonhq/veilon/panel/internal/util"
@@ -59,6 +62,9 @@ type Options struct {
 	Version      string
 	Debounce     time.Duration
 	StatsEvery   time.Duration
+	// OnlineEvery is how often the users with open connections are read
+	// (default 5s).
+	OnlineEvery time.Duration
 	// OnLine receives every output line (the access log feeds the
 	// connection guard).
 	OnLine func(line string)
@@ -88,6 +94,9 @@ type Manager struct {
 	sysUp    atomic.Int64
 	sysDown  atomic.Int64
 	stats    *StatsClient
+	// noOnline: this Xray answered GetAllOnlineUsers with Unimplemented
+	// (cleared when Xray starts again).
+	noOnline bool
 }
 
 // XrayProtocols are the inbound protocols served by Xray-core.
@@ -103,6 +112,9 @@ func NewManager(opt Options) *Manager {
 	}
 	if opt.StatsEvery == 0 {
 		opt.StatsEvery = 10 * time.Second
+	}
+	if opt.OnlineEvery == 0 {
+		opt.OnlineEvery = 5 * time.Second
 	}
 	return &Manager{opt: opt, reloadCh: make(chan bool, 1), ctlCh: make(chan ctlReq), logs: newRing(2000)}
 }
@@ -186,6 +198,8 @@ func (m *Manager) Run(ctx context.Context) {
 	m.apply(true)
 	statsT := time.NewTicker(m.opt.StatsEvery)
 	defer statsT.Stop()
+	onlineT := time.NewTicker(m.opt.OnlineEvery)
+	defer onlineT.Stop()
 	var (
 		debounce  <-chan time.Time
 		force     bool
@@ -232,6 +246,8 @@ func (m *Manager) Run(ctx context.Context) {
 			}
 		case <-statsT.C:
 			m.collect(ctx)
+		case <-onlineT.C:
+			m.pollOnline(ctx)
 		case req := <-m.ctlCh:
 			if !util.Safe("xray control", req.fn) {
 				m.setErr("internal error (see the service log)")
@@ -379,6 +395,9 @@ func (m *Manager) stop() {
 		m.stats.Close()
 		m.stats = nil
 	}
+	m.noOnline = false
+	// Its connections are gone with it.
+	presence.Default.ReportLive(presence.MainXray, nil, time.Now().UTC())
 	m.logs.add("[veilon] xray stopped")
 }
 
@@ -420,9 +439,45 @@ func (m *Manager) collect(ctx context.Context) {
 	t := ParseStats(stats)
 	m.sysUp.Add(t.SysUp)
 	m.sysDown.Add(t.SysDown)
-	if err := ApplyUserTraffic(m.opt.DB, t.Users, time.Now().UTC()); err != nil {
+	now := time.Now().UTC()
+	presence.Default.Traffic(presence.MainXray, t.Users, now)
+	if err := ApplyUserTraffic(m.opt.DB, t.Users, now); err != nil {
 		slog.Warn("store user traffic failed", "err", err)
 	}
+}
+
+// pollOnline reads the users with at least one open connection, so a user
+// shows online within seconds of connecting and offline within seconds of
+// leaving. Xray versions that do not track connections exactly keep the
+// traffic rule (see package presence).
+func (m *Manager) pollOnline(ctx context.Context) {
+	m.mu.Lock()
+	running, ver := m.running, m.version
+	m.mu.Unlock()
+	if !running || m.noOnline || !TracksConnections(ver) {
+		return
+	}
+	if m.stats == nil {
+		c, err := NewStatsClient(fmt.Sprintf("127.0.0.1:%d", m.opt.APIPort))
+		if err != nil {
+			return
+		}
+		m.stats = c
+	}
+	qctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	ids, err := m.stats.OnlineUsers(qctx)
+	if err != nil {
+		if status.Code(err) == codes.Unimplemented {
+			m.noOnline = true
+			presence.Default.NotLive(presence.MainXray)
+			slog.Info("xray does not list online users; using the traffic rule", "version", ver)
+			return
+		}
+		slog.Debug("xray online query failed", "err", err)
+		return
+	}
+	presence.Default.ReportLive(presence.MainXray, ids, time.Now().UTC())
 }
 
 // ApplyUserTraffic adds traffic deltas ({up, down} bytes) to users. Only
@@ -485,9 +540,6 @@ func ApplyUserTrafficTx(tx *gorm.DB, deltas map[int64][2]int64, now time.Time) (
 			"up":         gorm.Expr("up + ?", up),
 			"down":       gorm.Expr("down + ?", down),
 			"daily_used": gorm.Expr("daily_used + ?", up+down),
-		}
-		if d[0] > 0 {
-			upd["last_online_at"] = now
 		}
 		res := tx.Model(&db.User{}).Where("id = ?", id).Updates(upd)
 		if res.Error != nil {

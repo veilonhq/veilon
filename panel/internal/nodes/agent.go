@@ -37,6 +37,16 @@ type Core interface {
 	Stop()
 }
 
+// OnlineCore is a Core that lists the users with open connections.
+type OnlineCore interface {
+	// Online returns the users with at least one open connection, or
+	// ErrOnlineUnsupported when this Xray cannot tell.
+	Online(ctx context.Context) ([]int64, error)
+}
+
+// ErrOnlineUnsupported: the node's Xray does not list online users.
+var ErrOnlineUnsupported = errors.New("this Xray does not list online users")
+
 // Agent is the node side ("veilon node serve").
 type Agent struct {
 	Enrollment *Enrollment
@@ -302,6 +312,7 @@ func (a *Agent) Handler() http.Handler {
 	m.HandleFunc("PUT /v1/config", a.putConfig)
 	m.HandleFunc("GET /v1/stats", a.stats)
 	m.HandleFunc("PUT /v1/bans", a.putBans)
+	m.HandleFunc("GET /v1/online", a.online)
 	m.HandleFunc("POST /v1/update", a.postUpdate)
 	m.HandleFunc("GET /v1/update", func(w http.ResponseWriter, r *http.Request) { writeJ(w, 200, a.updateStatus()) })
 	if a.Updater == nil {
@@ -355,11 +366,38 @@ func (a *Agent) info() Info {
 		in.Arch = a.Arch
 	}
 	if a.Updater != nil {
-		in.Caps = []string{CapUpdate}
+		in.Caps = append(in.Caps, CapUpdate)
 		in.Update = a.updateStatus()
+	}
+	if _, ok := a.Core.(OnlineCore); ok {
+		in.Caps = append(in.Caps, CapOnline)
 	}
 	in.Load1, in.MemUsed = hostLoad()
 	return in
+}
+
+// online lists the users with open connections (501 when this Xray cannot
+// tell, 503 when it is not running).
+func (a *Agent) online(w http.ResponseWriter, r *http.Request) {
+	oc, ok := a.Core.(OnlineCore)
+	if !ok {
+		writeJ(w, 501, map[string]string{"error": ErrOnlineUnsupported.Error()})
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+	ids, err := oc.Online(ctx)
+	switch {
+	case errors.Is(err, ErrOnlineUnsupported):
+		writeJ(w, 501, map[string]string{"error": err.Error()})
+	case err != nil:
+		writeJ(w, 503, map[string]string{"error": err.Error()})
+	default:
+		if ids == nil {
+			ids = []int64{}
+		}
+		writeJ(w, 200, OnlineReply{Users: ids, Now: time.Now().UTC()})
+	}
 }
 
 func (a *Agent) putConfig(w http.ResponseWriter, r *http.Request) {

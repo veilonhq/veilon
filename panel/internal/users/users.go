@@ -11,18 +11,20 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/veilonhq/veilon/panel/internal/db"
+	"github.com/veilonhq/veilon/panel/internal/presence"
 	"github.com/veilonhq/veilon/panel/internal/util"
 )
 
-// OnlineWindow is how recently a user's client must have sent traffic to
-// count as online. Cores are polled every 10s, so this spans several polls.
-const OnlineWindow = 60 * time.Second
+// IsOnline is the panel's online rule (package presence): an open
+// connection on the main server's Xray or a node's, or recent traffic on
+// cores that do not list connections. The admin panel and the subscription
+// page share it.
+func IsOnline(id int64, now time.Time) bool { return presence.Default.Online(id, now) }
 
-// IsOnline is the panel's online rule: traffic seen within OnlineWindow,
-// from the main server's cores or from a node (both stamp last_online_at).
-// The admin panel and the subscription page share it.
-func IsOnline(lastOnline *time.Time, now time.Time) bool {
-	return lastOnline != nil && now.Sub(*lastOnline) < OnlineWindow
+// LastOnline is when the user was last seen online: the stored value, or a
+// later moment the tracker saw that is not stored yet.
+func LastOnline(id int64, stored *time.Time) *time.Time {
+	return presence.Default.LastOnline(id, stored)
 }
 
 // View is the API representation of a user.
@@ -135,7 +137,7 @@ func (s *Service) ToView(u *db.User, inboundIDs []int64, host string) View {
 		ID: u.ID, Username: u.Username, Status: u.Status, DataLimit: u.DataLimit,
 		UsedTraffic: u.Used(), Up: u.Up, Down: u.Down, ExpireAt: u.ExpireAt, OnHoldDays: u.OnHoldDays,
 		ResetStrategy: u.ResetStrategy, Note: u.Note, InboundIDs: inboundIDs, UUID: u.UUID,
-		Password: u.Password, SubToken: u.SubToken, LastOnlineAt: u.LastOnlineAt,
+		Password: u.Password, SubToken: u.SubToken, LastOnlineAt: LastOnline(u.ID, u.LastOnlineAt),
 		CreatedAt: u.CreatedAt, UpdatedAt: u.UpdatedAt,
 		IPLimit: u.IPLimit, DeviceLimit: u.DeviceLimit, RequireHWID: u.RequireHWID,
 		SpeedLimitDown: kbpsToMbps(u.SpeedDownKbps), SpeedLimitUp: kbpsToMbps(u.SpeedUpKbps),
@@ -143,7 +145,7 @@ func (s *Service) ToView(u *db.User, inboundIDs []int64, host string) View {
 		BlockTorrent: u.BlockTorrent, WindowFrom: u.WindowFrom, WindowTo: u.WindowTo, WindowDays: u.WindowDays,
 		SuspendReason: u.SuspendReason, GroupID: u.GroupID, AdminID: u.AdminID,
 	}
-	v.Online = IsOnline(u.LastOnlineAt, s.now())
+	v.Online = IsOnline(u.ID, s.now())
 	if s.SubURL != nil {
 		v.SubURL = s.SubURL(u.SubToken, host)
 	}
@@ -205,7 +207,7 @@ func (s *Service) List(p ListParams, host string) ([]View, int64, error) {
 	}
 	if p.Status != "" {
 		if p.Status == "online" {
-			q = q.Where("last_online_at > ?", s.now().Add(-OnlineWindow))
+			q = q.Where("id IN ?", append([]int64{0}, presence.Default.OnlineIDs(s.now())...))
 		} else {
 			q = q.Where("status = ?", p.Status)
 		}

@@ -11,6 +11,9 @@ import {
   formatNumber,
   knownStatus,
   linkChips,
+  liveURL,
+  LIVE_POLL_MS,
+  mergeLive,
   usageRatio,
   usageTone,
   type Lang,
@@ -187,7 +190,53 @@ function Stat({ icon, label, value, sub, wide }: { icon: ReactNode; label: strin
   );
 }
 
-export function SubApp({ data, serverLang }: { data: SubData; serverLang: Lang }) {
+/** Keeps status, usage and online fresh while the page is visible. */
+function useLive(initial: SubData): SubData {
+  const [data, setData] = useState(initial);
+  useEffect(() => {
+    if (import.meta.env.DEV && !/\/[^/]+\/[^/]+/.test(location.pathname)) return; // dev sample
+    let timer = 0;
+    let ctl: AbortController | null = null;
+    const load = async () => {
+      ctl?.abort();
+      ctl = new AbortController();
+      try {
+        const r = await fetch(liveURL(location.pathname), { headers: { Accept: 'application/json' }, cache: 'no-store', signal: ctl.signal });
+        if (r.ok) {
+          const l: unknown = await r.json();
+          setData((d) => mergeLive(d, l));
+        }
+      } catch {
+        /* offline or aborted: keep what is shown */
+      }
+    };
+    const stop = () => {
+      window.clearInterval(timer);
+      timer = 0;
+      ctl?.abort();
+    };
+    const start = () => {
+      if (timer || document.visibilityState !== 'visible') return;
+      timer = window.setInterval(load, LIVE_POLL_MS);
+    };
+    const onVis = () => {
+      if (document.visibilityState === 'visible') {
+        load();
+        start();
+      } else stop();
+    };
+    start();
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      stop();
+    };
+  }, []);
+  return data;
+}
+
+export function SubApp({ data: initial, serverLang }: { data: SubData; serverLang: Lang }) {
+  const data = useLive(initial);
   const [theme, setThemeState] = useState<Theme>(() => (store.get(THEME_KEY) === 'light' ? 'light' : 'dark'));
   const [lang, setLangState] = useState<Lang>(() => {
     const l = store.get(LANG_KEY);

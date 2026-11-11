@@ -406,6 +406,8 @@ func (s *Service) Delete(id int64) error {
 	})
 	if err == nil {
 		s.Manager.Forget(id)
+		// Its users are no longer seen there.
+		s.Manager.Presence.Forget(Source(id))
 	}
 	return err
 }

@@ -63,3 +63,22 @@ test('last online tile: the server online flag wins, then the last time seen', (
   assert.equal(dictionaries.fa['usage.online.now'], 'آنلاین');
   assert.equal(dictionaries.en['usage.online.now'], 'Online');
 });
+
+test('live refresh: ?format=live every 5 s at most, merged without touching the configs', async () => {
+  const { LIVE_POLL_MS, liveURL, mergeLive } = await import('../src/sub/format.ts');
+  assert.ok(LIVE_POLL_MS <= 5000);
+  assert.equal(liveURL('/sub/tok'), '/sub/tok?format=live');
+  const d = { username: 'u', status: 'active', up: 1, down: 2, used: 3, limit: 0, expire_at: null, last_online_at: null, online: false, sub_url: 's', title: 't', update_hours: 12, timezone: 'UTC', links: [{ name: 'a', protocol: 'vless', uri: 'vless://x' }] };
+  const seen = '2026-11-11T18:00:00Z';
+  const on = mergeLive(d, { status: 'active', up: 5, down: 6, used: 11, limit: 0, expire_at: null, last_online_at: seen, online: true });
+  assert.equal(on.online, true);
+  assert.equal(on.used, 11);
+  assert.equal(on.last_online_at, seen);
+  assert.equal(on.links, d.links);
+  assert.equal(mergeLive(on, { ...on }), on, 'unchanged answer keeps the same object');
+  assert.equal(mergeLive(d, null), d);
+  assert.equal(mergeLive(d, { error: 'x' }), d);
+  const off = mergeLive(on, { status: 'active', online: false, last_online_at: seen });
+  assert.equal(off.online, false);
+  assert.equal(off.last_online_at, seen);
+});

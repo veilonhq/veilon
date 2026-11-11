@@ -143,9 +143,13 @@ func (s *Service) Serve(w http.ResponseWriter, r *http.Request, token string, in
 		http.NotFound(w, r)
 		return
 	}
+	format := r.URL.Query().Get("format")
+	if !info && format == FormatLive {
+		serveLive(w, u)
+		return
+	}
 	st := db.LoadSettings(s.DB)
 	ps := BuildProxiesX(u, ibs, st, r.Host, s.Extras(u, ibs))
-	format := r.URL.Query().Get("format")
 	if !info {
 		// A browser gets the subscription page; clients (and ?format=raw)
 		// get the subscription exactly as before.

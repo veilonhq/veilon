@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/veilonhq/veilon/panel/internal/inbounds"
+	"github.com/veilonhq/veilon/panel/internal/presence"
 	"github.com/veilonhq/veilon/panel/internal/xray"
 )
 
@@ -177,7 +178,9 @@ func (e *MTG) collect(ctx context.Context, running []Running) {
 		e.mu.Unlock()
 	}
 	e.AddSystem(su, sd)
-	if err := xray.ApplyUserTraffic(e.opt.DB, deltas, time.Now().UTC()); err != nil {
+	now := time.Now().UTC()
+	presence.Default.Traffic(presence.MainMTG, deltas, now)
+	if err := xray.ApplyUserTraffic(e.opt.DB, deltas, now); err != nil {
 		slog.Warn("store mtproto user traffic", "err", err)
 	}
 }

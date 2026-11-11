@@ -27,6 +27,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/jobs"
 	"github.com/veilonhq/veilon/panel/internal/logbuf"
 	"github.com/veilonhq/veilon/panel/internal/nodes"
+	"github.com/veilonhq/veilon/panel/internal/presence"
 	"github.com/veilonhq/veilon/panel/internal/selfupdate"
 	"github.com/veilonhq/veilon/panel/internal/stats"
 	"github.com/veilonhq/veilon/panel/internal/sub"
@@ -160,6 +161,9 @@ func cmdServe(args []string) error {
 	go util.Supervise(ctx, "system stats", func(ctx context.Context) { sampler.Run(ctx, 3*time.Second) })
 	go util.Supervise(ctx, "update check", updates.Checker.Run)
 	go util.Supervise(ctx, "nodes", nodeMgr.Run)
+	// Online status lives in memory; last_online_at is stored on changes
+	// and at most once a minute while a user stays online.
+	go util.Supervise(ctx, "online status", func(ctx context.Context) { presence.Default.Run(ctx, gdb, 5*time.Second) })
 	guardDone := make(chan struct{})
 	go func() { util.Supervise(ctx, "connection guard", connGuard.RunLoop); close(guardDone) }()
 	// The jobs runner stops only after the cores: their final counter reads

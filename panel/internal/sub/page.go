@@ -22,6 +22,9 @@ const (
 	FormatHTML = "html"
 	// FormatStatus returns the page's data as JSON.
 	FormatStatus = "status"
+	// FormatLive returns only what the open page refreshes every few
+	// seconds (status, online, usage), without rendering the configs.
+	FormatLive = "live"
 )
 
 // clientMarkers are lower-case User-Agent fragments of VPN clients and
@@ -92,7 +95,7 @@ func pageData(u *db.User, ps []Proxy, st db.Settings, host string) PageData {
 	}
 	su := SubURL(st, u.SubToken, host)
 	d := PageData{Username: u.Username, Status: u.Status, Up: u.Up, Down: u.Down, Used: u.Used(), Limit: u.DataLimit,
-		ExpireAt: u.ExpireAt, OnHoldDays: u.OnHoldDays, LastOnlineAt: u.LastOnlineAt, Online: users.IsOnline(u.LastOnlineAt, time.Now().UTC()), SubURL: su, Title: title,
+		ExpireAt: u.ExpireAt, OnHoldDays: u.OnHoldDays, LastOnlineAt: users.LastOnline(u.ID, u.LastOnlineAt), Online: users.IsOnline(u.ID, time.Now().UTC()), SubURL: su, Title: title,
 		UpdateHours: st.SubUpdateHours, Timezone: st.Timezone, Links: []PageLink{}}
 	for i := range ps {
 		l := PageLink{Name: ps[i].Name, Protocol: ps[i].Protocol, Network: ps[i].Network, Security: ps[i].Security, URI: URI(&ps[i])}
@@ -132,6 +135,26 @@ func (s *Service) servePage(w http.ResponseWriter, r *http.Request, u *db.User, 
 func (s *Service) serveStatus(w http.ResponseWriter, r *http.Request, u *db.User, ps []Proxy, st db.Settings) {
 	pageHeaders(w, "application/json; charset=utf-8")
 	_ = json.NewEncoder(w).Encode(pageData(u, ps, st, r.Host))
+}
+
+// LiveData is the answer to ?format=live: the moving parts of PageData.
+type LiveData struct {
+	Status       string     `json:"status"`
+	Up           int64      `json:"up"`
+	Down         int64      `json:"down"`
+	Used         int64      `json:"used"`
+	Limit        int64      `json:"limit"`
+	ExpireAt     *time.Time `json:"expire_at"`
+	OnHoldDays   *int       `json:"on_hold_days,omitempty"`
+	LastOnlineAt *time.Time `json:"last_online_at"`
+	Online       bool       `json:"online"`
+}
+
+func serveLive(w http.ResponseWriter, u *db.User) {
+	pageHeaders(w, "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(LiveData{Status: u.Status, Up: u.Up, Down: u.Down, Used: u.Used(), Limit: u.DataLimit,
+		ExpireAt: u.ExpireAt, OnHoldDays: u.OnHoldDays, LastOnlineAt: users.LastOnline(u.ID, u.LastOnlineAt),
+		Online: users.IsOnline(u.ID, time.Now().UTC())})
 }
 
 // ServeAsset serves the subscription page's static files (rel is

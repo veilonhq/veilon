@@ -77,6 +77,8 @@ type rig struct {
 	core *fakeCore
 	ag   *Agent
 	node *db.Node
+	// wrap, when set, wraps the fake core of the next agents started.
+	wrap func(*fakeCore) Core
 }
 
 // startAgent enrolls node n and serves its agent on 127.0.0.1.
@@ -93,7 +95,11 @@ func startAgentIn(t *testing.T, r *rig, n *db.Node, dir string) (*Agent, *fakeCo
 		t.Fatal(err)
 	}
 	core := &fakeCore{traffic: xray.Traffic{Users: map[int64][2]int64{}}}
-	a := &Agent{Enrollment: e, Dir: dir, Core: core, Version: "test"}
+	var c Core = core
+	if r.wrap != nil {
+		c = r.wrap(core)
+	}
+	a := &Agent{Enrollment: e, Dir: dir, Core: c, Version: "test"}
 	ts := httptest.NewUnstartedServer(a.Handler())
 	tc, err := ServerTLS(e)
 	if err != nil {

@@ -139,8 +139,9 @@ export function useCoreConfig(enabled: boolean, core = 'xray') {
 }
 
 /* ---------- users ---------- */
-/** How often user lists and details re-read online status (the server polls cores every 10s). */
-export const ONLINE_POLL_MS = 8_000;
+/** How often user lists and details re-read online status while the page is
+ * visible (the server reads open connections every 5 s). */
+export const ONLINE_POLL_MS = 5_000;
 export interface UserFilters {
   search: string;
   status: UserStatus | 'online' | '';

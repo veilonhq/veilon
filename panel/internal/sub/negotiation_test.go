@@ -13,6 +13,7 @@ import (
 
 	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/inbounds"
+	"github.com/veilonhq/veilon/panel/internal/presence"
 	"github.com/veilonhq/veilon/panel/internal/testutil"
 	"github.com/veilonhq/veilon/panel/internal/users"
 )
@@ -363,42 +364,64 @@ func TestPageAssets(t *testing.T) {
 	}
 }
 
-// The page's "online" follows the admin panel's rule (users.IsOnline):
-// traffic within users.OnlineWindow, whichever server (main or a node)
-// stamped last_online_at. Both the inlined data and ?format=status carry it.
+// The page's "online" follows the admin panel's rule (users.IsOnline, the
+// presence tracker): online while a server lists an open connection, and
+// the last online time is the moment last seen. Both the inlined data and
+// ?format=status carry it.
 func TestPageOnline(t *testing.T) {
 	s := negFixture(t, db.StatusActive)
-	set := func(ago time.Duration) {
-		at := time.Now().UTC().Add(-ago)
-		s.DB.Model(&db.User{}).Where("sub_token = ?", "tokCarol").Update("last_online_at", at)
-	}
-	for _, c := range []struct {
-		ago  time.Duration
-		want bool
-	}{{5 * time.Second, true}, {users.OnlineWindow - 5*time.Second, true}, {users.OnlineWindow + 5*time.Second, false}, {48 * time.Hour, false}} {
-		set(c.ago)
-		admin := users.IsOnline(func() *time.Time { x := time.Now().UTC().Add(-c.ago); return &x }(), time.Now().UTC())
-		if admin != c.want {
-			t.Fatalf("%s: admin rule says %v", c.ago, admin)
-		}
+	var carol db.User
+	s.DB.Where("sub_token = ?", "tokCarol").First(&carol)
+	s.DB.Model(&db.User{}).Where("id = ?", carol.ID).Update("last_online_at", nil)
+	const src = "test:sub-page"
+	defer presence.Default.Forget(src)
+	status := func() map[string]any {
 		var d map[string]any
 		w := negRequest(s, negCase{"s", chromeUA, "application/json", "?format=status"})
 		if err := json.Unmarshal(w.Body.Bytes(), &d); err != nil {
 			t.Fatal(err)
 		}
-		if d["online"] != c.want {
-			t.Fatalf("%s ago: status online=%v want %v", c.ago, d["online"], c.want)
-		}
+		return d
+	}
+	page := func() map[string]any {
 		_, cfg := pageOf(t, negRequest(s, negCase{"b", chromeUA, htmlAccept, ""}))
-		if cfg["data"].(map[string]any)["online"] != c.want {
-			t.Fatalf("%s ago: page online=%v want %v", c.ago, cfg["data"].(map[string]any)["online"], c.want)
-		}
+		return cfg["data"].(map[string]any)
 	}
 	// never connected
-	s.DB.Model(&db.User{}).Where("sub_token = ?", "tokCarol").Update("last_online_at", nil)
-	var d map[string]any
-	_ = json.Unmarshal(negRequest(s, negCase{"s", chromeUA, "application/json", "?format=status"}).Body.Bytes(), &d)
-	if d["online"] != false || d["last_online_at"] != nil {
+	if d := status(); d["online"] != false || d["last_online_at"] != nil {
 		t.Fatalf("never seen: %v %v", d["online"], d["last_online_at"])
+	}
+	// connected: a live source lists the user
+	now := time.Now().UTC()
+	presence.Default.ReportLive(src, []int64{carol.ID}, now)
+	if d := status(); d["online"] != true || !users.IsOnline(carol.ID, time.Now().UTC()) {
+		t.Fatalf("connected: status online=%v", d["online"])
+	}
+	if page()["online"] != true {
+		t.Fatal("connected: page not online")
+	}
+	// ?format=live: what the open page refreshes, without the configs
+	var lv map[string]any
+	lw := negRequest(s, negCase{"l", chromeUA, "application/json", "?format=live"})
+	if err := json.Unmarshal(lw.Body.Bytes(), &lv); err != nil {
+		t.Fatalf("live: %v %s", err, lw.Body.String())
+	}
+	if lv["online"] != true || lv["status"] != "active" || lv["links"] != nil || lv["sub_url"] != nil || lw.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("live: %v", lv)
+	}
+	// left: the source lists nobody; the last online time is the last report
+	// that saw the user, even before it is stored
+	seen := now.Add(-20 * time.Second)
+	presence.Default.ReportLive(src, []int64{carol.ID}, seen)
+	presence.Default.Forget(src)
+	presence.Default.ReportLive(src, []int64{carol.ID}, seen)
+	presence.Default.ReportLive(src, nil, now)
+	d := status()
+	if d["online"] != false || page()["online"] != false {
+		t.Fatalf("left: status online=%v page=%v", d["online"], page()["online"])
+	}
+	got, _ := time.Parse(time.RFC3339Nano, d["last_online_at"].(string))
+	if !got.Equal(seen) {
+		t.Fatalf("left: last_online_at %v want %v", got, seen)
 	}
 }

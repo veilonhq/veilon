@@ -21,6 +21,7 @@ import (
 
 	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/guard"
+	"github.com/veilonhq/veilon/panel/internal/presence"
 	"github.com/veilonhq/veilon/panel/internal/usage"
 	"github.com/veilonhq/veilon/panel/internal/util"
 	"github.com/veilonhq/veilon/panel/internal/xray"
@@ -57,6 +58,9 @@ type State struct {
 	CanUpdate bool `json:"can_update"`
 	// Update is the last agent update asked from this panel (nil = none).
 	Update *UpdateStatus `json:"update"`
+	// liveOnline: the agent lists the users with open connections
+	// (CapOnline, v0.3.6 and later).
+	liveOnline bool
 }
 
 // Manager is the master side: it keeps every node's config in sync, reads
@@ -72,6 +76,12 @@ type Manager struct {
 	Interval       time.Duration
 	Timeout        time.Duration
 	RequestTimeout time.Duration
+	// OnlineEvery is how often agents that list online users are asked
+	// for them (default 5s), between the full rounds.
+	OnlineEvery time.Duration
+	// Presence receives the nodes' online users and traffic (nil =
+	// presence.Default).
+	Presence *presence.Tracker
 	// ApplyTraffic stores per-user traffic and returns the counted bytes it
 	// added (nil = xray.ApplyUserTrafficTx in one transaction with the node's
 	// totals; the node's id keeps its history apart).
@@ -101,6 +111,8 @@ type Manager struct {
 	clients  map[int64]*nodeClient
 	rejected map[int64]rejection
 	bansSent map[int64]bansState
+	onlineIn map[int64]bool      // GET /v1/online in flight
+	noOnline map[int64]time.Time // the node's Xray cannot list online users
 	kick     chan struct{}
 	trafMu   sync.Mutex
 }
@@ -132,6 +144,14 @@ func (m *Manager) init() {
 		if m.RequestTimeout == 0 {
 			m.RequestTimeout = 8 * time.Second
 		}
+		if m.OnlineEvery == 0 {
+			m.OnlineEvery = 5 * time.Second
+		}
+		if m.Presence == nil {
+			m.Presence = presence.Default
+		}
+		m.onlineIn = map[int64]bool{}
+		m.noOnline = map[int64]time.Time{}
 		if m.BuildConfig == nil {
 			m.BuildConfig = xray.NodeConfig
 		}
@@ -158,12 +178,16 @@ func (m *Manager) Run(ctx context.Context) {
 	m.init()
 	t := time.NewTicker(m.Interval)
 	defer t.Stop()
+	ot := time.NewTicker(m.OnlineEvery)
+	defer ot.Stop()
 	var debounce <-chan time.Time
 	m.Round(ctx)
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-ot.C:
+			m.OnlineRound(ctx)
 		case <-m.kick:
 			if debounce == nil {
 				debounce = time.After(1500 * time.Millisecond)
@@ -252,6 +276,7 @@ func (m *Manager) Forget(id int64) {
 	delete(m.states, id)
 	delete(m.rejected, id)
 	delete(m.bansSent, id)
+	delete(m.noOnline, id)
 }
 
 func (m *Manager) setState(id int64, st *State) {
@@ -321,7 +346,8 @@ func (m *Manager) SyncNode(parent context.Context, n *db.Node) {
 	}
 	m.trackUpdate(n, &info)
 	st := &State{Version: info.Version, XrayVersion: info.XrayVersion, XrayRunning: info.XrayRunning, Load1: info.Load1,
-		MemUsed: info.MemUsed, CPUs: info.CPUs, LatencyMS: time.Since(t0).Milliseconds(), Arch: info.Arch, CanUpdate: info.HasCap(CapUpdate)}
+		MemUsed: info.MemUsed, CPUs: info.CPUs, LatencyMS: time.Since(t0).Milliseconds(), Arch: info.Arch, CanUpdate: info.HasCap(CapUpdate),
+		liveOnline: info.HasCap(CapOnline)}
 	if !info.StartedAt.IsZero() {
 		s := info.StartedAt
 		st.StartedAt = &s
@@ -445,6 +471,7 @@ func (m *Manager) storeTraffic(n *db.Node, sr *StatsReply) error {
 			}
 		}
 		n.StatsSeq = sr.Seq
+		m.Presence.Traffic(Source(n.ID), sr.Users, now)
 		return node(m.DB, up, down)
 	}
 	// Users' counters, the node's totals and the batch id commit together:
@@ -463,7 +490,71 @@ func (m *Manager) storeTraffic(n *db.Node, sr *StatsReply) error {
 	}
 	n.StatsSeq = sr.Seq
 	usage.For(n.ID).Add(up, down)
+	m.Presence.Traffic(Source(n.ID), sr.Users, now)
 	return nil
+}
+
+// Source is a node's name in package presence.
+func Source(id int64) string { return "node:" + strconv.FormatInt(id, 10) }
+
+// OnlineRound asks every reachable node whose agent lists online users for
+// them (one request each, in parallel, never blocking the caller). Older
+// agents keep the traffic rule.
+func (m *Manager) OnlineRound(ctx context.Context) {
+	m.init()
+	var ns []db.Node
+	if err := m.DB.Where("enabled = ?", true).Order("id").Find(&ns).Error; err != nil {
+		return
+	}
+	for i := range ns {
+		n := ns[i]
+		m.mu.Lock()
+		st := m.states[n.ID]
+		skip := st == nil || !st.liveOnline || (st.Status != StateOnline && st.Status != StateDegraded) || m.onlineIn[n.ID]
+		if t, ok := m.noOnline[n.ID]; ok && time.Since(t) < 5*time.Minute {
+			skip = true
+		}
+		if !skip {
+			m.onlineIn[n.ID] = true
+		}
+		m.mu.Unlock()
+		if skip {
+			continue
+		}
+		go func() {
+			defer func() {
+				m.mu.Lock()
+				delete(m.onlineIn, n.ID)
+				m.mu.Unlock()
+			}()
+			util.Safe("node online "+n.Name, func() { m.PollOnline(ctx, &n) })
+		}()
+	}
+}
+
+// PollOnline asks one node for its online users.
+func (m *Manager) PollOnline(ctx context.Context, n *db.Node) {
+	m.init()
+	hc, err := m.client(n)
+	if err != nil {
+		return
+	}
+	cctx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+	var or OnlineReply
+	if err := m.call(cctx, hc, http.MethodGet, baseURL(n)+"/v1/online", nil, &or); err != nil {
+		if strings.Contains(err.Error(), ErrOnlineUnsupported.Error()) {
+			m.mu.Lock()
+			m.noOnline[n.ID] = time.Now()
+			m.mu.Unlock()
+			m.Presence.NotLive(Source(n.ID))
+		}
+		return
+	}
+	m.mu.Lock()
+	delete(m.noOnline, n.ID)
+	m.mu.Unlock()
+	m.Presence.ReportLive(Source(n.ID), or.Users, time.Now().UTC())
 }
 
 // call does one JSON request; any non-2xx answer becomes an error.

@@ -41,6 +41,18 @@ type Info struct {
 // CapUpdate: the agent updates itself on request (POST /v1/update).
 const CapUpdate = "update"
 
+// CapOnline: the agent lists the users with open connections on its Xray
+// (GET /v1/online). Agents before v0.3.6 do not: the master keeps the
+// traffic rule for them.
+const CapOnline = "online"
+
+// OnlineReply is the answer to GET /v1/online: the users with at least one
+// open connection on the node's Xray.
+type OnlineReply struct {
+	Users []int64   `json:"users"`
+	Now   time.Time `json:"now"`
+}
+
 // HasCap reports whether the agent announced capability c.
 func (in *Info) HasCap(c string) bool {
 	for _, x := range in.Caps {

@@ -2,6 +2,24 @@
 
 Each release's notes, Persian first. Older releases: https://github.com/veilonhq/veilon/releases
 
+## Unreleased
+
+### فارسی
+
+- وضعیت آنلاین سریع: کاربر چند ثانیه پس از اتصال «آنلاین» می شود و حدود ۵ تا ۱۰ ثانیه پس از قطع اتصال به «آخرین اتصال» با تاریخ و ساعت درست برمی گردد؛ در کارت کاربران، جزئیات کاربر، فیلتر «آنلاین»، شمار آنلاین داشبورد و صفحه اشتراک. سرور اصلی و نودها هر ۵ ثانیه فهرست اتصال های باز Xray را می خوانند (`statsUserOnline`)، به جای قاعده قبلی «ترافیک ارسالی در ۶۰ ثانیه گذشته» که کاربری را که فقط دانلود می کرد گاهی آفلاین نشان می داد و پس از قطع تا یک دقیقه آنلاین نگه می داشت
+- «آخرین اتصال» لحظه ای است که کاربر آخرین بار آنلاین دیده شد. پایگاه داده فقط هنگام وصل و قطع شدن و در طول اتصال حداکثر هر ۶۰ ثانیه یک بار نوشته می شود، نه در هر بار خواندن آمار
+- نودها: برنامه نود این نسخه فهرست کاربران آنلاین را به سرور اصلی می دهد (`GET /v1/online`، قابلیت `online`). نودهای با برنامه v0.3.5 و قدیمی تر، AmneziaWG، MTProto و Xray قدیمی تر از 26.3 همان قاعده ترافیک ۶۰ ثانیه را دارند؛ کاربرانی که از مسیر داخلی وصل می شوند (TUIC از راه sing-box) هم با ترافیک سنجیده می شوند
+- پنل مدیریت وقتی صفحه دیده می شود هر ۵ ثانیه وضعیت را تازه می کند و صفحه اشتراک باز هم هر ۵ ثانیه بدون بارگذاری دوباره به روز می شود (`?format=live`: داده سبک بدون ساختن کانفیگ ها)
+- پس از به روزرسانی، کانفیگ Xray سرور اصلی و نودها یک بار دوباره اعمال می شود و اتصال های باز یک بار قطع و دوباره وصل می شوند
+
+### English
+
+- Fast online status: a user shows "Online" a few seconds after connecting and switches to "Last online" with the right date and time about 5 to 10 seconds after disconnecting, in the users cards, user details, the "Online" filter, the dashboard's online count and the subscription page. The main server and the nodes read Xray's list of open connections every 5 seconds (`statsUserOnline`) instead of the earlier rule "sent traffic in the last 60 seconds", which could show a user who was only downloading as offline and kept a user online for up to a minute after they left
+- "Last online" is the moment the user was last seen online. The database is written only when a user comes online or goes offline, and at most once every 60 seconds while they stay connected, not on every stats poll
+- Nodes: this release's node agent gives the main server its online users (`GET /v1/online`, capability `online`). Nodes with a v0.3.5 or older agent, AmneziaWG, MTProto and Xray older than 26.3 keep the 60-second traffic rule; users reaching Xray through the internal hop (TUIC via sing-box) are judged by traffic too
+- The admin panel refreshes the status every 5 seconds while the page is visible, and an open subscription page updates itself every 5 seconds without a reload (`?format=live`: a light answer that does not render the configs)
+- After the update, the Xray config of the main server and the nodes is applied once more, so open connections drop and reconnect once
+
 ## v0.3.5 (2026-11-11)
 
 ### فارسی

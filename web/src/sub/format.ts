@@ -37,6 +37,34 @@ export interface SubData {
   links: SubLink[];
 }
 
+/** The JSON of ?format=live: the parts the open page refreshes. */
+export type LiveData = Pick<SubData, 'status' | 'up' | 'down' | 'used' | 'limit' | 'expire_at' | 'on_hold_days' | 'last_online_at' | 'online'>;
+
+/** How often the open page refreshes status, usage and online (only while visible). */
+export const LIVE_POLL_MS = 5_000;
+
+export function liveURL(pathname: string): string {
+  return `${pathname}?format=live`;
+}
+
+const LIVE_KEYS = ['status', 'up', 'down', 'used', 'limit', 'expire_at', 'on_hold_days', 'last_online_at', 'online'] as const;
+
+/** The page data with a ?format=live answer applied (a malformed answer changes nothing). */
+export function mergeLive(d: SubData, l: unknown): SubData {
+  if (!l || typeof l !== 'object' || typeof (l as LiveData).status !== 'string') return d;
+  const next: SubData = { ...d };
+  let changed = false;
+  for (const k of LIVE_KEYS) {
+    if (!(k in l)) continue;
+    const v = (l as Record<string, unknown>)[k];
+    if ((next as unknown as Record<string, unknown>)[k] !== v) {
+      (next as unknown as Record<string, unknown>)[k] = v;
+      changed = true;
+    }
+  }
+  return changed ? next : d;
+}
+
 const ZWNJ = /\u200c/g;
 export const plain = (v: string) => v.replace(ZWNJ, ' ');
 
