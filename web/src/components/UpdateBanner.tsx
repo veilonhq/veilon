@@ -39,7 +39,7 @@ const SEEN_KEY = 'veilon.update.seen';
 /** The success notice closes itself after this long. */
 export const SUCCESS_NOTICE_MS = 10_000;
 
-/** Opens the update dialog from anywhere (the banner and the Settings section). */
+/** Opens the update dialog from anywhere (the banner and the Panel update page). */
 export const useUpdateDialog = create<{ open: boolean; setOpen: (v: boolean) => void }>((set) => ({
   open: false,
   setOpen: (open) => set({ open }),
@@ -47,7 +47,7 @@ export const useUpdateDialog = create<{ open: boolean; setOpen: (v: boolean) => 
 
 export const UPDATE_QUERY = ['panel-update'] as const;
 
-/** GET /system/update, shared by the banner and the Settings section. */
+/** GET /system/update, shared by the banner and the Panel update page. */
 export function useUpdateInfo(watching = false) {
   const sudo = !!useSession((x) => x.admin)?.is_sudo;
   return useQuery({
@@ -62,7 +62,7 @@ export function useUpdateInfo(watching = false) {
 
 /**
  * A slim strip above every page for sudo admins when a newer stable release
- * exists (checked by the server every 6 hours, or from Settings). Its Update
+ * exists (checked by the server every 6 hours, or from the Panel update page). Its Update
  * button opens the install dialog; the update itself runs on the server and
  * the dialog follows it across the restart. After a successful update a
  * short notice says so; it closes itself after 10 seconds or with its X, and
@@ -76,7 +76,7 @@ export function UpdateBanner() {
   const setOpen = useUpdateDialog((x) => x.setOpen);
   const [watching, setWatching] = useState(false);
   const [seen, setSeen] = useState(() => localStorage.getItem(SEEN_KEY) ?? '');
-  const onSettings = /\/settings\/?$/.test(useLocation().pathname);
+  const onUpdatePage = /\/update\/?$/.test(useLocation().pathname);
   const q = useUpdateInfo(watching);
   const info = q.data;
   const st = info?.status ?? null;
@@ -101,8 +101,8 @@ export function UpdateBanner() {
 
   if (!sudo || !info) return null;
   const busy = !!st?.running || watching;
-  // On Settings the Panel update section shows the available release itself.
-  const show = (!!info.available && !onSettings) || !!st?.running || unseenResult;
+  // The Panel update page shows the available release itself.
+  const show = (!!info.available && !onUpdatePage) || !!st?.running || unseenResult;
   const dialog = (
     <UpdateDialog
       open={open}

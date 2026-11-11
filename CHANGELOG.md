@@ -9,12 +9,16 @@ Each release's notes, Persian first. Older releases: https://github.com/veilonhq
 - صفحه اشتراک برای مرورگر: وقتی کاربر لینک اشتراک را در مرورگر باز می کند، صفحه ای با طراحی پنل می بیند: وضعیت، حلقه مصرف (حجم مصرف شده از کل یا ∞)، آپلود، دانلود، روز باقی مانده، تاریخ انقضا (تقویم شمسی، به وقت پنل)، آخرین اتصال، لینک اشتراک با کپی و QR، همه کانفیگ ها با کپی و QR و «کپی همه»، و فاصله به روزرسانی خودکار. تم تیره و روشن، فارسی و انگلیسی
 - برنامه های VPN (v2rayNG، Hiddify، Streisand، Shadowrocket، sing-box، کلش و ...) همان اشتراک قبلی را بدون هیچ تغییری می گیرند؛ با `?format=raw` در مرورگر هم خود اشتراک برگردانده می شود و `?format=status` داده صفحه را به صورت JSON می دهد
 - کاربران غیرفعال، منقضی یا با حجم تمام شده هم صفحه را با وضعیت خودشان می بینند
+- بروزرسانی پنل از تنظیمات به صفحه جداگانه «بروزرسانی پنل» در منوی «بیشتر» منتقل شد (فقط مدیران کل)؛ بنر به روزرسانی در همین صفحه نمایش داده نمی شود
+- بسته شدن منوی «بیشتر» در موبایل درست شد: منو دیگر لحظه ای جابجا و جدا از نوار پایین دیده نمی شود و بسته شدن دقیقا برعکس باز شدن است. منوی حساب کاربری هم همین طور
 
 ### English
 
 - Subscription page for browsers: opening a subscription link in a browser shows a page in the panel's design: status, a usage ring (used of total, or ∞), upload, download, days left, expiry date (Persian calendar in Persian, panel time zone), last online, the subscription link with copy and QR, every config with copy and QR plus "copy all", and the auto-update interval. Dark and light themes, Persian and English
 - VPN clients (v2rayNG, Hiddify, Streisand, Shadowrocket, sing-box, clash and others) keep receiving the exact same subscription; `?format=raw` returns the subscription in a browser too, and `?format=status` returns the page data as JSON
 - Disabled, expired and out-of-data users also see the page, with their status
+- Panel update moved from Settings to its own "Panel update" page in the More menu (sudo admins only); the update banner is hidden on that page
+- Fixed the More menu closing on mobile: it no longer flashes shifted and detached from the bottom bar, and closing is the exact reverse of opening. Same fix for the account menu
 
 ## v0.3.3 (2026-11-11)
 

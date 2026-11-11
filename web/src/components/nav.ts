@@ -1,5 +1,6 @@
 import {
   Activity,
+  ArrowUpCircle,
   Heart,
   Layers,
   Route,
@@ -35,6 +36,7 @@ export const PRIMARY: NavItem[] = [
 export const SECONDARY: NavItem[] = [
   { to: '/certs', key: 'nav.certs', icon: ShieldCheck, need: 'certs' },
   { to: '/settings', key: 'nav.settings', icon: SettingsIcon },
+  { to: '/update', key: 'nav.update', icon: ArrowUpCircle, need: 'sudo' },
   { to: '/xray', key: 'nav.xray', icon: Route, need: 'sudo' },
   { to: '/nodes', key: 'nav.nodes', icon: Server, need: 'sudo' },
   { to: '/admins', key: 'nav.admins', icon: UserCog, need: 'sudo' },

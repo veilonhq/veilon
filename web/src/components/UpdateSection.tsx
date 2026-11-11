@@ -9,7 +9,7 @@ import { Notes, UPDATE_QUERY, useUpdateDialog, useUpdateInfo, type UpdateInfo } 
 import s from './UpdateSection.module.css';
 
 /**
- * Settings › Panel update (sudo admins only): the running version, when the
+ * The Panel update page's section (sudo admins only): the running version, when the
  * server last looked for a release and when it looks next, and a button to
  * look right now. A newer release shows its tag, its notes in the panel's
  * language and an Update button that opens the usual update dialog. The
@@ -95,7 +95,7 @@ export function UpdateSection({ className }: { className?: string }) {
   }
 
   return (
-    <Section title={t('upd.section')} className={className}>
+    <Section title={t('upd.versionSection')} className={className}>
       <div id="panel-update" className={s.wrap}>
         <dl className={s.facts}>
           <div>

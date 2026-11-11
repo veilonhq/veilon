@@ -115,6 +115,33 @@ function useOutside(open: boolean, refs: React.RefObject<HTMLElement>[], close: 
   }, [open]);
 }
 
+/**
+ * Mount state for a popover with a CSS enter/exit animation. While closing the
+ * element stays mounted with data-closing until its exit animation ends, and
+ * the keyframes hold their last (hidden) frame, so the popover never shows a
+ * reset frame before it is removed (framer-motion's clip-path exit dropped
+ * back to the open clip for a frame or two before unmount, which showed the
+ * whole sheet shifted down by the exit offset).
+ */
+function usePresence(open: boolean, ms: number) {
+  const [mounted, setMounted] = useState(open);
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      return;
+    }
+    if (!mounted) return;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const id = window.setTimeout(() => setMounted(false), reduce ? 0 : ms + 60);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  const onAnimationEnd = (e: React.AnimationEvent) => {
+    if (!open && e.target === e.currentTarget) setMounted(false);
+  };
+  return { mounted: open || mounted, closing: !open && mounted, onAnimationEnd };
+}
+
 function TopBar() {
   const { t } = useI18n();
   const admin = useSession((x) => x.admin);
@@ -129,6 +156,7 @@ function TopBar() {
   const menuPop = useRef<HTMLDivElement>(null);
   const menuPos = useAnchor(menuRef, menu, 'below');
   useOutside(menu, [menuRef, menuPop], () => setMenu(false));
+  const menuP = usePresence(menu, 140);
 
   return (
     <div className={s.topbar}>
@@ -158,18 +186,15 @@ function TopBar() {
           <button className={s.avatar} onClick={() => setMenu((m) => !m)} aria-haspopup="menu" aria-expanded={menu} aria-label={admin?.username ?? 'admin'}>
             {(admin?.username ?? 'A').slice(0, 1).toUpperCase()}
           </button>
-          {createPortal(
-          <AnimatePresence>
-            {menu && (
-              <motion.div
+          {menuP.mounted &&
+            createPortal(
+              <div
                 ref={menuPop}
                 className={s.menu}
                 style={menuPos}
                 role="menu"
-                initial={{ clipPath: 'inset(-40px -40px 320px -40px)', y: -6 }}
-                animate={{ clipPath: 'inset(-40px -40px -70px -40px)', y: 0 }}
-                exit={{ clipPath: 'inset(-40px -40px 320px -40px)', y: -6 }}
-                transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                data-closing={menuP.closing ? '' : undefined}
+                onAnimationEnd={menuP.onAnimationEnd}
               >
                 <div className={s.menuHead}>
                   <strong className="ltr">{admin?.username}</strong>
@@ -190,11 +215,9 @@ function TopBar() {
                   <LogOut size={16} />
                   {t('common.logout')}
                 </button>
-              </motion.div>
+              </div>,
+              document.body,
             )}
-          </AnimatePresence>,
-          document.body,
-          )}
         </div>
       </div>
     </div>
@@ -220,6 +243,7 @@ function Dock() {
     setMore(false);
   }, [loc.pathname]);
   useOutside(more, [moreRef, morePop], () => setMore(false));
+  const moreP = usePresence(more, 160);
 
   return (
     <nav className={s.dockWrap} aria-label={t('nav.main')}>
@@ -250,20 +274,18 @@ function Dock() {
           <span className={s.dockLabel}>{t('nav.search')}</span>
         </button>
 
-        {createPortal(
-        <AnimatePresence>
-          {more && (
-            <motion.div
+        {moreP.mounted &&
+          createPortal(
+            <div
               ref={morePop}
               className={s.more}
               style={morePos}
               role="menu"
-              // clip + transform only: no opacity layer next to the dock (Android
-              // WebViews flashed the whole page when this faded in)
-              initial={{ clipPath: 'inset(480px -40px -70px -40px)', y: 8 }}
-              animate={{ clipPath: 'inset(-40px -40px -70px -40px)', y: 0 }}
-              exit={{ clipPath: 'inset(480px -40px -70px -40px)', y: 8 }}
-              transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+              // clip + transform only (CSS keyframes in Shell.module.css): no
+              // opacity layer next to the dock (Android WebViews flashed the
+              // whole page when this faded in)
+              data-closing={moreP.closing ? '' : undefined}
+              onAnimationEnd={moreP.onAnimationEnd}
             >
               {secondary.map((it) => (
                 <button key={it.to} role="menuitem" className={`${s.moreItem} ${isActive(it.to) ? s.moreActive : ''}`} onClick={() => nav(it.to)}>
@@ -276,11 +298,9 @@ function Dock() {
               <div className={s.moreToggles}>
                 <ThemeLangToggles />
               </div>
-            </motion.div>
+            </div>,
+            document.body,
           )}
-        </AnimatePresence>,
-        document.body,
-        )}
       </div>
     </nav>
   );

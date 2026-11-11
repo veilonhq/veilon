@@ -1251,3 +1251,6 @@ html[lang='fa'] .termSearch input:placeholder-shown {
   color: #7fd4ff;
   opacity: 0.8;
 }
+.updatePage {
+  max-width: 860px;
+}

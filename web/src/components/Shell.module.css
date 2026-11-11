@@ -425,3 +425,75 @@
   min-width: 18px;
   text-align: center;
 }
+
+/* Popover enter/exit (avatar menu and the dock's More sheet). Clip + transform
+   only, never opacity (Android WebViews flashed the page on faded layers next
+   to the blurred bars). The exit keyframes run with fill-mode forwards and the
+   element is unmounted on animationend, so the last painted frame is the
+   hidden one: no reset frame between the end of the exit and the unmount. */
+.more {
+  animation: moreIn 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.more[data-closing] {
+  animation: moreOut 0.16s cubic-bezier(0.4, 0, 0.7, 0.2) forwards;
+  pointer-events: none;
+}
+@keyframes moreIn {
+  from {
+    clip-path: inset(100% -40px -70px -40px);
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    clip-path: inset(-40px -40px -70px -40px);
+    transform: none;
+  }
+}
+@keyframes moreOut {
+  from {
+    clip-path: inset(-40px -40px -70px -40px);
+    transform: none;
+  }
+  to {
+    clip-path: inset(100% -40px -70px -40px);
+    transform: translate3d(0, 8px, 0);
+  }
+}
+.menu {
+  animation: menuIn 0.16s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.menu[data-closing] {
+  animation: menuOut 0.14s cubic-bezier(0.4, 0, 0.7, 0.2) forwards;
+  pointer-events: none;
+}
+@keyframes menuIn {
+  from {
+    clip-path: inset(-40px -40px 100% -40px);
+    transform: translate3d(0, -6px, 0);
+  }
+  to {
+    clip-path: inset(-40px -40px -70px -40px);
+    transform: none;
+  }
+}
+@keyframes menuOut {
+  from {
+    clip-path: inset(-40px -40px -70px -40px);
+    transform: none;
+  }
+  to {
+    clip-path: inset(-40px -40px 100% -40px);
+    transform: translate3d(0, -6px, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .more,
+  .menu,
+  .more[data-closing],
+  .menu[data-closing] {
+    animation: none;
+  }
+  .more[data-closing],
+  .menu[data-closing] {
+    visibility: hidden;
+  }
+}

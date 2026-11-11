@@ -11,6 +11,8 @@ When a new Veilon release is published, a banner appears at the top of the panel
 
 If the new version is not healthy, the previous binary is restored automatically and the panel keeps running. The panel is unreachable for a few seconds during the restart; keep the page open.
 
+The **Panel update** page (in the **More** menu, sudo admins only) shows the installed version, when the panel last looked for a release and when it looks next, and a **Check for updates** button. A new release shows its notes and an **Update** button there too. The panel also checks by itself every 6 hours.
+
 ## Servers on v0.2.2 or older
 
 In-panel updates need a small helper service that older installs do not have. Run the install command once on the server; it upgrades the panel to the latest release, adds the helper and keeps all data and settings:

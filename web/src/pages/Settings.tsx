@@ -15,7 +15,6 @@ import { IS_MOCK } from '@/app/base';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Select, type SelectOption } from '@/components/Select';
 import { listTimeZones } from '@/lib/timezones';
-import { UpdateSection } from '@/components/UpdateSection';
 import s from './pages.module.css';
 
 function useTzOptions(current: string | undefined): SelectOption<string>[] {
@@ -132,7 +131,6 @@ export default function SettingsPage() {
       ) : (
         <div className={s.settingsGrid}>
           <AccountSection />
-          <UpdateSection className={s.fullRow} />
           {mayEdit && (
           <form id="settings-form" onSubmit={submit} className={s.contents}>
           <Section title={t('set.panel')}>
