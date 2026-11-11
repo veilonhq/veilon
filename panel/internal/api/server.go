@@ -188,8 +188,14 @@ func writeServiceErr(w http.ResponseWriter, err error) {
 	)
 	switch {
 	case errors.As(err, &ic):
-		writeJSON(w, http.StatusConflict, map[string]any{"error": map[string]any{
-			"code": "conflict", "message": ic.Msg, "field": ic.Field, "inbound": ic.Other}})
+		e := map[string]any{"code": "conflict", "message": ic.Msg, "field": ic.Field, "inbound": ic.Other}
+		if ic.Server != "" {
+			e["port"], e["server"] = ic.Port, ic.Server
+			if ic.Server == "node" {
+				e["node_id"], e["node_name"] = ic.NodeID, ic.NodeName
+			}
+		}
+		writeJSON(w, http.StatusConflict, map[string]any{"error": e})
 	case errors.As(err, &uv), errors.As(err, &iv), errors.As(err, &cv):
 		writeErr(w, http.StatusBadRequest, "validation_error", err.Error())
 	case errors.Is(err, users.ErrNotFound), errors.Is(err, inbounds.ErrNotFound), errors.Is(err, certs.ErrNotFound), db.IsNotFound(err):

@@ -155,10 +155,10 @@ func TestPortConflictsAndSelfSigned(t *testing.T) {
 	if certs != 1 {
 		t.Fatalf("self-signed certificates created: %d", certs)
 	}
-	if _, err := mk(View{Remark: "tuic", Protocol: TUIC, Port: 4443}); err == nil || !strings.Contains(err.Error(), "port 4443") {
+	if _, err := mk(View{Remark: "tuic", Protocol: TUIC, Port: 4443}); err == nil || !strings.Contains(strings.ToLower(err.Error()), "port 4443") {
 		t.Fatalf("udp conflict not detected: %v", err)
 	}
-	if _, err := mk(View{Remark: "http", Protocol: HTTP, Port: 443}); err == nil || !strings.Contains(err.Error(), "port 443") {
+	if _, err := mk(View{Remark: "http", Protocol: HTTP, Port: 443}); err == nil || !strings.Contains(strings.ToLower(err.Error()), "port 443") {
 		t.Fatalf("tcp conflict not detected: %v", err)
 	}
 	if _, err := mk(View{Remark: "panel", Protocol: Mixed, Port: 2053}); err == nil {

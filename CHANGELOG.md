@@ -9,12 +9,16 @@ Each release's notes, Persian first. Older releases: https://github.com/veilonhq
 - بررسی دستی به روزرسانی در تنظیمات؛ بررسی خودکار هر ۶ ساعت مثل قبل ادامه دارد
 - بنر به روزرسانی جمع و جور و یک خطی شد و در صفحه تنظیمات نمایش داده نمی شود
 - پیام موفقیت به روزرسانی بعد از ۱۰ ثانیه خودش بسته می شود و برای همان نسخه دوباره نمایش داده نمی شود
+- پورت ورودی فقط روی همان سرور باید یکتا باشد: یک پورت (مثلا ۴۴۳) می تواند هم روی سرور اصلی و هم روی ورودی ای که فقط روی نود اجرا می شود باشد؛ دو ورودی روی یک سرور (سرور اصلی یا یک نود) با پورت یکسان پذیرفته نمی شوند و پیام خطا نام سرور را می گوید. پورت ارتباط هر نود با پنل (مثلا ۶۲۰۵۰) روی همان نود رزرو است
+- `veilon firewall` و `veilon ports` فقط پورت ورودی هایی را باز می کنند که روی سرور اصلی اجرا می شوند
 
 ### English
 
 - Manual update check in Settings; the automatic check every 6 hours stays
 - Compact one-row update banner, hidden on the Settings page
 - The update success notice closes by itself after 10 seconds and stays dismissed for that version
+- Inbound ports only need to be unique per server: the same port (e.g. 443) can be used on the main server and by a node-only inbound; two inbounds on one server (the main server or the same node) with the same port are refused, and the error names the server. Each node's agent port (e.g. 62050) is reserved on that node
+- `veilon firewall` and `veilon ports` only open ports of inbounds the main server runs
 
 ## v0.3.2 (2026-11-10)
 

@@ -19,6 +19,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/auth"
 	"github.com/veilonhq/veilon/panel/internal/config"
 	"github.com/veilonhq/veilon/panel/internal/db"
+	"github.com/veilonhq/veilon/panel/internal/inbounds"
 	"github.com/veilonhq/veilon/panel/internal/util"
 	"github.com/veilonhq/veilon/panel/internal/version"
 )
@@ -360,7 +361,13 @@ func cmdPorts(args []string) error {
 	out := []portUse{{st.PanelPort, "tcp", "panel"}}
 	var ibs []db.Inbound
 	gdb.Where("enabled = ?", true).Order("port").Find(&ibs)
+	// Only inbounds the main server runs: one that runs on nodes only is
+	// opened on its nodes, not here.
+	nodeOnly := inbounds.NodeOnly(gdb)
 	for _, ib := range ibs {
+		if nodeOnly[ib.ID] {
+			continue
+		}
 		what := "inbound " + ib.Remark
 		if udpProtocols[ib.Protocol] {
 			out = append(out, portUse{ib.Port, "udp", what})

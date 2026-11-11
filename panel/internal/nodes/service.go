@@ -106,7 +106,7 @@ func (s *Service) Get(id int64) (*View, error) {
 	return &View{Node: n, InboundIDs: ids, State: s.Manager.Status(&n)}, nil
 }
 
-func (s *Service) check(n *db.Node, ids *[]int64) error {
+func (s *Service) check(n *db.Node, ids *[]int64, oldPort int) error {
 	n.Name = strings.TrimSpace(n.Name)
 	n.Address = strings.TrimSpace(strings.Trim(n.Address, "[]"))
 	if n.Name == "" || utf8.RuneCountInString(n.Name) > 48 {
@@ -142,6 +142,46 @@ func (s *Service) check(n *db.Node, ids *[]int64) error {
 		}
 		*ids = clean
 	}
+	return s.checkPorts(n, ids, oldPort)
+}
+
+// checkPorts keeps ports unique on the node: no two of its inbounds may
+// share a port, and none may take the agent port. Only what changes is
+// checked (inbounds added to the node, or every inbound when the agent
+// port changes), so a node stored before the rule stays editable.
+// oldPort is the stored agent port (0 for a new node).
+func (s *Service) checkPorts(n *db.Node, ids *[]int64, oldPort int) error {
+	var had []int64
+	if n.ID != 0 {
+		s.DB.Model(&db.NodeInbound{}).Where("node_id = ?", n.ID).Pluck("inbound_id", &had)
+	}
+	final := had
+	if ids != nil {
+		final = *ids
+	}
+	if len(final) == 0 {
+		return nil
+	}
+	old := map[int64]bool{}
+	for _, id := range had {
+		old[id] = true
+	}
+	var ibs []db.Inbound
+	s.DB.Select("id", "remark", "port", "protocol").Where("id IN ?", final).Order("id").Find(&ibs)
+	taken := func(port int) string { return fmt.Sprintf("Port %d is already used on node %s", port, n.Name) }
+	byPort := map[int]db.Inbound{}
+	for _, ib := range ibs {
+		if ib.Protocol == "tun" {
+			continue
+		}
+		if ib.Port == n.APIPort && (!old[ib.ID] || n.APIPort != oldPort) {
+			return &ConflictError{taken(ib.Port) + " (agent port)"}
+		}
+		if o, ok := byPort[ib.Port]; ok && (!old[ib.ID] || !old[o.ID]) {
+			return &ConflictError{taken(ib.Port) + fmt.Sprintf(" (inbounds %q and %q)", o.Remark, ib.Remark)}
+		}
+		byPort[ib.Port] = ib
+	}
 	return nil
 }
 
@@ -176,7 +216,7 @@ func (s *Service) Create(in Input) (*View, *Install, error) {
 	if in.InboundIDs != nil {
 		ids = *in.InboundIDs
 	}
-	if err := s.check(&n, &ids); err != nil {
+	if err := s.check(&n, &ids, 0); err != nil {
 		return nil, nil, err
 	}
 	var inst *Install
@@ -222,7 +262,7 @@ func (s *Service) Update(id int64, in Input) (*View, error) {
 	if in.Enabled != nil {
 		n.Enabled = *in.Enabled
 	}
-	if err := s.check(&n, in.InboundIDs); err != nil {
+	if err := s.check(&n, in.InboundIDs, oldPort); err != nil {
 		return nil, err
 	}
 	err := s.DB.Transaction(func(tx *gorm.DB) error {

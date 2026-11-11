@@ -99,11 +99,17 @@ func (e *ValidationError) Error() string { return e.Msg }
 
 // ConflictError reports that another inbound (or the panel) already uses the
 // requested port or name. Field is "port" or "remark"; Other is the remark of
-// the inbound that holds it ("" when the panel itself reserves the port).
+// the inbound that holds it ("" when the port is reserved: the panel's own
+// ports on the main server, a node's agent port). For a port, Server is
+// "main" or "node" (then NodeID and NodeName name the node).
 type ConflictError struct {
-	Field string
-	Other string
-	Msg   string
+	Field    string
+	Other    string
+	Msg      string
+	Port     int
+	Server   string
+	NodeID   int64
+	NodeName string
 }
 
 func (e *ConflictError) Error() string { return e.Msg }
@@ -490,18 +496,21 @@ func listenOverlap(a, b string) bool {
 	return any(a) || any(b) || a == b
 }
 
-// checkUnique enforces that no two inbounds share a port (whatever the
-// protocol or transport) or a name (case-insensitive, trimmed), and that no
-// inbound takes a port the panel itself uses. prev is the stored inbound on
-// update: a value that did not change is not re-checked, so inbounds stored
-// before this rule existed stay editable.
+// checkUnique enforces that no two inbounds share a name (case-insensitive,
+// trimmed) and that no two inbounds on the same server share a port
+// (whatever the protocol or transport; see ports.go), and that no inbound
+// takes a port reserved on one of its servers. v.NodeIDs must already be
+// checked (checkNodes). prev is the stored inbound on update: a value that
+// did not change is not re-checked, so inbounds stored before a rule
+// existed stay editable; with the same port only servers the inbound did
+// not run on before are checked.
 func (s *Service) checkUnique(v *View, prev *db.Inbound) error {
-	var rows []db.Inbound
-	if err := s.DB.Select("id", "remark", "port", "protocol").Where("id <> ?", v.ID).Find(&rows).Error; err != nil {
-		return err
-	}
 	nameChanged := prev == nil || !strings.EqualFold(strings.TrimSpace(prev.Remark), v.Remark)
 	if nameChanged {
+		var rows []db.Inbound
+		if err := s.DB.Select("id", "remark").Where("id <> ?", v.ID).Find(&rows).Error; err != nil {
+			return err
+		}
 		for _, o := range rows {
 			if strings.EqualFold(strings.TrimSpace(o.Remark), v.Remark) {
 				return &ConflictError{Field: "remark", Other: o.Remark,
@@ -512,24 +521,11 @@ func (s *Service) checkUnique(v *View, prev *db.Inbound) error {
 	if v.Protocol == TUN {
 		return nil
 	}
+	want := serversOf(v.ServeMain, v.NodeIDs)
 	if prev != nil && prev.Port == v.Port && prev.Protocol != TUN {
-		return nil
+		want = want.minus(serversOf(prev.ServeMain, Placements(s.DB)[prev.ID]))
 	}
-	if s.ReservedPorts != nil {
-		for _, p := range s.ReservedPorts() {
-			if p == v.Port {
-				return &ConflictError{Field: "port",
-					Msg: fmt.Sprintf("port %d is used by the panel itself", v.Port)}
-			}
-		}
-	}
-	for _, o := range rows {
-		if o.Protocol != TUN && o.Port == v.Port {
-			return &ConflictError{Field: "port", Other: o.Remark,
-				Msg: fmt.Sprintf("port %d is already used by inbound %q", v.Port, o.Remark)}
-		}
-	}
-	return nil
+	return s.checkPort(v.ID, v.Port, want)
 }
 
 func (s *Service) checkCross(v *View) error {
@@ -537,8 +533,14 @@ func (s *Service) checkCross(v *View) error {
 	if v.Protocol != TUN {
 		var rows []db.Inbound
 		s.DB.Where("port = ? AND id <> ?", v.Port, v.ID).Find(&rows)
+		mine := serversOf(v.ServeMain, v.NodeIDs)
+		placed := Placements(s.DB)
 		for i := range rows {
 			o := FromModel(&rows[i])
+			// Only inbounds on one of the same servers can clash.
+			if _, _, ok := mine.shared(serversOf(o.ServeMain, placed[o.ID])); !ok {
+				continue
+			}
 			if !listenOverlap(o.Listen, v.Listen) {
 				continue
 			}
@@ -622,13 +624,13 @@ func (s *Service) Create(v *View) (*View, error) {
 	if err := Normalize(v); err != nil {
 		return nil, err
 	}
+	if err := s.checkNodes(v); err != nil {
+		return nil, err
+	}
 	if err := s.checkUnique(v, nil); err != nil {
 		return nil, err
 	}
 	if err := s.checkCross(v); err != nil {
-		return nil, err
-	}
-	if err := s.checkNodes(v); err != nil {
 		return nil, err
 	}
 	var m db.Inbound
@@ -659,13 +661,13 @@ func (s *Service) Update(v *View) (*View, error) {
 		return nil, err
 	}
 	prev := m
+	if err := s.checkNodes(v); err != nil {
+		return nil, err
+	}
 	if err := s.checkUnique(v, &prev); err != nil {
 		return nil, err
 	}
 	if err := s.checkCross(v); err != nil {
-		return nil, err
-	}
-	if err := s.checkNodes(v); err != nil {
 		return nil, err
 	}
 	toModel(v, &m)
