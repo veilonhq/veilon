@@ -28,6 +28,8 @@ export interface SubData {
   expire_at: string | null;
   on_hold_days?: number | null;
   last_online_at: string | null;
+  /** the admin panel's online rule, decided by the server */
+  online?: boolean;
   sub_url: string;
   title: string;
   update_hours: number;
@@ -135,4 +137,11 @@ export function linkChips(l: SubLink): string[] {
 /** Every share link, one per line ("copy all"). */
 export function allLinks(links: SubLink[]) {
   return links.map((l) => l.uri).filter(Boolean).join('\n');
+}
+
+/** What the "last online" tile shows: online now (the server's flag, the
+ * admin panel's rule), the last time seen, or never connected. */
+export function onlineState(d: Pick<SubData, 'online' | 'last_online_at'>): 'online' | 'seen' | 'never' {
+  if (d.online) return 'online';
+  return d.last_online_at ? 'seen' : 'never';
 }

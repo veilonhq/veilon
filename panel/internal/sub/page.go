@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/veilonhq/veilon/panel/internal/db"
+	"github.com/veilonhq/veilon/panel/internal/users"
 	"github.com/veilonhq/veilon/panel/internal/webui"
 )
 
@@ -75,11 +76,13 @@ type PageData struct {
 	ExpireAt     *time.Time `json:"expire_at"`
 	OnHoldDays   *int       `json:"on_hold_days,omitempty"`
 	LastOnlineAt *time.Time `json:"last_online_at"`
-	SubURL       string     `json:"sub_url"`
-	Title        string     `json:"title"`
-	UpdateHours  int        `json:"update_hours"`
-	Timezone     string     `json:"timezone"`
-	Links        []PageLink `json:"links"`
+	// Online uses the admin panel's rule (users.IsOnline).
+	Online      bool       `json:"online"`
+	SubURL      string     `json:"sub_url"`
+	Title       string     `json:"title"`
+	UpdateHours int        `json:"update_hours"`
+	Timezone    string     `json:"timezone"`
+	Links       []PageLink `json:"links"`
 }
 
 func pageData(u *db.User, ps []Proxy, st db.Settings, host string) PageData {
@@ -89,7 +92,7 @@ func pageData(u *db.User, ps []Proxy, st db.Settings, host string) PageData {
 	}
 	su := SubURL(st, u.SubToken, host)
 	d := PageData{Username: u.Username, Status: u.Status, Up: u.Up, Down: u.Down, Used: u.Used(), Limit: u.DataLimit,
-		ExpireAt: u.ExpireAt, OnHoldDays: u.OnHoldDays, LastOnlineAt: u.LastOnlineAt, SubURL: su, Title: title,
+		ExpireAt: u.ExpireAt, OnHoldDays: u.OnHoldDays, LastOnlineAt: u.LastOnlineAt, Online: users.IsOnline(u.LastOnlineAt, time.Now().UTC()), SubURL: su, Title: title,
 		UpdateHours: st.SubUpdateHours, Timezone: st.Timezone, Links: []PageLink{}}
 	for i := range ps {
 		l := PageLink{Name: ps[i].Name, Protocol: ps[i].Protocol, Network: ps[i].Network, Security: ps[i].Security, URI: URI(&ps[i])}

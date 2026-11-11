@@ -2,6 +2,16 @@
 
 Each release's notes, Persian first. Older releases: https://github.com/veilonhq/veilon/releases
 
+## Unreleased
+
+### فارسی
+
+- صفحه اشتراک: کاشی «آخرین اتصال» وقتی کاربر همین الان وصل است «آنلاین» را با نقطه سبز نشان می دهد (همان قاعده آنلاین پنل مدیریت، با احتساب اتصال از نودها)؛ در غیر این صورت مثل قبل تاریخ و ساعت آخرین اتصال. داده صفحه و `?format=status` فیلد `online` دارند
+
+### English
+
+- Subscription page: the "Last online" tile shows "Online" with a green dot while the user is connected (the admin panel's online rule, node traffic included); otherwise the last date and time as before. The page data and `?format=status` carry an `online` field
+
 ## v0.3.4 (2026-11-11)
 
 ### فارسی

@@ -10,6 +10,7 @@ export const sample: SubData = {
   limit: 50 * 1024 ** 3,
   expire_at: new Date(Date.now() + 19 * 86_400_000).toISOString(),
   last_online_at: new Date(Date.now() - 3_600_000).toISOString(),
+  online: false,
   sub_url: 'https://sub.example.com/sub/Q2xP9vKb7mZr4TnW1sYd8LcF3hJ6gA0e',
   title: 'Veilon',
   update_hours: 12,

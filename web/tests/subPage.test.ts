@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { allLinks, expiryOf, formatBytes, formatDate, knownStatus, linkChips, usageRatio, usageTone } from '../src/sub/format.ts';
+import { allLinks, expiryOf, formatBytes, formatDate, knownStatus, linkChips, onlineState, usageRatio, usageTone } from '../src/sub/format.ts';
 import { dictionaries } from '../src/sub/i18n.ts';
 
 const now = Date.parse('2026-11-11T12:00:00Z');
@@ -53,4 +53,13 @@ test('link chips and copy all', () => {
 test('dictionaries: same keys, Persian has no zero-width non-joiner', () => {
   assert.deepEqual(Object.keys(dictionaries.fa).sort(), Object.keys(dictionaries.en).sort());
   for (const [k, v] of Object.entries(dictionaries.fa)) assert.ok(!v.includes('\u200c'), k);
+});
+
+test('last online tile: the server online flag wins, then the last time seen', () => {
+  assert.equal(onlineState({ online: true, last_online_at: 'Wed 2026-11-11 3:29 PM (UTC+03:30)' }), 'online');
+  assert.equal(onlineState({ online: false, last_online_at: 'Wed 2026-11-11 1:00 PM (UTC+03:30)' }), 'seen');
+  assert.equal(onlineState({ last_online_at: 'Wed 2026-11-11 1:00 PM (UTC+03:30)' }), 'seen'); // older servers: no flag
+  assert.equal(onlineState({ online: false, last_online_at: null }), 'never');
+  assert.equal(dictionaries.fa['usage.online.now'], 'آنلاین');
+  assert.equal(dictionaries.en['usage.online.now'], 'Online');
 });

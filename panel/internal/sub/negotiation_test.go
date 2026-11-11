@@ -14,6 +14,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/inbounds"
 	"github.com/veilonhq/veilon/panel/internal/testutil"
+	"github.com/veilonhq/veilon/panel/internal/users"
 )
 
 // negFixture: one user ("carol", 2 inbounds, traffic and an expiry) for the
@@ -269,7 +270,7 @@ func TestStatusJSONFields(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &d); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"username", "status", "up", "down", "used", "limit", "expire_at", "last_online_at", "sub_url", "title", "update_hours", "timezone", "links"}
+	want := []string{"username", "status", "up", "down", "used", "limit", "expire_at", "last_online_at", "online", "sub_url", "title", "update_hours", "timezone", "links"}
 	keys := make([]string, 0, len(d))
 	for k := range d {
 		keys = append(keys, k)
@@ -285,6 +286,9 @@ func TestStatusJSONFields(t *testing.T) {
 	if d["expire_at"] != "2026-12-24T20:30:00Z" || d["last_online_at"] != "2026-11-10T09:15:00Z" || d["update_hours"].(float64) != 8 ||
 		d["timezone"] != "Asia/Tehran" || d["title"] != "Night Owl" || d["sub_url"] != "http://198.51.100.7/sub/tokCarol" {
 		t.Fatalf("meta: %v", d)
+	}
+	if d["online"] != false {
+		t.Fatalf("a user last seen days ago is not online: %v", d["online"])
 	}
 	links := d["links"].([]any)
 	l0 := links[0].(map[string]any)
@@ -356,5 +360,45 @@ func TestPageAssets(t *testing.T) {
 		if w := get(rel); w.Code != 404 {
 			t.Fatalf("%s: %d", rel, w.Code)
 		}
+	}
+}
+
+// The page's "online" follows the admin panel's rule (users.IsOnline):
+// traffic within users.OnlineWindow, whichever server (main or a node)
+// stamped last_online_at. Both the inlined data and ?format=status carry it.
+func TestPageOnline(t *testing.T) {
+	s := negFixture(t, db.StatusActive)
+	set := func(ago time.Duration) {
+		at := time.Now().UTC().Add(-ago)
+		s.DB.Model(&db.User{}).Where("sub_token = ?", "tokCarol").Update("last_online_at", at)
+	}
+	for _, c := range []struct {
+		ago  time.Duration
+		want bool
+	}{{5 * time.Second, true}, {users.OnlineWindow - 5*time.Second, true}, {users.OnlineWindow + 5*time.Second, false}, {48 * time.Hour, false}} {
+		set(c.ago)
+		admin := users.IsOnline(func() *time.Time { x := time.Now().UTC().Add(-c.ago); return &x }(), time.Now().UTC())
+		if admin != c.want {
+			t.Fatalf("%s: admin rule says %v", c.ago, admin)
+		}
+		var d map[string]any
+		w := negRequest(s, negCase{"s", chromeUA, "application/json", "?format=status"})
+		if err := json.Unmarshal(w.Body.Bytes(), &d); err != nil {
+			t.Fatal(err)
+		}
+		if d["online"] != c.want {
+			t.Fatalf("%s ago: status online=%v want %v", c.ago, d["online"], c.want)
+		}
+		_, cfg := pageOf(t, negRequest(s, negCase{"b", chromeUA, htmlAccept, ""}))
+		if cfg["data"].(map[string]any)["online"] != c.want {
+			t.Fatalf("%s ago: page online=%v want %v", c.ago, cfg["data"].(map[string]any)["online"], c.want)
+		}
+	}
+	// never connected
+	s.DB.Model(&db.User{}).Where("sub_token = ?", "tokCarol").Update("last_online_at", nil)
+	var d map[string]any
+	_ = json.Unmarshal(negRequest(s, negCase{"s", chromeUA, "application/json", "?format=status"}).Body.Bytes(), &d)
+	if d["online"] != false || d["last_online_at"] != nil {
+		t.Fatalf("never seen: %v %v", d["online"], d["last_online_at"])
 	}
 }

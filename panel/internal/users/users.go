@@ -18,6 +18,13 @@ import (
 // count as online. Cores are polled every 10s, so this spans several polls.
 const OnlineWindow = 60 * time.Second
 
+// IsOnline is the panel's online rule: traffic seen within OnlineWindow,
+// from the main server's cores or from a node (both stamp last_online_at).
+// The admin panel and the subscription page share it.
+func IsOnline(lastOnline *time.Time, now time.Time) bool {
+	return lastOnline != nil && now.Sub(*lastOnline) < OnlineWindow
+}
+
 // View is the API representation of a user.
 type View struct {
 	ID            int64      `json:"id"`
@@ -136,9 +143,7 @@ func (s *Service) ToView(u *db.User, inboundIDs []int64, host string) View {
 		BlockTorrent: u.BlockTorrent, WindowFrom: u.WindowFrom, WindowTo: u.WindowTo, WindowDays: u.WindowDays,
 		SuspendReason: u.SuspendReason, GroupID: u.GroupID, AdminID: u.AdminID,
 	}
-	if u.LastOnlineAt != nil && s.now().Sub(*u.LastOnlineAt) < OnlineWindow {
-		v.Online = true
-	}
+	v.Online = IsOnline(u.LastOnlineAt, s.now())
 	if s.SubURL != nil {
 		v.SubURL = s.SubURL(u.SubToken, host)
 	}

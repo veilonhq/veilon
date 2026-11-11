@@ -16,6 +16,7 @@ import {
   type Lang,
   type SubData,
   type SubLink,
+  onlineState,
 } from './format';
 import { translate, type SubKey } from './i18n';
 import s from './sub.module.css';
@@ -239,7 +240,18 @@ export function SubApp({ data, serverLang }: { data: SubData; serverLang: Lang }
 
   const expiryLabel = exp.kind === 'past' ? t('usage.expired.on') : t('usage.expiry');
   const expiryValue = data.expire_at ? formatDate(lang, data.expire_at, tz) : exp.kind === 'hold' ? t('usage.expiry.hold') : t('usage.expiry.none');
-  const onlineValue = data.last_online_at ? formatDate(lang, data.last_online_at, tz, true) : t('usage.online.never');
+  const seen = onlineState(data);
+  const onlineValue =
+    seen === 'online' ? (
+      <span className={s.onlineTag}>
+        <span className={s.onlineDot} aria-hidden="true" />
+        {t('usage.online.now')}
+      </span>
+    ) : seen === 'seen' && data.last_online_at ? (
+      formatDate(lang, data.last_online_at, tz, true)
+    ) : (
+      t('usage.online.never')
+    );
 
   const h = data.update_hours;
   const updateText = h > 1 ? t('footer.update', { h: n(h) }) : h === 1 ? t('footer.update.one') : t('footer.update.off');
