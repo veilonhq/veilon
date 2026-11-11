@@ -79,3 +79,68 @@ func serveIndex(w http.ResponseWriter, root fs.FS, basePath, lang string) {
 	w.Header().Set("Cache-Control", "no-cache")
 	_, _ = w.Write(b)
 }
+
+// SubPageFile is the subscription page entry of the web build.
+const SubPageFile = "sub.html"
+
+// SubPage renders the subscription page (sub.html of root, or of the
+// embedded build when root is nil) for a user's browser. basePath is the
+// subscription path ("/sub/"); the page's assets load from below it (see
+// ServeSubAsset). data is inlined as window.__VEILON_SUB__ so the page
+// paints its final layout on the first frame. ok is false when the build
+// has no subscription page (a placeholder UI).
+func SubPage(root fs.FS, basePath, lang string, data any) (page []byte, ok bool) {
+	if root == nil {
+		root = FS()
+	}
+	b, err := fs.ReadFile(root, SubPageFile)
+	if err != nil {
+		return nil, false
+	}
+	if lang != "en" {
+		lang = "fa"
+	}
+	// json.Marshal escapes <, > and &, so the payload cannot end the script.
+	cfg, err := json.Marshal(map[string]any{"lang": lang, "data": data})
+	if err != nil {
+		return nil, false
+	}
+	inject := []byte(`<base href="` + basePath + `"><script>window.__VEILON_SUB__=` + string(cfg) + `;</script>`)
+	if i := bytes.Index(b, []byte("<head>")); i >= 0 {
+		i += len("<head>")
+		b = append(b[:i:i], append(inject, b[i:]...)...)
+	} else {
+		b = append(inject, b...)
+	}
+	if lang == "en" {
+		b = bytes.Replace(b, []byte(`<html lang="fa" dir="rtl"`), []byte(`<html lang="en" dir="ltr"`), 1)
+	}
+	return b, true
+}
+
+// ServeSubAsset serves a static file of the web build (rel is "assets/…"
+// or "favicon.svg") below the subscription path, so the subscription page
+// never reveals the panel path. Only the assets directory and the favicon
+// are reachable.
+func ServeSubAsset(w http.ResponseWriter, r *http.Request, root fs.FS, rel string) {
+	if root == nil {
+		root = FS()
+	}
+	rel = strings.TrimPrefix(path.Clean("/"+rel), "/")
+	if !strings.HasPrefix(rel, "assets/") && rel != "favicon.svg" {
+		http.NotFound(w, r)
+		return
+	}
+	st, err := fs.Stat(root, rel)
+	if err != nil || st.IsDir() {
+		http.NotFound(w, r)
+		return
+	}
+	if strings.HasPrefix(rel, "assets/") {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	}
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	r2 := r.Clone(r.Context())
+	r2.URL.Path = "/" + rel
+	http.FileServer(http.FS(root)).ServeHTTP(w, r2)
+}

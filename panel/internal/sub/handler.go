@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"io/fs"
 	"net"
 	"net/http"
 	"strconv"
@@ -53,6 +54,9 @@ func SubURL(s db.Settings, token, reqHost string) string {
 // Service serves subscriptions.
 type Service struct {
 	DB *gorm.DB
+	// UI holds the web build with the subscription page (nil: the build
+	// embedded in the binary).
+	UI fs.FS
 }
 
 // Resolve loads the user for a token and their enabled inbounds.
@@ -141,6 +145,23 @@ func (s *Service) Serve(w http.ResponseWriter, r *http.Request, token string, in
 	}
 	st := db.LoadSettings(s.DB)
 	ps := BuildProxiesX(u, ibs, st, r.Host, s.Extras(u, ibs))
+	format := r.URL.Query().Get("format")
+	if !info {
+		// A browser gets the subscription page; clients (and ?format=raw)
+		// get the subscription exactly as before.
+		switch {
+		case format == FormatStatus:
+			s.serveStatus(w, r, u, ps, st)
+			return
+		case format == FormatHTML || format == "" && IsBrowser(r):
+			if s.servePage(w, r, u, ps, st) {
+				return
+			}
+			format = ""
+		case format == FormatRaw:
+			format = ""
+		}
+	}
 	if !info {
 		// Device (HWID) limit: a refused device gets a valid but empty
 		// subscription, so its client drops the configs.
@@ -162,7 +183,6 @@ func (s *Service) Serve(w http.ResponseWriter, r *http.Request, token string, in
 		_ = json.NewEncoder(w).Encode(Info{Username: u.Username, Status: u.Status, Used: u.Used(), Limit: u.DataLimit, ExpireAt: u.ExpireAt, Links: links})
 		return
 	}
-	format := r.URL.Query().Get("format")
 	if format == "" {
 		format = DetectFormat(r.UserAgent())
 	}

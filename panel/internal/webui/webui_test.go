@@ -4,6 +4,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"testing/fstest"
 )
 
 func TestSPAFallbackAndInjection(t *testing.T) {
@@ -28,5 +29,18 @@ func TestDefaultLanguageInjected(t *testing.T) {
 	Handler("/p/", "en").ServeHTTP(rec, httptest.NewRequest("GET", "/p/", nil))
 	if !strings.Contains(rec.Body.String(), `"lang":"en"`) {
 		t.Fatalf("lang not injected: %.200s", rec.Body.String())
+	}
+}
+
+func TestSubPageInjection(t *testing.T) {
+	root := fstest.MapFS{"sub.html": {Data: []byte(`<!doctype html><html lang="fa" dir="rtl"><head><title>x</title></head></html>`)}}
+	b, ok := SubPage(root, "/sub/", "en", map[string]string{"username": "</script>"})
+	s := string(b)
+	if !ok || !strings.Contains(s, `<head><base href="/sub/"><script>window.__VEILON_SUB__={`) || !strings.Contains(s, `<html lang="en" dir="ltr"`) ||
+		strings.Contains(s, `"</script>"`) || !strings.Contains(s, `"lang":"en"`) {
+		t.Fatalf("%s", s)
+	}
+	if _, ok := SubPage(fstest.MapFS{"index.html": {Data: []byte("x")}}, "/sub/", "fa", nil); ok {
+		t.Fatal("a build without sub.html has no page")
 	}
 }

@@ -262,3 +262,14 @@ func TestTimezoneTehran(t *testing.T) {
 		t.Fatalf("bad zone accepted: %d", st)
 	}
 }
+
+// The subscription page's assets are served below the subscription path
+// (never revealing the panel path); anything else there stays a 404.
+func TestSubPageAssetRoutes(t *testing.T) {
+	c, _ := setup(t)
+	for _, p := range []string{"/sub/assets/missing.js", "/sub/assets/../secret/index.html", "/sub/favicon.svg/x"} {
+		if code, _, _ := c.do("GET", p, nil); code != 404 {
+			t.Fatalf("%s: %d", p, code)
+		}
+	}
+}

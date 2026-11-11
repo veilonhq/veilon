@@ -108,6 +108,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
+		// The subscription page's own assets (tokens are 32 random
+		// characters, never "assets" or "favicon.svg").
+		if token == "assets" || token == "favicon.svg" && tail == "" {
+			s.Sub.ServeAsset(w, r, rest)
+			return
+		}
 		if idStr, ok := strings.CutPrefix(tail, "conf/"); ok {
 			id, err := strconv.ParseInt(strings.TrimSuffix(idStr, ".conf"), 10, 64)
 			if err != nil || id <= 0 {
