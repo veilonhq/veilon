@@ -1003,6 +1003,10 @@ html[lang='fa'] .termSearch input:placeholder-shown {
 .contents {
   display: contents;
 }
+.fullRow {
+  grid-column: 1 / -1;
+  scroll-margin-top: 16px;
+}
 .accountSection {
   grid-column: 1 / -1;
   scroll-margin-top: 16px;

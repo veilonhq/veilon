@@ -1,0 +1,150 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+.facts > div {
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+.facts dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+.facts dd {
+  margin: 4px 0 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: start;
+}
+/* one height in every state: the section never grows or shrinks */
+.result {
+  height: 168px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px dashed var(--line-2);
+  overflow: hidden;
+}
+.placeholder {
+  display: block;
+  height: 100%;
+}
+.state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.state svg {
+  flex: none;
+}
+.ok {
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+.err {
+  color: var(--danger-fg);
+  align-items: center;
+}
+.err > span {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.err small {
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.err :global(.btn) {
+  flex: none;
+}
+.avail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  min-height: 0;
+}
+.availHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.availTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--accent-fg);
+  font-size: 14px;
+}
+.availTitle svg {
+  flex: none;
+}
+.availTitle strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.availTitle code {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--text);
+}
+.notes {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+.muted {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.checkBtn {
+  margin-inline-start: auto;
+}
+@media (max-width: 560px) {
+  .facts {
+    grid-template-columns: 1fr 1fr;
+  }
+  .facts > div:first-child {
+    grid-column: 1 / -1;
+  }
+  .result {
+    height: 196px;
+  }
+  .checkBtn {
+    width: 100%;
+    justify-content: center;
+  }
+}
