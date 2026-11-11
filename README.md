@@ -199,7 +199,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer
 برای نصب یک نسخه مشخص:
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer/install.sh) v0.3.3
+bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer/install.sh) v0.3.4
 ```
 
 اگر `curl` نصب نیست:
@@ -644,7 +644,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer
    A specific release:
 
    ```bash
-   bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer/install.sh) v0.3.3
+   bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer/install.sh) v0.3.4
    ```
 
 5. Answer the questions (Enter accepts the default): panel port (random free port), admin username (`admin`), admin password (random), panel path (random), then the certificate: `1` domain, `2` server IP (recommended without a domain), `3` skip (plain HTTP).
