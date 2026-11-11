@@ -2,6 +2,8 @@ import { AlertTriangle, ArrowLeft, ArrowRight, Check, KeyRound, Loader2, Lock, S
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { genRealityKeys, genWgKeys, useCerts, useInbounds, useNodes, useSaveInbound, useSettings } from '@/api/hooks';
+import { ApiError } from '@/api/client';
+import { portClash, type PortClash } from '@/lib/portConflict';
 import type { AwgParams, Inbound, InboundInput, InboundSettings, Network, Protocol, Security, VNode } from '@/api/types';
 import { Sheet } from '@/components/Overlay';
 import { Select } from '@/components/Select';
@@ -249,9 +251,12 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
     }
   };
 
-  // Ports and names are unique across inbounds (the server answers 409 too).
+  // Names are unique across inbounds; ports are unique per server (the
+  // main server, each node), like the server rule (it answers 409 too).
   // These checks run live while typing; a value the edited inbound already
   // had is never flagged, matching the server.
+  const portMsg = (c: PortClash) =>
+    c.server === 'main' ? t('inb.portUsedMain', { port: n(d.port, { useGrouping: false }) }) : t('inb.portUsedNode', { port: n(d.port, { useGrouping: false }), name: c.name });
   const dupErrors = useMemo(() => {
     const e: Record<string, string> = {};
     const others = (allInbounds.data ?? []).filter((i) => i.id !== editing?.id);
@@ -260,16 +265,16 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
       const o = others.find((i) => i.remark.trim().toLowerCase() === name);
       if (o) e.remark = t('inb.nameTaken', { name: o.remark });
     }
-    const portSame = editing && editing.port === d.port && editing.protocol !== 'tun';
-    if (hasPort(p) && d.port >= 1 && d.port <= 65535 && !portSame) {
-      if (panelSettings.data?.panel_port === d.port) e.port = t('inb.portPanel');
-      else {
-        const o = others.find((i) => i.protocol !== 'tun' && i.port === d.port);
-        if (o) e.port = t('inb.portTaken', { name: o.remark });
-      }
+    if (hasPort(p) && d.port >= 1 && d.port <= 65535) {
+      // What is sent: "main server" drops the nodes (see submit).
+      const placed = onNodes ? { serve_main: d.serve_main, node_ids: d.node_ids } : { serve_main: true, node_ids: [] };
+      const reserved = panelSettings.data?.panel_port ? [panelSettings.data.panel_port] : [];
+      const c = portClash({ id: editing?.id, port: d.port, protocol: p, ...placed }, others, nodes, reserved, editing);
+      if (c) e.port = portMsg(c);
     }
     return e;
-  }, [allInbounds.data, panelSettings.data, editing, d.remark, d.port, p, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allInbounds.data, panelSettings.data, editing, d.remark, d.port, d.serve_main, d.node_ids, onNodes, nodes, p, t, n]);
 
   const errors = useMemo(() => {
     const e: Record<string, string> = {};
@@ -375,7 +380,13 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
           toast.success(editing ? t('inb.saved') : t('inb.created'));
           onClose();
         },
-        onError: (e) => setServerErr((e as Error).message),
+        onError: (e) => {
+          // A port conflict names its server; show it in the panel's language.
+          const x = e instanceof ApiError ? e.details : undefined;
+          if (x?.field === 'port' && (x.server === 'main' || x.server === 'node')) {
+            setServerErr(portMsg(x.server === 'main' ? { server: 'main' } : { server: 'node', nodeId: Number(x.node_id), name: String(x.node_name ?? '') }));
+          } else setServerErr((e as Error).message);
+        },
       },
     );
   };

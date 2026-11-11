@@ -4,6 +4,7 @@
  */
 import type { Admin, AuditEntry, GroupInput, Perm, Cert, ConnDevice, ConnIP, Group, Inbound, InboundSettings, Settings, User, UserConnections, UserStatus } from '@/api/types';
 import { emptySettings, engineOf, withSettings } from '@/lib/protocols';
+import { portClash } from '@/lib/portConflict';
 
 const GB = 1024 ** 3;
 const DAY = 86_400_000;
@@ -266,17 +267,18 @@ const audit: AuditEntry[] = Array.from({ length: 87 }, (_, i) => {
   };
 });
 
-/** Mirrors the server rule: inbound ports and names (trimmed, case-insensitive) are unique. */
-function mockInboundConflict(b: Pick<Inbound, 'remark' | 'port' | 'protocol'>, selfId: number, prev?: Inbound) {
+/** Mirrors the server rule: inbound names (trimmed, case-insensitive) are unique; ports are unique per server. */
+function mockInboundConflict(b: Pick<Inbound, 'remark' | 'port' | 'protocol' | 'serve_main' | 'node_ids'>, selfId: number, prev?: Inbound) {
   const name = (b.remark ?? '').trim().toLowerCase();
   if (!prev || prev.remark.trim().toLowerCase() !== name) {
     const o = inbounds.find((i) => i.id !== selfId && i.remark.trim().toLowerCase() === name);
     if (o) throw new HttpError(409, 'conflict', `name "${o.remark}" is already used by another inbound`);
   }
-  if (b.protocol === 'tun' || (prev && prev.port === b.port && prev.protocol !== 'tun')) return;
-  if (b.port === settings.panel_port) throw new HttpError(409, 'conflict', `port ${b.port} is used by the panel itself`);
-  const o = inbounds.find((i) => i.id !== selfId && i.protocol !== 'tun' && i.port === b.port);
-  if (o) throw new HttpError(409, 'conflict', `port ${b.port} is already used by inbound "${o.remark}"`);
+  const c = portClash({ ...b, id: selfId }, inbounds, [], [settings.panel_port], prev);
+  if (!c) return;
+  const details: Record<string, unknown> = { field: 'port', inbound: c.other ?? '', port: b.port, server: c.server };
+  if (c.server === 'main') throw new HttpError(409, 'conflict', `Port ${b.port} is already used on the main server`, details);
+  throw new HttpError(409, 'conflict', `Port ${b.port} is already used on node ${c.name}`, { ...details, node_id: c.nodeId, node_name: c.name });
 }
 
 let settings: Settings = {
@@ -462,7 +464,7 @@ function pickLimits(b: Partial<User>): Partial<User> {
 
 /* ---------- router ---------- */
 class HttpError extends Error {
-  constructor(public status: number, public code: string, msg: string) {
+  constructor(public status: number, public code: string, msg: string, public details?: Record<string, unknown>) {
     super(msg);
   }
 }
@@ -935,7 +937,7 @@ export function mockTransport(apiBase: string) {
       return new Response(JSON.stringify(data), { status: 200, headers: { 'content-type': 'application/json' } });
     } catch (e) {
       const err = e instanceof HttpError ? e : new HttpError(500, 'internal', (e as Error).message);
-      return new Response(JSON.stringify({ error: { code: err.code, message: err.message } }), { status: err.status, headers: { 'content-type': 'application/json' } });
+      return new Response(JSON.stringify({ error: { ...err.details, code: err.code, message: err.message } }), { status: err.status, headers: { 'content-type': 'application/json' } });
     }
   };
 }

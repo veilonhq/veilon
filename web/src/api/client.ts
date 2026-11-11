@@ -4,10 +4,13 @@ import { useSession } from '@/store/session';
 export class ApiError extends Error {
   status: number;
   code: string;
-  constructor(status: number, code: string, message: string) {
+  /** the whole error object of the response (e.g. field, server, port) */
+  details?: Record<string, unknown>;
+  constructor(status: number, code: string, message: string, details?: Record<string, unknown>) {
     super(message);
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -67,8 +70,8 @@ export async function api<T>(path: string, opts: RequestInit2 = {}): Promise<T> 
     }
   }
   if (!res.ok) {
-    const err = (data as { error?: { code?: string; message?: string } } | null)?.error;
-    throw new ApiError(res.status, err?.code ?? `http_${res.status}`, err?.message ?? res.statusText);
+    const err = (data as { error?: { code?: string; message?: string } & Record<string, unknown> } | null)?.error;
+    throw new ApiError(res.status, err?.code ?? `http_${res.status}`, err?.message ?? res.statusText, err ?? undefined);
   }
   return data as T;
 }
