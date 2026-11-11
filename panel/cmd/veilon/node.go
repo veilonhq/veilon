@@ -16,6 +16,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -36,6 +37,7 @@ const nodeUsage = `Usage:
   veilon node serve [--dir DIR] [--listen ADDR]   run the node agent (what the unit runs)
   veilon node status [--dir DIR]                  show the node's service and enrollment
   veilon node uninstall [--purge]                 remove the node service (root)
+  veilon node apply-update [--dir DIR] [--watch]  install a staged agent update (started by the agent)
 
 The token comes from the panel: Nodes > Add node (or "New install command").
 `
@@ -50,6 +52,7 @@ func cmdNode(args []string) error {
 	token := fs.String("token", os.Getenv("VEILON_NODE_TOKEN"), "enrollment token from the panel")
 	listen := fs.String("listen", "", "listen address (default :<port from the token>)")
 	purge := fs.Bool("purge", false, "with uninstall: also remove the state directory")
+	watch := fs.Bool("watch", false, "with apply-update: only wait for the new agent's confirmation")
 	if _, err := parseInterspersed(fs, args[1:]); err != nil {
 		return err
 	}
@@ -62,6 +65,8 @@ func cmdNode(args []string) error {
 		return nodeStatus(*dir)
 	case "uninstall":
 		return nodeUninstall(*dir, *purge)
+	case "apply-update":
+		return nodeApplyUpdate(*dir, *watch)
 	}
 	return fmt.Errorf("unknown node command %q\n\n%s", args[0], nodeUsage)
 }
@@ -140,8 +145,9 @@ func nodeServe(dir, token, listen string) error {
 	shaper := guard.New(nil, "") // speed limits from the master (tc only)
 	core := &nodes.ProcCore{Bin: filepath.Join(nodeXrayDir(dir), "xray"), Dir: dir, APIPort: apiPort, OnLine: ips.ObserveLine}
 	a := &nodes.Agent{Enrollment: e, Dir: dir, Core: core, APIPort: apiPort, Version: version.Version,
-		IPs: ips, Firewall: &guard.NodeFirewall{}, Shaper: shaper}
+		IPs: ips, Firewall: &guard.NodeFirewall{}, Shaper: shaper, Updater: nodeUpdater(dir)}
 	defer shaper.ClearShapes()
+	a.Updater.Resume()
 	a.Restore(ctx)
 	return a.Serve(ctx, listen)
 }
@@ -272,4 +278,64 @@ func nodeUninstall(dir string, purge bool) error {
 		}
 	}
 	return nil
+}
+
+// nodeUpdater is the agent's self-updater. The helper must run outside the
+// agent's unit (which cannot write the binary and is stopped by the
+// restart): under systemd it is a transient unit (systemd-run); otherwise
+// (development, tests with VEILON_NODE_RESTART_CMD) a detached process.
+func nodeUpdater(dir string) *nodes.SelfUpdater {
+	bin := os.Getenv("VEILON_NODE_BIN")
+	if bin == "" {
+		bin, _ = os.Executable()
+		if p, err := filepath.EvalSymlinks(bin); err == nil {
+			bin = p
+		}
+	}
+	u := &nodes.SelfUpdater{Dir: dir, BinPath: bin, Version: version.Version, RestartCmd: os.Getenv("VEILON_NODE_RESTART_CMD")}
+	if d, err := time.ParseDuration(os.Getenv("VEILON_NODE_UPDATE_TIMEOUT")); err == nil && d >= 10*time.Second {
+		u.Timeout = d
+	}
+	_, sdErr := os.Stat("/run/systemd/system")
+	sdRun, lookErr := exec.LookPath("systemd-run")
+	switch {
+	case u.RestartCmd == "" && sdErr == nil && lookErr == nil:
+		u.Launch = func(exe string, args []string) error {
+			unit := fmt.Sprintf("veilon-node-update-%d", time.Now().Unix())
+			cmd := exec.Command(sdRun, append([]string{"--unit=" + unit, "--collect", "--quiet", "--description=Veilon node update", exe}, args...)...)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("systemd-run: %v: %s", err, strings.TrimSpace(string(out)))
+			}
+			return nil
+		}
+	case u.RestartCmd != "":
+		u.Launch = func(exe string, args []string) error {
+			if err := os.MkdirAll(filepath.Join(dir, "update"), 0o700); err != nil {
+				return err
+			}
+			logf, err := os.OpenFile(filepath.Join(dir, "update", "helper.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+			if err != nil {
+				return err
+			}
+			defer logf.Close()
+			cmd := exec.Command(exe, args...)
+			cmd.Stdout, cmd.Stderr = logf, logf
+			cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+			if err := cmd.Start(); err != nil {
+				return err
+			}
+			return cmd.Process.Release()
+		}
+	}
+	return u
+}
+
+func nodeApplyUpdate(dir string, watchOnly bool) error {
+	h := &nodes.Helper{Dir: dir}
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	if watchOnly {
+		return h.Watch(ctx)
+	}
+	return h.Apply(ctx)
 }

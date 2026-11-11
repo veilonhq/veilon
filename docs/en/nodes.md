@@ -47,7 +47,25 @@ Only Xray inbounds (except TUN) can run on nodes.
 
 ## Update a node
 
-IP limits and speed limits on nodes need the node agent of v0.3.2 or newer. Older nodes keep serving users, but they do not report IPs or take bans and speed limits. To update a node, open it on the Nodes page, choose **New install command** and run that command on the node server: it installs the latest program and keeps the node's settings.
+Each node card shows its agent version. When it is older than the main server's version, the card shows the new version and an **Update node** button; **Update all outdated nodes** at the top of the page updates every such node at once. Only sudo admins see the Nodes page.
+
+What happens when you press it:
+
+1. The main server asks the node, over the same mutual-TLS channel it already uses, to install the main server's own version. It sends the release file for the node's CPU (amd64 or arm64) from the same release source as the panel update (GitHub, or the feed set in `VEILON_UPDATE_API`) and its SHA-256 from the release's `checksums.txt`.
+2. **Downloading**: the node downloads the file into its state directory.
+3. **Verifying**: the node checks the SHA-256 and that the file runs and reports the expected version. On a mismatch nothing is changed.
+4. **Restarting**: a helper outside the node service (a short `systemd-run` unit) keeps a backup of the current program (`/var/lib/veilon-node/update/backup/veilon`), replaces `/usr/local/bin/veilon` atomically and restarts `veilon-node`.
+5. **Done**: the new agent reports its version to the main server. If the new version does not reconnect to the main server within 90 seconds, the helper restores the previous program and restarts the node again; the card then shows the failure and that the previous version was restored.
+
+The node's certificate and enrollment are not touched. One update runs per node at a time, and a node can be asked again 30 seconds after the last request. The main server never downgrades a node (a node newer than the main server is left alone), refuses when the node's CPU architecture is unknown, and only updates to a release version. Every request and its outcome are in the audit log (`node.update.requested`, `node.update.ok`, `node.update.failed`). Times on the card are in the panel's time zone.
+
+Agents older than v0.3.5 cannot update themselves. Their card says **Needs one manual update**: choose **New install command** and run it on the node server once (it installs the latest program and keeps the node's settings). From then on the button above works.
+
+IP limits and speed limits on nodes need the node agent of v0.3.2 or newer. Older nodes keep serving users, but they do not report IPs or take bans and speed limits.
+
+## Deleting a node or taking an inbound off it
+
+An inbound that runs only on nodes goes back to the main server when its last node is deleted or drops it. If its port is already used on the main server (by another inbound, or reserved for the panel), the delete is refused with a message naming the inbound and the port, and a link to edit that inbound: change its port or run it on another node first, then delete the node.
 
 ## On the node server
 

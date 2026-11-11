@@ -12,6 +12,22 @@
 }
 
 /* ---------- card ---------- */
+/* the whole card opens the node (a button laid over it); the update row's
+   own controls sit above that button */
+.cardOpen {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.cardOpen:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
 .card {
   --sc: var(--accent);
   position: relative;
@@ -26,7 +42,6 @@
   color: inherit;
   font: inherit;
   text-align: start;
-  cursor: pointer;
   overflow: hidden;
   transition:
     transform 0.25s var(--ease),
@@ -243,6 +258,169 @@
 }
 .muted {
   font-size: 12.5px;
+}
+
+/* ---------- agent version and update ---------- */
+.upd {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line-2);
+}
+.updRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  min-height: 34px;
+}
+.ver {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.ver b {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.newVer {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--info-fg, var(--info));
+  background: color-mix(in srgb, var(--info) 14%, transparent);
+}
+.updBtn {
+  position: relative;
+  z-index: 1;
+}
+.progress {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 12px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--info) 9%, var(--panel-3));
+  border: 1px solid color-mix(in srgb, var(--info) 26%, transparent);
+}
+.progTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 10px;
+  font-size: 13px;
+  font-weight: 650;
+}
+.progTitle small,
+.when {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.steps3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.steps3 li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+}
+.steps3 li svg {
+  flex: none;
+}
+.steps3 .stepDone {
+  color: var(--accent-fg);
+}
+.steps3 .stepNow {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--info) 45%, transparent);
+}
+.result {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+.result > svg {
+  flex: none;
+  margin-top: 2px;
+}
+.result > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.result strong {
+  font-size: 13px;
+}
+.okRes {
+  color: var(--accent-fg);
+  background: var(--accent-soft);
+}
+.failRes {
+  color: var(--danger-fg, var(--danger));
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+.failRes .why {
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+  direction: ltr;
+  text-align: start;
+  unicode-bidi: plaintext;
+}
+.manual {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--warn-fg);
+  background: var(--warn-soft);
+}
+.manual strong {
+  font-size: 13px;
+}
+.manual .btn {
+  align-self: flex-start;
 }
 
 @media (max-width: 520px) {

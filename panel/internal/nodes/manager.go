@@ -50,6 +50,13 @@ type State struct {
 	MemUsed     float64    `json:"mem_used"`
 	CPUs        int        `json:"cpus"`
 	LatencyMS   int64      `json:"latency_ms"`
+	// Arch is the node's CPU architecture ("" from agents before v0.3.5).
+	Arch string `json:"arch"`
+	// CanUpdate: the agent updates itself from the panel (v0.3.5 and
+	// later); older agents need one manual install.
+	CanUpdate bool `json:"can_update"`
+	// Update is the last agent update asked from this panel (nil = none).
+	Update *UpdateStatus `json:"update"`
 }
 
 // Manager is the master side: it keeps every node's config in sync, reads
@@ -79,6 +86,13 @@ type Manager struct {
 	Bans func() []guard.Ban
 	// Shapes is the speed-limit plan; every node gets it with the bans.
 	Shapes func() []guard.Shape
+	// Version is the main server's version: nodes are updated to it.
+	Version string
+	// ReleaseAPI is the release list nodes are updated from ("" = the
+	// panel's self-update source, VEILON_UPDATE_API or GitHub).
+	ReleaseAPI    string
+	ReleaseClient *http.Client
+	ups           updates
 
 	once     sync.Once
 	mu       sync.Mutex
@@ -216,6 +230,7 @@ func (m *Manager) Status(n *db.Node) State {
 		if !n.Enabled && c.Status != StateOffline {
 			c.Status = StateDisabled
 		}
+		c.Update = m.UpdateState(n.ID)
 		return c
 	}
 	if !n.Enabled {
@@ -298,12 +313,15 @@ func (m *Manager) SyncNode(parent context.Context, n *db.Node) {
 		if n.LastSeenAt == nil {
 			status = StateWaiting // never reached: most likely not installed yet
 		}
-		st := &State{Status: status, Error: err.Error(), Version: prev.Version, XrayVersion: prev.XrayVersion}
+		st := &State{Status: status, Error: err.Error(), Version: prev.Version, XrayVersion: prev.XrayVersion,
+			Arch: prev.Arch, CanUpdate: prev.CanUpdate}
 		m.setState(n.ID, st)
+		m.trackUpdate(n, nil)
 		return
 	}
+	m.trackUpdate(n, &info)
 	st := &State{Version: info.Version, XrayVersion: info.XrayVersion, XrayRunning: info.XrayRunning, Load1: info.Load1,
-		MemUsed: info.MemUsed, CPUs: info.CPUs, LatencyMS: time.Since(t0).Milliseconds()}
+		MemUsed: info.MemUsed, CPUs: info.CPUs, LatencyMS: time.Since(t0).Milliseconds(), Arch: info.Arch, CanUpdate: info.HasCap(CapUpdate)}
 	if !info.StartedAt.IsZero() {
 		s := info.StartedAt
 		st.StartedAt = &s

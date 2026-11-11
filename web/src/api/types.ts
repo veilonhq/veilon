@@ -492,6 +492,31 @@ export interface NodeState {
   mem_used: number;
   cpus: number;
   latency_ms: number;
+  /** CPU architecture ('' from agents before v0.3.5) */
+  arch: string;
+  /** the agent updates itself from the panel (v0.3.5 and later) */
+  can_update: boolean;
+  /** the last agent update asked from this panel */
+  update: NodeUpdate | null;
+}
+export type NodeUpdatePhase = 'downloading' | 'verifying' | 'restarting' | 'done' | 'failed';
+export interface NodeUpdate {
+  target: string;
+  from: string;
+  phase: NodeUpdatePhase;
+  error?: string;
+  rolled_back?: boolean;
+  started_at: string;
+  updated_at: string;
+  finished_at?: string | null;
+  by?: string;
+}
+export interface NodeUpdateResult {
+  id: number;
+  name: string;
+  ok: boolean;
+  code?: string;
+  message?: string;
 }
 /** A remote server running "veilon node" that serves chosen inbounds. */
 export interface VNode {
@@ -509,6 +534,8 @@ export interface VNode {
   /** read-only: inbounds this node runs (chosen in each inbound's form) */
   inbound_ids: number[];
   state: NodeState;
+  /** the main server's version when this node's agent is older ('' otherwise) */
+  update_to: string;
 }
 export interface NodeInput {
   name: string;

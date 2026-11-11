@@ -52,6 +52,11 @@ type Agent struct {
 	Firewall *guard.NodeFirewall
 	// Shaper applies the master's speed limits (nil = ignored).
 	Shaper interface{ ApplyShapes([]guard.Shape) }
+	// Updater updates the agent on the master's request (nil = the agent
+	// does not announce CapUpdate).
+	Updater *SelfUpdater
+	// Arch overrides the reported CPU architecture (tests; "" = GOARCH).
+	Arch string
 
 	mu      sync.Mutex
 	hash    string
@@ -297,7 +302,46 @@ func (a *Agent) Handler() http.Handler {
 	m.HandleFunc("PUT /v1/config", a.putConfig)
 	m.HandleFunc("GET /v1/stats", a.stats)
 	m.HandleFunc("PUT /v1/bans", a.putBans)
-	return m
+	m.HandleFunc("POST /v1/update", a.postUpdate)
+	m.HandleFunc("GET /v1/update", func(w http.ResponseWriter, r *http.Request) { writeJ(w, 200, a.updateStatus()) })
+	if a.Updater == nil {
+		return m
+	}
+	// Every request here passed mutual TLS, so it came from the master: a
+	// freshly updated agent takes it as the confirmation it reconnected.
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		a.Updater.Confirm()
+		m.ServeHTTP(w, r)
+	})
+}
+
+func (a *Agent) updateStatus() *UpdateStatus {
+	if a.Updater == nil {
+		return nil
+	}
+	return ReadUpdateStatus(a.Dir)
+}
+
+// postUpdate starts a self-update (202) or says why not.
+func (a *Agent) postUpdate(w http.ResponseWriter, r *http.Request) {
+	if a.Updater == nil {
+		writeJ(w, 404, map[string]string{"error": "this agent does not update itself"})
+		return
+	}
+	var req UpdateRequest
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&req); err != nil {
+		writeJ(w, 400, map[string]string{"error": "bad request: " + err.Error()})
+		return
+	}
+	if err := a.Updater.Start(req); err != nil {
+		code := 400
+		if errors.Is(err, ErrUpdateBusy) {
+			code = 409
+		}
+		writeJ(w, code, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJ(w, 202, a.updateStatus())
 }
 
 func (a *Agent) info() Info {
@@ -306,7 +350,14 @@ func (a *Agent) info() Info {
 	hash := a.hash
 	a.mu.Unlock()
 	in := Info{NodeID: a.Enrollment.ID, Version: a.Version, XrayVersion: ver, XrayRunning: running, XrayError: lastErr,
-		ConfigHash: hash, APIPort: a.APIPort, StartedAt: a.started, CPUs: runtime.NumCPU()}
+		ConfigHash: hash, APIPort: a.APIPort, StartedAt: a.started, CPUs: runtime.NumCPU(), Arch: runtime.GOARCH}
+	if a.Arch != "" {
+		in.Arch = a.Arch
+	}
+	if a.Updater != nil {
+		in.Caps = []string{CapUpdate}
+		in.Update = a.updateStatus()
+	}
 	in.Load1, in.MemUsed = hostLoad()
 	return in
 }

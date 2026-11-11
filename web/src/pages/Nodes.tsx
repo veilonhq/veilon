@@ -1,8 +1,10 @@
-import { Activity, ArrowDown, ArrowUp, Clock, Cpu, MemoryStick, Plus, Server, Waypoints } from 'lucide-react';
+import { Activity, ArrowDown, ArrowUp, ArrowUpCircle, Clock, Cpu, MemoryStick, Plus, Server, Waypoints } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import { useInbounds, useNodes, useTraffic } from '@/api/hooks';
+import { useInbounds, useNodes, useTraffic, useUpdateOutdatedNodes } from '@/api/hooks';
 import { ServerTraffic } from '@/components/ServerTraffic';
 import type { VNode } from '@/api/types';
+import { confirmAction, toast } from '@/store/feedback';
+import { canUpdate, NodeUpdateRow, updating, updateErrText } from './nodes/NodeUpdate';
 import { EmptyState, ErrorState, PageHeader, Skeleton } from '@/components/misc';
 import { formatClock, formatIsoDay, useI18n } from '@/i18n';
 import { NodeSheet, NoPanelWarning } from './nodes/NodeSheet';
@@ -19,13 +21,27 @@ export default function NodesPage() {
   const [params, setParams] = useSearchParams();
   const editId = Number(params.get('n')) || null;
   const creating = params.get('new') === '1';
+  const askInstall = params.get('install') === '1';
   const editing = editId ? (q.data?.find((x) => x.id === editId) ?? null) : null;
   const go = (k: 'n' | 'new' | null, v?: string) => {
     const p = new URLSearchParams(params);
     p.delete('n');
     p.delete('new');
+    p.delete('install');
     if (k && v) p.set(k, v);
     setParams(p);
+  };
+  const openInstall = (id: number) => {
+    const p = new URLSearchParams(params);
+    p.delete('new');
+    p.set('n', String(id));
+    p.set('install', '1');
+    setParams(p);
+  };
+  const installAsked = () => {
+    const p = new URLSearchParams(params);
+    p.delete('install');
+    setParams(p, { replace: true });
   };
   const remark = (id: number) => ibQ.data?.find((i) => i.id === id)?.remark;
 
@@ -37,13 +53,43 @@ export default function NodesPage() {
   );
   const list = q.data ?? [];
   const online = list.filter((x) => x.state.status === 'online').length;
+  const outdated = list.filter(canUpdate);
+  const updateAll = useUpdateOutdatedNodes();
+  const runUpdateAll = async () => {
+    const to = outdated[0]?.update_to ?? '';
+    const ok = await confirmAction({
+      title: t('node.updAllTitle', { n: n(outdated.length) }),
+      body: t('node.updAllBody', { to }),
+      confirmLabel: t('node.updateAll'),
+    });
+    if (!ok) return;
+    updateAll.mutate(undefined, {
+      onSuccess: (r) => {
+        const failed = r.results.filter((x) => !x.ok);
+        if (r.started) toast.success(t('node.updAllStarted', { n: n(r.started) }));
+        for (const f of failed) toast.error(f.name, updateErrText(t, f.code, f.message));
+        if (!r.started && !failed.length) toast.success(t('node.updAllNone'));
+      },
+      onError: (x) => toast.error(t('common.error'), (x as Error).message),
+    });
+  };
 
   return (
     <div>
       <PageHeader
         eyebrow={q.data ? (list.length ? t('node.sum', { on: n(online), n: n(list.length) }) : t('node.count', { n: n(0) })) : undefined}
         title={t('node.title')}
-        actions={newBtn}
+        actions={
+          <>
+            {outdated.length > 0 && (
+              <button className="btn" onClick={runUpdateAll} disabled={updateAll.isPending || list.some(updating)}>
+                <ArrowUpCircle size={18} />
+                {t('node.updateAll')}
+              </button>
+            )}
+            {newBtn}
+          </>
+        }
       />
       <p className={s.intro}>{t('node.intro')}</p>
       <div className={s.pageWarn}>
@@ -63,7 +109,7 @@ export default function NodesPage() {
         <>
           <div className={s.grid}>
             {list.map((x) => (
-              <NodeCard key={x.id} node={x} onOpen={() => go('n', String(x.id))} remark={remark} />
+              <NodeCard key={x.id} node={x} onOpen={() => go('n', String(x.id))} onInstall={() => openInstall(x.id)} remark={remark} />
             ))}
           </div>
           <section className={`glass ${s.servers}`}>
@@ -71,18 +117,19 @@ export default function NodesPage() {
           </section>
         </>
       )}
-      <NodeSheet open={creating || !!editing} node={editing} onClose={() => go(null)} inbounds={ibQ.data ?? []} onCreated={(id) => go('n', String(id))} />
+      <NodeSheet open={creating || !!editing} node={editing} askInstall={askInstall && !!editing} onInstallAsked={installAsked} onClose={() => go(null)} inbounds={ibQ.data ?? []} onCreated={(id) => go('n', String(id))} />
     </div>
   );
 }
 
-function NodeCard({ node: x, onOpen, remark }: { node: VNode; onOpen: () => void; remark: (id: number) => string | undefined }) {
+function NodeCard({ node: x, onOpen, onInstall, remark }: { node: VNode; onOpen: () => void; onInstall: () => void; remark: (id: number) => string | undefined }) {
   const { t, n, bytes } = useI18n();
   const st = x.state;
   const live = st.status === 'online' || st.status === 'degraded';
   const names = x.inbound_ids.map((id) => remark(id)).filter(Boolean) as string[];
   return (
-    <button type="button" className={`${s.card} ${s['s_' + st.status]}`} onClick={onOpen}>
+    <div className={`${s.card} ${s['s_' + st.status]}`}>
+      <button type="button" className={s.cardOpen} onClick={onOpen} aria-label={t('node.open', { name: x.name })} />
       <span className={s.top}>
         <span className={s.beacon} aria-hidden="true">
           <Server size={18} />
@@ -168,6 +215,7 @@ function NodeCard({ node: x, onOpen, remark }: { node: VNode; onOpen: () => void
           <span className={s.muted}>{t('node.inboundsN', { n: n(0) })}</span>
         )}
       </span>
-    </button>
+      <NodeUpdateRow node={x} onInstall={onInstall} />
+    </div>
   );
 }

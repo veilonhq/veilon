@@ -94,6 +94,8 @@ func (s *Server) routes() http.Handler {
 	m.HandleFunc("PATCH /nodes/{id}", s.sudo(s.updateNode))
 	m.HandleFunc("DELETE /nodes/{id}", s.sudo(s.deleteNode))
 	m.HandleFunc("POST /nodes/{id}/install", s.sudo(s.nodeInstall))
+	m.HandleFunc("POST /nodes/{id}/update", s.sudo(s.nodeUpdate))
+	m.HandleFunc("POST /nodes/update-outdated", s.sudo(s.nodesUpdateOutdated))
 
 	m.HandleFunc("GET /audit", s.perm(auth.PermLogs, s.listAudit))
 

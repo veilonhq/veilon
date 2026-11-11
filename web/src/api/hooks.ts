@@ -35,6 +35,7 @@ import type {
   VNode,
   NodeInput,
   NodeInstall,
+  NodeUpdateResult,
 } from './types';
 
 export const qk = {
@@ -633,7 +634,12 @@ export function useAudit(page: number) {
 
 /* ---------- nodes ---------- */
 export function useNodes() {
-  return useQuery({ queryKey: qk.nodes, queryFn: () => api<VNode[]>('/nodes'), refetchInterval: 10_000 });
+  return useQuery({
+    queryKey: qk.nodes,
+    queryFn: () => api<VNode[]>('/nodes'),
+    // faster while an agent update runs, so its steps show as they happen
+    refetchInterval: (q) => (q.state.data?.some((x) => x.state.update && x.state.update.phase !== 'done' && x.state.update.phase !== 'failed') ? 3_000 : 10_000),
+  });
 }
 export function useSaveNode() {
   const qc = useQueryClient();
@@ -657,6 +663,23 @@ export function useDeleteNode() {
       qc.setQueryData<VNode[]>(qk.nodes, (old) => old?.filter((x) => x.id !== id));
       qc.invalidateQueries({ queryKey: ['users', 'links'] });
     },
+  });
+}
+export function useNodeUpdate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<VNode>(`/nodes/${id}/update`, { method: 'POST' }),
+    onSuccess: (node) => {
+      qc.setQueryData<VNode[]>(qk.nodes, (old) => old?.map((x) => (x.id === node.id ? node : x)));
+      qc.invalidateQueries({ queryKey: qk.nodes });
+    },
+  });
+}
+export function useUpdateOutdatedNodes() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<{ started: number; results: NodeUpdateResult[] }>('/nodes/update-outdated', { method: 'POST' }),
+    onSettled: () => qc.invalidateQueries({ queryKey: qk.nodes }),
   });
 }
 export function useNodeInstall() {

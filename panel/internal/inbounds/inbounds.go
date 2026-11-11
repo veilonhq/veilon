@@ -110,6 +110,10 @@ type ConflictError struct {
 	Server   string
 	NodeID   int64
 	NodeName string
+	// Moving names the inbound that would move back to the main server
+	// (its last node is removed) and cannot, because of this port.
+	MovingID int64
+	Moving   string
 }
 
 func (e *ConflictError) Error() string { return e.Msg }

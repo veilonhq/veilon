@@ -195,6 +195,9 @@ func writeServiceErr(w http.ResponseWriter, err error) {
 	switch {
 	case errors.As(err, &ic):
 		e := map[string]any{"code": "conflict", "message": ic.Msg, "field": ic.Field, "inbound": ic.Other}
+		if ic.MovingID != 0 {
+			e["code"], e["moving_inbound_id"], e["moving_inbound"] = "main_port_conflict", ic.MovingID, ic.Moving
+		}
 		if ic.Server != "" {
 			e["port"], e["server"] = ic.Port, ic.Server
 			if ic.Server == "node" {

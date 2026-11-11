@@ -89,7 +89,7 @@ func cmdServe(args []string) error {
 	// Remote nodes get every change too (their config is rendered from the
 	// same users, inbounds and template).
 	nodeMgr := &nodes.Manager{DB: gdb, DataDir: cfg.DataDir, PKI: &nodes.PKI{Dir: filepath.Join(cfg.DataDir, "nodes")},
-		OnIPs: connGuard.ObserveRemote, Bans: connGuard.Bans, Shapes: connGuard.Shapes}
+		OnIPs: connGuard.ObserveRemote, Bans: connGuard.Bans, Shapes: connGuard.Shapes, Version: version.Version}
 	reloadAll := func() { core.RequestReload(); nodeMgr.Kick() }
 	certSvc := &certs.Service{DB: gdb, DataDir: cfg.DataDir, ACMEDirectory: cfg.ACMEDirectory, OnChange: reloadAll,
 		AllowNonPublicIPs: cfg.ACMEAllowPrivateIPs}
@@ -134,7 +134,7 @@ func cmdServe(args []string) error {
 	srv = api.New(&api.Server{
 		DB: gdb, Auth: authSvc, Users: userSvc, Inbounds: inbSvc, Certs: certSvc,
 		Sub: &sub.Service{DB: gdb}, Core: core, Sampler: sampler, TrustProxy: cfg.TrustProxy, PanelLogs: panelLogs, Update: updates,
-		Nodes: &nodes.Service{DB: gdb, PKI: nodeMgr.PKI, Manager: nodeMgr},
+		Nodes: &nodes.Service{DB: gdb, PKI: nodeMgr.PKI, Manager: nodeMgr, CheckMoveToMain: inbSvc.CheckMoveToMain},
 		Live:  func(id int64) []string { return connGuard.Tracker.Live(id, time.Now().UTC()) },
 		OnListenerChange: func() {
 			select {

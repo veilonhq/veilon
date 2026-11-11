@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useDeleteNode, useNodeInstall, useSaveNode } from '@/api/hooks';
 import type { Inbound, NodeInstall, VNode } from '@/api/types';
 import { Link } from 'react-router-dom';
+import { ApiError } from '@/api/client';
 import { CopyButton, Field, Switch } from '@/components/misc';
 import { Sheet } from '@/components/Overlay';
 import { useI18n } from '@/i18n';
@@ -25,9 +26,21 @@ interface Props {
   onClose: () => void;
   inbounds: Inbound[];
   onCreated: (id: number) => void;
+  /** open straight on the "new install command" confirmation */
+  askInstall?: boolean;
+  onInstallAsked?: () => void;
 }
 
-export function NodeSheet({ open, node, onClose, inbounds, onCreated }: Props) {
+/** Server error for a refused delete: an inbound that would go back to the
+ * main server collides there (localized, with a link to edit it). */
+interface MoveConflict {
+  id: number;
+  inbound: string;
+  port: number;
+  other: string;
+}
+
+export function NodeSheet({ open, node, onClose, inbounds, onCreated, askInstall, onInstallAsked }: Props) {
   const { t, n } = useI18n();
   const save = useSaveNode();
   const del = useDeleteNode();
@@ -40,6 +53,7 @@ export function NodeSheet({ open, node, onClose, inbounds, onCreated }: Props) {
   const [touched, setTouched] = useState(false);
   const [serverErr, setServerErr] = useState<string | null>(null);
   const [install, setInstall] = useState<NodeInstall | null>(null);
+  const [moveErr, setMoveErr] = useState<MoveConflict | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -48,6 +62,7 @@ export function NodeSheet({ open, node, onClose, inbounds, onCreated }: Props) {
     }
     setTouched(false);
     setServerErr(null);
+    setMoveErr(null);
     setName(node?.name ?? '');
     setAddr(node?.address ?? '');
     setPort(node?.api_port ?? DEFAULT_PORT);
@@ -102,11 +117,21 @@ export function NodeSheet({ open, node, onClose, inbounds, onCreated }: Props) {
       confirmLabel: t('common.delete'),
     });
     if (!ok) return;
+    setMoveErr(null);
     del.mutate(node.id, {
-      onSuccess: () => toast.success(t('node.deleted')),
-      onError: (x) => toast.error(t('common.error'), (x as Error).message),
+      onSuccess: () => {
+        toast.success(t('node.deleted'));
+        onClose();
+      },
+      onError: (x) => {
+        const d = x instanceof ApiError ? x.details : undefined;
+        if (x instanceof ApiError && x.code === 'main_port_conflict' && d) {
+          setMoveErr({ id: Number(d.moving_inbound_id), inbound: String(d.moving_inbound ?? ''), port: Number(d.port), other: String(d.inbound ?? '') });
+          return;
+        }
+        toast.error(t('common.error'), (x as Error).message);
+      },
     });
-    onClose();
   };
 
   const newCommand = async () => {
@@ -122,6 +147,14 @@ export function NodeSheet({ open, node, onClose, inbounds, onCreated }: Props) {
       onError: (x) => toast.error(t('common.error'), (x as Error).message),
     });
   };
+
+  useEffect(() => {
+    if (open && askInstall && node) {
+      onInstallAsked?.();
+      void newCommand();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, askInstall, node?.id]);
 
   if (install) {
     return (
@@ -198,6 +231,16 @@ export function NodeSheet({ open, node, onClose, inbounds, onCreated }: Props) {
         {serverErr && (
           <div className={u.formErr} role="alert">
             {serverErr}
+          </div>
+        )}
+        {moveErr && (
+          <div className={u.formErr} role="alert">
+            {moveErr.other
+              ? t('node.moveConflict', { inb: moveErr.inbound, port: n(moveErr.port, { useGrouping: false }), other: moveErr.other })
+              : t('node.moveReserved', { inb: moveErr.inbound, port: n(moveErr.port, { useGrouping: false }) })}{' '}
+            <Link to={`/inbounds?edit=${moveErr.id}`} onClick={onClose}>
+              {t('node.editInbound', { inb: moveErr.inbound })}
+            </Link>
           </div>
         )}
         {node?.state.error && node.state.status !== 'disabled' && (

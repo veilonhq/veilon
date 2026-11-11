@@ -28,7 +28,69 @@ type Info struct {
 	Load1       float64   `json:"load1"`
 	MemUsed     float64   `json:"mem_used"` // 0..1
 	CPUs        int       `json:"cpus"`
+	// Arch is the node's CPU architecture (GOARCH: amd64, arm64), so the
+	// master picks the right release asset. Empty from agents before v0.3.5.
+	Arch string `json:"arch,omitempty"`
+	// Caps lists what the agent supports beyond the base protocol
+	// (CapUpdate: POST /v1/update). Empty from agents before v0.3.5.
+	Caps []string `json:"caps,omitempty"`
+	// Update is the agent's last self-update (nil when none ran).
+	Update *UpdateStatus `json:"update,omitempty"`
 }
+
+// CapUpdate: the agent updates itself on request (POST /v1/update).
+const CapUpdate = "update"
+
+// HasCap reports whether the agent announced capability c.
+func (in *Info) HasCap(c string) bool {
+	for _, x := range in.Caps {
+		if x == c {
+			return true
+		}
+	}
+	return false
+}
+
+// UpdateRequest is the body of POST /v1/update: the release the node
+// downloads (the asset for its architecture) and the asset's SHA-256 from
+// the release's checksums.txt.
+type UpdateRequest struct {
+	Version string `json:"version"`
+	URL     string `json:"url"`
+	SHA256  string `json:"sha256"`
+}
+
+// Phases of a node update, in order; done and failed are final.
+const (
+	UpdDownloading = "downloading"
+	UpdVerifying   = "verifying"
+	UpdRestarting  = "restarting"
+	UpdDone        = "done"
+	UpdFailed      = "failed"
+)
+
+// UpdateStatus is the state of one node update. The agent and its update
+// helper write it on the node; the master keeps its own copy for the panel.
+type UpdateStatus struct {
+	Target string `json:"target"`
+	From   string `json:"from"`
+	Phase  string `json:"phase"`
+	Error  string `json:"error,omitempty"`
+	// RolledBack: the new version did not come back and the previous
+	// binary was restored.
+	RolledBack bool       `json:"rolled_back,omitempty"`
+	StartedAt  time.Time  `json:"started_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+	FinishedAt *time.Time `json:"finished_at,omitempty"`
+	// By is the admin who asked for it (master side only).
+	By string `json:"by,omitempty"`
+	// agentStart is the node's StartedAt for this update (master side),
+	// so an older report for the same target is not mistaken for it.
+	agentStart time.Time
+}
+
+// Final reports whether the update has ended.
+func (u *UpdateStatus) Final() bool { return u.Phase == UpdDone || u.Phase == UpdFailed }
 
 // ConfigPush is the body of PUT /v1/config.
 type ConfigPush struct {

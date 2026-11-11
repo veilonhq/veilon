@@ -131,3 +131,59 @@ func (s *Service) checkPort(id int64, port int, want servers) error {
 	}
 	return nil
 }
+
+// CheckMoveToMain is asked before inbounds that ran only on nodes go back
+// to the main server because they lose their last node (the node is
+// deleted, or drops them). It rejects the move when an inbound's port is
+// taken on the main server: by a reserved port, by an inbound that already
+// runs there, or by another inbound moving with it.
+func (s *Service) CheckMoveToMain(ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	moving := map[int64]bool{}
+	for _, id := range ids {
+		moving[id] = true
+	}
+	var ibs []db.Inbound
+	if err := s.DB.Select("id", "remark", "port", "protocol").Where("id IN ? AND protocol <> ?", ids, TUN).Order("id").Find(&ibs).Error; err != nil {
+		return err
+	}
+	if len(ibs) == 0 {
+		return nil
+	}
+	var reserved []int
+	if s.ReservedPorts != nil {
+		reserved = s.ReservedPorts()
+	}
+	var all []db.Inbound
+	if err := s.DB.Select("id", "remark", "port", "protocol", "serve_main").Where("protocol <> ?", TUN).Order("id").Find(&all).Error; err != nil {
+		return err
+	}
+	placed := Placements(s.DB)
+	moveErr := func(ib db.Inbound, other string) error {
+		ce := &ConflictError{Field: "port", Other: other, Port: ib.Port, Server: "main", MovingID: ib.ID, Moving: ib.Remark}
+		if other == "" {
+			ce.Msg = fmt.Sprintf("Inbound %q would move back to the main server, but port %d is reserved there; change its port or run it on another node first", ib.Remark, ib.Port)
+		} else {
+			ce.Msg = fmt.Sprintf("Inbound %q would move back to the main server, but port %d is already used there by inbound %q; change its port or run it on another node first", ib.Remark, ib.Port, other)
+		}
+		return ce
+	}
+	for _, ib := range ibs {
+		for _, p := range reserved {
+			if p == ib.Port {
+				return moveErr(ib, "")
+			}
+		}
+		for _, o := range all {
+			if o.ID == ib.ID || o.Port != ib.Port {
+				continue
+			}
+			if moving[o.ID] || serversOf(o.ServeMain, placed[o.ID]).main {
+				return moveErr(ib, o.Remark)
+			}
+		}
+	}
+	return nil
+}

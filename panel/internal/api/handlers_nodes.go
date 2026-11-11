@@ -21,7 +21,10 @@ func (s *Server) nodesOK(w http.ResponseWriter) bool {
 func writeNodeErr(w http.ResponseWriter, err error) {
 	var ve *nodes.ValidationError
 	var ce *nodes.ConflictError
+	var ue *nodes.UpdateError
 	switch {
+	case errors.As(err, &ue):
+		writeErr(w, ue.Status, ue.Code, ue.Msg)
 	case errors.Is(err, nodes.ErrNotFound):
 		writeErr(w, http.StatusNotFound, "not_found", err.Error())
 	case errors.As(err, &ve):
@@ -124,4 +127,42 @@ func (s *Server) syncNodes(w http.ResponseWriter, r *http.Request, a *db.Admin) 
 	}
 	s.Nodes.Manager.Kick()
 	w.WriteHeader(http.StatusAccepted)
+}
+
+// nodeUpdate asks a node to update its agent to the main server's version
+// (202: started; the node's state.update follows it).
+func (s *Server) nodeUpdate(w http.ResponseWriter, r *http.Request, a *db.Admin) {
+	if !s.nodesOK(w) {
+		return
+	}
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	v, err := s.Nodes.StartUpdate(r.Context(), id, a, s.clientIP(r))
+	if err != nil {
+		writeNodeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, v)
+}
+
+// nodesUpdateOutdated starts an update on every node whose agent is older
+// than the main server and reports each node's answer.
+func (s *Server) nodesUpdateOutdated(w http.ResponseWriter, r *http.Request, a *db.Admin) {
+	if !s.nodesOK(w) {
+		return
+	}
+	res, err := s.Nodes.Manager.UpdateOutdated(r.Context(), a, s.clientIP(r))
+	if err != nil {
+		writeNodeErr(w, err)
+		return
+	}
+	started := 0
+	for _, x := range res {
+		if x.OK {
+			started++
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"started": started, "results": res})
 }

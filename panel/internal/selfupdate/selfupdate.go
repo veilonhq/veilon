@@ -414,3 +414,47 @@ const staleAfter = 15 * time.Minute
 func Active(st *Status, now time.Time) bool {
 	return st != nil && st.Running && now.Sub(st.UpdatedAt) < staleAfter
 }
+
+// FetchTag returns the published stable release with exactly this tag from
+// the release list at url (nil when the list has no such release). Nodes
+// are updated to the main server's own version with it.
+func FetchTag(ctx context.Context, client *http.Client, url, tag string) (*Release, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "veilon/"+tag)
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		if resp.StatusCode == http.StatusTooManyRequests ||
+			(resp.StatusCode == http.StatusForbidden && resp.Header.Get("X-RateLimit-Remaining") == "0") {
+			return nil, fmt.Errorf("%w (%s)", ErrRateLimited, resp.Status)
+		}
+		return nil, fmt.Errorf("release list: %s", resp.Status)
+	}
+	var list []ghRelease
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(&list); err != nil {
+		return nil, fmt.Errorf("release list: %w", err)
+	}
+	for _, r := range list {
+		if r.Draft || r.Prerelease || r.TagName != tag {
+			continue
+		}
+		out := &Release{Tag: r.TagName, Name: r.Name, URL: r.HTMLURL, PublishedAt: r.PublishedAt, Assets: map[string]string{}}
+		for _, a := range r.Assets {
+			out.Assets[a.Name] = a.URL
+		}
+		return out, nil
+	}
+	return nil, nil
+}
+
+// Download fetches url into w (at most 512 MiB), for the node updater.
+func Download(ctx context.Context, cl *http.Client, url string, w io.Writer) error {
+	return get(ctx, cl, url, w)
+}

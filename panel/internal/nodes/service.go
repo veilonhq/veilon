@@ -37,6 +37,10 @@ type Service struct {
 	DB      *gorm.DB
 	PKI     *PKI
 	Manager *Manager
+	// CheckMoveToMain is asked before inbounds that only ran on a node go
+	// back to the main server (their last node is deleted or drops them):
+	// it rejects a port already taken there (nil = not checked).
+	CheckMoveToMain func(ids []int64) error
 }
 
 // View is a node as the API shows it.
@@ -44,6 +48,20 @@ type View struct {
 	db.Node
 	InboundIDs []int64 `json:"inbound_ids"`
 	State      State   `json:"state"`
+	// UpdateTo is the main server's version when the node's agent is older
+	// ("" when up to date or unknown).
+	UpdateTo string `json:"update_to"`
+}
+
+func (s *Service) view(n *db.Node, ids []int64) View {
+	v := View{Node: *n, InboundIDs: ids, State: s.Manager.Status(n)}
+	if v.InboundIDs == nil {
+		v.InboundIDs = []int64{}
+	}
+	if v.State.Version != "" && s.Manager.Outdated(v.State.Version) {
+		v.UpdateTo = s.Manager.Version
+	}
+	return v
 }
 
 // Install is the one-time setup for a node.
@@ -80,11 +98,7 @@ func (s *Service) List() ([]View, error) {
 	ids := InboundIDs(s.DB)
 	out := make([]View, 0, len(ns))
 	for i := range ns {
-		v := View{Node: ns[i], InboundIDs: ids[ns[i].ID], State: s.Manager.Status(&ns[i])}
-		if v.InboundIDs == nil {
-			v.InboundIDs = []int64{}
-		}
-		out = append(out, v)
+		out = append(out, s.view(&ns[i], ids[ns[i].ID]))
 	}
 	return out, nil
 }
@@ -100,10 +114,44 @@ func (s *Service) Get(id int64) (*View, error) {
 	}
 	var ids []int64
 	s.DB.Model(&db.NodeInbound{}).Where("node_id = ?", id).Order("inbound_id").Pluck("inbound_id", &ids)
-	if ids == nil {
-		ids = []int64{}
+	v := s.view(&n, ids)
+	return &v, nil
+}
+
+// StartUpdate asks one node to update its agent to the main server's
+// version (see Manager.StartUpdate).
+func (s *Service) StartUpdate(ctx context.Context, id int64, admin *db.Admin, ip string) (*View, error) {
+	var n db.Node
+	if err := s.DB.First(&n, id).Error; err != nil {
+		return nil, ErrNotFound
 	}
-	return &View{Node: n, InboundIDs: ids, State: s.Manager.Status(&n)}, nil
+	if _, err := s.Manager.StartUpdate(ctx, &n, admin, ip); err != nil {
+		return nil, err
+	}
+	return s.Get(id)
+}
+
+// orphans returns the inbounds that would lose their last node and go back
+// to the main server if node id stopped running the inbounds in drop: they
+// only ran on nodes (serve_main off) and no other node runs them.
+func (s *Service) orphans(tx *gorm.DB, id int64, drop []int64) []int64 {
+	if len(drop) == 0 {
+		return nil
+	}
+	var out []int64
+	tx.Model(&db.Inbound{}).Where("id IN ? AND serve_main = ? AND id NOT IN (?)", drop, false,
+		tx.Table("node_inbounds").Select("inbound_id").Where("node_id <> ?", id)).Order("id").Pluck("id", &out)
+	return out
+}
+
+func (s *Service) checkOrphans(id int64, drop []int64) error {
+	if s.CheckMoveToMain == nil {
+		return nil
+	}
+	if o := s.orphans(s.DB, id, drop); len(o) > 0 {
+		return s.CheckMoveToMain(o)
+	}
+	return nil
 }
 
 func (s *Service) check(n *db.Node, ids *[]int64, oldPort int) error {
@@ -265,6 +313,23 @@ func (s *Service) Update(id int64, in Input) (*View, error) {
 	if err := s.check(&n, in.InboundIDs, oldPort); err != nil {
 		return nil, err
 	}
+	if in.InboundIDs != nil {
+		var had []int64
+		s.DB.Model(&db.NodeInbound{}).Where("node_id = ?", id).Pluck("inbound_id", &had)
+		keep := map[int64]bool{}
+		for _, x := range *in.InboundIDs {
+			keep[x] = true
+		}
+		var drop []int64
+		for _, x := range had {
+			if !keep[x] {
+				drop = append(drop, x)
+			}
+		}
+		if err := s.checkOrphans(id, drop); err != nil {
+			return nil, err
+		}
+	}
 	err := s.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&db.Node{}).Where("id = ?", id).Updates(map[string]any{
 			"name": n.Name, "address": n.Address, "api_port": n.APIPort, "enabled": n.Enabled, "updated_at": time.Now().UTC(),
@@ -311,6 +376,13 @@ func (s *Service) Delete(id int64) error {
 	var n db.Node
 	if err := s.DB.First(&n, id).Error; err != nil {
 		return ErrNotFound
+	}
+	// Checked before the node is told anything: a refused delete leaves it
+	// serving as before.
+	var had []int64
+	s.DB.Model(&db.NodeInbound{}).Where("node_id = ?", id).Pluck("inbound_id", &had)
+	if err := s.checkOrphans(id, had); err != nil {
+		return err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 	_ = s.Manager.Reset(ctx, &n)

@@ -6,10 +6,16 @@ Each release's notes, Persian first. Older releases: https://github.com/veilonhq
 
 ### فارسی
 
+- بروزرسانی نود با یک دکمه: کارت هر نود نسخه برنامه نود را نشان می دهد و اگر از نسخه سرور اصلی قدیمی تر باشد، دکمه «بروزرسانی نود» دارد؛ «بروزرسانی همه نودهای قدیمی» هم همه را با هم بروزرسانی می کند (فقط مدیران کل). نود فایل مخصوص پردازنده اش را از همان منبع بروزرسانی پنل دانلود می کند، با checksum انتشار بررسی می کند، از نسخه فعلی پشتیبان می گیرد، جایگزین می کند و دوباره راه اندازی می شود؛ اگر نسخه جدید تا ۹۰ ثانیه دوباره وصل نشود، نسخه قبلی خودکار برمی گردد. گواهی نود دست نمی خورد. مراحل (دانلود، بررسی، راه اندازی، انجام شد یا خطا با دلیل) با زمان به وقت پنل نمایش داده می شوند و در گزارش فعالیت ها ثبت می شوند. API: `POST /nodes/{id}/update` و `POST /nodes/update-outdated`
+- نودهایی که برنامه نود قدیمی تر از این نسخه دارند یک بار باید با «دستور نصب تازه» بروزرسانی شوند؛ کارت آن ها همین را می گوید
+- حذف نود (یا برداشتن ورودی از آخرین نودش) دیگر ورودی هایی را که فقط روی نود بودند بدون بررسی پورت به سرور اصلی برنمی گرداند: اگر پورت روی سرور اصلی گرفته شده باشد، با خطای ۴۰۹ و نام ورودی و پورت رد می شود
 - صفحه اشتراک: کاشی «آخرین اتصال» وقتی کاربر همین الان وصل است «آنلاین» را با نقطه سبز نشان می دهد (همان قاعده آنلاین پنل مدیریت، با احتساب اتصال از نودها)؛ در غیر این صورت مثل قبل تاریخ و ساعت آخرین اتصال. داده صفحه و `?format=status` فیلد `online` دارند
 
 ### English
 
+- One-button node update: each node card shows its agent version and, when it is older than the main server's, an "Update node" button; "Update all outdated nodes" updates them all (sudo admins only). The node downloads the release file for its CPU from the panel's update source, checks it against the release checksums, keeps a backup, swaps the binary and restarts; if the new version does not reconnect within 90 seconds, the previous version is restored automatically. The node's certificate is untouched. Progress (downloading, verifying, restarting, done or failed with the reason) shows with times in the panel's time zone and is audit-logged. API: `POST /nodes/{id}/update` and `POST /nodes/update-outdated`
+- Nodes running an agent older than this release need one last manual update with "New install command"; their card says so
+- Deleting a node (or taking an inbound off its last node) no longer moves node-only inbounds back to the main server without a port check: a port already used on the main server is refused with a 409 naming the inbound and the port
 - Subscription page: the "Last online" tile shows "Online" with a green dot while the user is connected (the admin panel's online rule, node traffic included); otherwise the last date and time as before. The page data and `?format=status` carry an `online` field
 
 ## v0.3.4 (2026-11-11)
