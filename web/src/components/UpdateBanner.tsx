@@ -1,6 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ArrowUpCircle, Check, ChevronLeft, ChevronRight, Loader2, RotateCcw, ShieldCheck } from 'lucide-react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
+import { create } from 'zustand';
+import { AlertTriangle, ArrowUpCircle, Check, ChevronLeft, ChevronRight, Loader2, RotateCcw, ShieldCheck, X } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { api } from '@/api/client';
 import { API_BASE } from '@/app/base';
 import { useI18n, type MessageKey } from '@/i18n';
@@ -25,61 +27,126 @@ export interface UpdateInfo {
   available: { tag: string; name: string; notes: string; url: string; published_at: string } | null;
   can_update: boolean;
   checked_at: string | null;
+  /** next automatic check (null when automatic checks are off) */
+  next_check_at?: string | null;
   status: UpdateStatus | null;
+  /** only on POST /system/update/check */
+  cached?: boolean;
 }
 
 const STEPS: UpdateStatus['phase'][] = ['download', 'verify', 'backup', 'install', 'restart', 'health'];
 const SEEN_KEY = 'veilon.update.seen';
+/** The success notice closes itself after this long. */
+export const SUCCESS_NOTICE_MS = 10_000;
 
-/**
- * A strip above every page for sudo admins when a newer stable release
- * exists (checked by the server every few hours). Clicking it opens the
- * install dialog; the update itself runs on the server and the dialog
- * follows it across the restart.
- */
-export function UpdateBanner() {
-  const { t, dir, lang } = useI18n();
-  const admin = useSession((x) => x.admin);
-  const sudo = !!admin?.is_sudo;
-  const [open, setOpen] = useState(false);
-  const [watching, setWatching] = useState(false);
-  const [seen, setSeen] = useState(() => localStorage.getItem(SEEN_KEY) ?? '');
-  const q = useQuery({
-    queryKey: ['panel-update'],
+/** Opens the update dialog from anywhere (the banner and the Settings section). */
+export const useUpdateDialog = create<{ open: boolean; setOpen: (v: boolean) => void }>((set) => ({
+  open: false,
+  setOpen: (open) => set({ open }),
+}));
+
+export const UPDATE_QUERY = ['panel-update'] as const;
+
+/** GET /system/update, shared by the banner and the Settings section. */
+export function useUpdateInfo(watching = false) {
+  const sudo = !!useSession((x) => x.admin)?.is_sudo;
+  return useQuery({
+    queryKey: UPDATE_QUERY,
     queryFn: () => api<UpdateInfo>('/system/update'),
     enabled: sudo,
     staleTime: 60_000,
     retry: false,
     refetchInterval: (qq) => (watching || qq.state.data?.status?.running ? 2000 : 10 * 60_000),
   });
+}
+
+/**
+ * A slim strip above every page for sudo admins when a newer stable release
+ * exists (checked by the server every 6 hours, or from Settings). Its Update
+ * button opens the install dialog; the update itself runs on the server and
+ * the dialog follows it across the restart. After a successful update a
+ * short notice says so; it closes itself after 10 seconds or with its X, and
+ * does not come back for that update.
+ */
+export function UpdateBanner() {
+  const { t, dir, lang } = useI18n();
+  const admin = useSession((x) => x.admin);
+  const sudo = !!admin?.is_sudo;
+  const open = useUpdateDialog((x) => x.open);
+  const setOpen = useUpdateDialog((x) => x.setOpen);
+  const [watching, setWatching] = useState(false);
+  const [seen, setSeen] = useState(() => localStorage.getItem(SEEN_KEY) ?? '');
+  const onSettings = /\/settings\/?$/.test(useLocation().pathname);
+  const q = useUpdateInfo(watching);
   const info = q.data;
   const st = info?.status ?? null;
   const finishedKey = st?.finished_at ? `${st.tag}@${st.finished_at}` : '';
   // A finished update the admin has not seen yet (e.g. after the page reloaded).
   const unseenResult = !!st && !st.running && !!finishedKey && finishedKey !== seen && Date.now() - new Date(st.finished_at!).getTime() < 3_600_000;
+  const success = unseenResult && st?.phase === 'done';
+  const markSeen = useCallback(() => {
+    if (!finishedKey) return;
+    localStorage.setItem(SEEN_KEY, finishedKey);
+    setSeen(finishedKey);
+  }, [finishedKey]);
   useEffect(() => {
     if (st?.running) setWatching(true);
   }, [st?.running]);
+  // The success notice closes itself (and stays closed for this update).
+  useEffect(() => {
+    if (!success || open) return;
+    const id = window.setTimeout(markSeen, SUCCESS_NOTICE_MS);
+    return () => window.clearTimeout(id);
+  }, [success, open, markSeen]);
 
   if (!sudo || !info) return null;
-  const show = !!info.available || !!st?.running || unseenResult;
-  if (!show && !open) return null;
-  const Chev = dir === 'rtl' ? ChevronLeft : ChevronRight;
   const busy = !!st?.running || watching;
+  // On Settings the Panel update section shows the available release itself.
+  const show = (!!info.available && !onSettings) || !!st?.running || unseenResult;
+  const dialog = (
+    <UpdateDialog
+      open={open}
+      info={info}
+      result={unseenResult}
+      onClose={() => {
+        setOpen(false);
+        if (finishedKey && !st?.running) markSeen();
+      }}
+      onStarted={() => setWatching(true)}
+      onSettled={() => setWatching(false)}
+    />
+  );
+  if (!show) return dialog;
+  const Chev = dir === 'rtl' ? ChevronLeft : ChevronRight;
   let label: string;
   if (busy) label = t('upd.running', { v: st?.tag ?? info.available?.tag ?? '' });
-  else if (unseenResult && st?.phase === 'done') label = t('upd.doneShort', { v: st.tag });
+  else if (success) label = t('upd.doneShort', { v: st!.tag });
   else if (unseenResult) label = t('upd.failedShort', { v: st!.tag });
-  else label = t('upd.available', { v: info.available!.tag });
+  else label = t('upd.availableShort', { v: info.available!.tag });
   const line = !busy && !unseenResult && info.available ? noteLine(info.available.notes, lang) : '';
-  const tone = unseenResult && st?.phase !== 'done' ? s.warn : unseenResult ? s.ok : '';
+  const tone = unseenResult && !success ? s.warn : success ? s.ok : '';
+  const icon = busy ? <Loader2 size={15} className="spin" /> : unseenResult && !success ? <AlertTriangle size={15} /> : success ? <Check size={15} /> : <ArrowUpCircle size={15} />;
 
   return (
     <>
-      {show && (
-        <button type="button" className={`${s.banner} ${tone}`} onClick={() => setOpen(true)}>
+      {success && !busy ? (
+        <div className={`${s.banner} ${s.ok}`} role="status">
+          <button type="button" className={s.main} onClick={() => setOpen(true)}>
+            <span className={s.icon} aria-hidden="true">
+              {icon}
+            </span>
+            <span className={s.text}>
+              <strong>{label}</strong>
+            </span>
+          </button>
+          <button type="button" className={s.close} onClick={markSeen} aria-label={t('upd.dismiss')} title={t('upd.dismiss')}>
+            <X size={16} aria-hidden="true" />
+          </button>
+        </div>
+      ) : (
+        <button type="button" className={`${s.banner} ${s.main} ${tone}`} onClick={() => setOpen(true)}>
           <span className={s.icon} aria-hidden="true">
-            {busy ? <Loader2 size={18} className="spin" /> : unseenResult && st?.phase !== 'done' ? <AlertTriangle size={18} /> : unseenResult ? <Check size={18} /> : <ArrowUpCircle size={18} />}
+            {icon}
           </span>
           <span className={s.text}>
             <strong>{label}</strong>
@@ -89,23 +156,14 @@ export function UpdateBanner() {
               </small>
             )}
           </span>
-          <Chev size={18} className={s.chev} aria-hidden="true" />
+          {!busy && !unseenResult ? (
+            <span className={s.cta}>{t('upd.update')}</span>
+          ) : (
+            <Chev size={16} className={s.chev} aria-hidden="true" />
+          )}
         </button>
       )}
-      <UpdateDialog
-        open={open}
-        info={info}
-        result={unseenResult}
-        onClose={() => {
-          setOpen(false);
-          if (finishedKey && !st?.running) {
-            localStorage.setItem(SEEN_KEY, finishedKey);
-            setSeen(finishedKey);
-          }
-        }}
-        onStarted={() => setWatching(true)}
-        onSettled={() => setWatching(false)}
-      />
+      {dialog}
     </>
   );
 }
@@ -127,7 +185,7 @@ function Spans({ spans }: { spans: Span[] }) {
 }
 
 /** Release notes in the panel's language, rendered from their markdown. */
-function Notes({ notes }: { notes: string }) {
+export function Notes({ notes, className }: { notes: string; className?: string }) {
   const { lang, dir } = useI18n();
   const blocks = noteBlocks(notes, lang);
   const out: ReactNode[] = [];
@@ -160,7 +218,7 @@ function Notes({ notes }: { notes: string }) {
   });
   flushItems();
   return (
-    <div className={s.notes} dir={dir}>
+    <div className={`${s.notes} ${className ?? ''}`} dir={dir}>
       {out}
     </div>
   );
@@ -192,7 +250,7 @@ function UpdateDialog({ open, info, result, onClose, onStarted, onSettled }: { o
         const r = await fetch(`${API_BASE}/health`, { cache: 'no-store' });
         const h = (await r.json()) as { version?: string };
         setDown(false);
-        if (h.version === target) qc.invalidateQueries({ queryKey: ['panel-update'] });
+        if (h.version === target) qc.invalidateQueries({ queryKey: UPDATE_QUERY });
       } catch {
         setDown(true);
       }
@@ -224,7 +282,7 @@ function UpdateDialog({ open, info, result, onClose, onStarted, onSettled }: { o
     onStarted();
     try {
       await api('/system/update', { method: 'POST', body: { tag: rel.tag } });
-      qc.invalidateQueries({ queryKey: ['panel-update'] });
+      qc.invalidateQueries({ queryKey: UPDATE_QUERY });
     } catch (e) {
       setStarting(false);
       onSettled();
