@@ -93,14 +93,21 @@ func (g *Guard) ObserveLine(line string) {
 	}
 }
 
-// RunLoop enforces every 10 seconds and refreshes limits and the
-// connection log every minute until ctx is done.
+// NewIPEvery is how often IPs new to the connection log are written to it
+// (an in-memory scan; the database is written only when there is one).
+const NewIPEvery = 2 * time.Second
+
+// RunLoop enforces every 10 seconds, writes new IPs to the connection log
+// every NewIPEvery and refreshes limits and the rest of the connection log
+// (last seen, hits) every minute until ctx is done.
 func (g *Guard) RunLoop(ctx context.Context) {
 	g.safe("refresh", g.Refresh)
 	fast := time.NewTicker(10 * time.Second)
 	slow := time.NewTicker(time.Minute)
+	newIPs := time.NewTicker(NewIPEvery)
 	defer fast.Stop()
 	defer slow.Stop()
+	defer newIPs.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -109,6 +116,8 @@ func (g *Guard) RunLoop(ctx context.Context) {
 			return
 		case <-fast.C:
 			g.safe("enforce", g.Enforce)
+		case <-newIPs.C:
+			g.safe("flush new", g.FlushNew)
 		case <-slow.C:
 			g.safe("flush", g.Flush)
 			g.safe("refresh", g.Refresh)
@@ -406,8 +415,13 @@ func (g *Guard) clearTC() {
 }
 
 // Flush writes IPs seen since the last flush to the connection log.
-func (g *Guard) Flush() {
-	pend := g.Tracker.Drain(g.now(), 10*time.Minute)
+func (g *Guard) Flush() { g.write(g.Tracker.Drain(g.now(), 10*time.Minute)) }
+
+// FlushNew writes only the IPs not in the connection log yet (one row
+// each); last seen and hits of known IPs stay on the minute Flush.
+func (g *Guard) FlushNew() { g.write(g.Tracker.DrainNew()) }
+
+func (g *Guard) write(pend []Pending) {
 	if len(pend) == 0 {
 		return
 	}

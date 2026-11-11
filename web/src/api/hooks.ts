@@ -333,7 +333,7 @@ export function useUserConnections(id: number | null) {
     queryKey: qk.conns(id ?? 0),
     queryFn: ({ signal }) => api<UserConnections>(`/users/${id}/connections`, { signal }),
     enabled: !!id,
-    refetchInterval: 15_000,
+    refetchInterval: 5_000,
   });
 }
 

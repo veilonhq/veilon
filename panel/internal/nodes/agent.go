@@ -396,7 +396,11 @@ func (a *Agent) online(w http.ResponseWriter, r *http.Request) {
 		if ids == nil {
 			ids = []int64{}
 		}
-		writeJ(w, 200, OnlineReply{Users: ids, Now: time.Now().UTC()})
+		rep := OnlineReply{Users: ids, Now: time.Now().UTC()}
+		if a.IPs != nil {
+			rep.IPs = a.IPs.Fresh()
+		}
+		writeJ(w, 200, rep)
 	}
 }
 

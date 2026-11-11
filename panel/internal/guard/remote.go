@@ -36,11 +36,17 @@ type Ban struct {
 	TTL int64  `json:"ttl"` // seconds
 }
 
+// collected is an IP in the collector; fresh = already sent by Fresh.
+type collected struct {
+	SeenIP
+	fresh bool
+}
+
 // IPCollector gathers client IPs from a node's Xray access log until the
 // next batch takes them.
 type IPCollector struct {
 	mu sync.Mutex
-	m  map[string]*SeenIP
+	m  map[string]*collected
 	// Now is the clock (tests).
 	Now func() time.Time
 }
@@ -73,7 +79,7 @@ func (c *IPCollector) ObserveLine(line string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.m == nil {
-		c.m = map[string]*SeenIP{}
+		c.m = map[string]*collected{}
 	}
 	k := idStr + " " + ip
 	s := c.m[k]
@@ -81,11 +87,30 @@ func (c *IPCollector) ObserveLine(line string) {
 		if len(c.m) >= 50000 {
 			return // a batch is overdue; never grow without bound
 		}
-		s = &SeenIP{UserID: id, IP: ip, First: now}
+		s = &collected{SeenIP: SeenIP{UserID: id, IP: ip, First: now}}
 		c.m[k] = s
 	}
 	s.Last = now
 	s.Hits++
+}
+
+// Fresh returns the IPs first seen since the last drain that were not
+// returned by Fresh yet, with their hits so far (for the master's 5 s
+// online poll, so new IPs reach the connection log within seconds). The
+// hits move out with them: the next Drain carries only later hits, and
+// skips an IP that had none.
+func (c *IPCollector) Fresh() []SeenIP {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var out []SeenIP
+	for _, s := range c.m {
+		if !s.fresh && s.Hits > 0 {
+			out = append(out, s.SeenIP)
+			s.fresh, s.Hits = true, 0
+		}
+	}
+	sortSeen(out)
+	return out
 }
 
 // Drain returns and forgets the IPs seen since the last drain.
@@ -94,16 +119,22 @@ func (c *IPCollector) Drain() []SeenIP {
 	defer c.mu.Unlock()
 	out := make([]SeenIP, 0, len(c.m))
 	for _, s := range c.m {
-		out = append(out, *s)
+		if s.Hits > 0 {
+			out = append(out, s.SeenIP)
+		}
 	}
 	c.m = nil
+	sortSeen(out)
+	return out
+}
+
+func sortSeen(out []SeenIP) {
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].UserID != out[j].UserID {
 			return out[i].UserID < out[j].UserID
 		}
 		return out[i].IP < out[j].IP
 	})
-	return out
 }
 
 // ObserveRemote records IPs a node reported. skew is master time minus node

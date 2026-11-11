@@ -2,6 +2,16 @@
 
 Each release's notes, Persian first. Older releases: https://github.com/veilonhq/veilon/releases
 
+## Unreleased
+
+### فارسی
+
+- بخش «اتصال ها» در جزئیات کاربر سریع تر به روز می شود: IP تازه حدود ۲ ثانیه پس از دیده شدن در سرور اصلی ثبت می شود (قبلا تا یک دقیقه) و IP های نودها همراه پرسش ۵ ثانیه ای وضعیت آنلاین می رسند (برنامه نود این نسخه؛ نودهای قدیمی تر مثل قبل هر ۱۰ ثانیه). آخرین دیده شدن و تعداد اتصال IP های قبلی مثل قبل هر دقیقه نوشته می شود. این بخش وقتی باز است هر ۵ ثانیه تازه می شود (قبلا ۱۵ ثانیه) تا دستگاه های تازه (HWID) هم زود دیده شوند
+
+### English
+
+- The user's "Connections" section updates faster: a new IP is written about 2 seconds after the main server sees it (was up to a minute), and node IPs arrive with the 5-second online poll (this release's node agent; older agents keep the 10-second stats round). Last seen and hits of known IPs are still written once a minute. The section refreshes every 5 seconds while open (was 15), so new HWID devices show up quickly too
+
 ## v0.3.6 (2026-11-11)
 
 ### فارسی

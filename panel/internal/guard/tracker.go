@@ -167,6 +167,24 @@ func (t *Tracker) Drain(now time.Time, keep time.Duration) []Pending {
 	return out
 }
 
+// DrainNew returns the IPs never written to the connection log by this
+// process (a new user and IP pair), so they appear in the log within
+// seconds; IPs already written wait for the next Drain.
+func (t *Tracker) DrainNew() []Pending {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	var out []Pending
+	for id, m := range t.live {
+		for ip, s := range m {
+			if !s.flushed && s.hits > 0 {
+				out = append(out, Pending{UserID: id, IP: ip, First: s.first, Last: s.last, Hits: s.hits, New: true})
+				s.hits, s.flushed = 0, true
+			}
+		}
+	}
+	return out
+}
+
 // ParseAccessLine extracts the client IP and the user email from an Xray
 // access log line such as
 //

@@ -555,6 +555,13 @@ func (m *Manager) PollOnline(ctx context.Context, n *db.Node) {
 	delete(m.noOnline, n.ID)
 	m.mu.Unlock()
 	m.Presence.ReportLive(Source(n.ID), or.Users, time.Now().UTC())
+	if m.OnIPs != nil && len(or.IPs) > 0 && n.Enabled {
+		skew := time.Duration(0)
+		if !or.Now.IsZero() {
+			skew = time.Now().UTC().Sub(or.Now)
+		}
+		util.Safe("node ips", func() { m.OnIPs(or.IPs, skew) })
+	}
 }
 
 // call does one JSON request; any non-2xx answer becomes an error.

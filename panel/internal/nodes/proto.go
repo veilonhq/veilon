@@ -47,10 +47,13 @@ const CapUpdate = "update"
 const CapOnline = "online"
 
 // OnlineReply is the answer to GET /v1/online: the users with at least one
-// open connection on the node's Xray.
+// open connection on the node's Xray, and the client IPs first seen since
+// the last stats batch (agents after v0.3.6; older ones send them only with
+// the stats batch).
 type OnlineReply struct {
-	Users []int64   `json:"users"`
-	Now   time.Time `json:"now"`
+	Users []int64        `json:"users"`
+	Now   time.Time      `json:"now"`
+	IPs   []guard.SeenIP `json:"ips,omitempty"`
 }
 
 // HasCap reports whether the agent announced capability c.
