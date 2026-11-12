@@ -75,6 +75,10 @@ abstract final class Radii {
   static const xl = 34.0;
 }
 
+/// The app theme, built once (1.0.7): a new ThemeData per rebuild made
+/// AnimatedTheme animate and rebuild every Theme dependant.
+final ThemeData appTheme = buildTheme();
+
 ThemeData buildTheme() {
   const scheme = ColorScheme.dark(
     surface: Palette.bg,

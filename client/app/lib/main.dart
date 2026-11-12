@@ -69,15 +69,22 @@ class VeilonApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppScope(
       state: state,
-      child: Builder(builder: (context) {
-        final lang = AppScope.of(context).settings.language;
+      // 1.0.7: rebuild the MaterialApp only when the language changes. It
+      // used to depend on the whole app state, so every state change (and,
+      // while connected, every 1 s stats tick) rebuilt it with a fresh
+      // ThemeData; AnimatedTheme then re-ran its theme animation and every
+      // Theme dependant (all four pages, each Scrollable, which also
+      // replaced its ScrollPosition) rebuilt on every frame of it.
+      child: AppSelector<String>(
+        select: (a) => a.settings.language,
+        builder: (context, lang, _) {
         final s = S(lang);
         return SScope(
           s: s,
           child: MaterialApp(
             title: 'Veilon',
             debugShowCheckedModeBanner: false,
-            theme: buildTheme(),
+            theme: appTheme,
             scrollBehavior: const VeilonScrollBehavior(),
             locale: Locale(lang),
             supportedLocales: const [Locale('fa'), Locale('en')],
@@ -90,7 +97,8 @@ class VeilonApp extends StatelessWidget {
             home: const Shell(),
           ),
         );
-      }),
+        },
+      ),
     );
   }
 }

@@ -84,6 +84,12 @@ int fakeDelay = 97;
 Completer<void>? fetchSubGate;
 List<Map<String, Object>>? fakeApps;
 
+/// Icon bytes the mock returns for every 'appIcon' call (null = no icon).
+Uint8List? fakeAppIcon;
+
+/// ABI folders the mock reports for 'installedAbis'.
+List<String> fakeAbis = const [];
+
 void installNativeMocks() {
   final m = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   m.setMockMethodCallHandler(coreChannel, (call) async {
@@ -119,6 +125,10 @@ void installNativeMocks() {
         return jsonEncode({'delay': fakeDelay});
       case 'installedApps':
         return fakeApps;
+      case 'appIcon':
+        return fakeAppIcon;
+      case 'installedAbis':
+        return fakeAbis;
       case 'fetchSub':
         if (fetchSubGate != null) await fetchSubGate!.future;
         return jsonEncode(fakeSubResult ?? {'status': 200, 'profiles': []});

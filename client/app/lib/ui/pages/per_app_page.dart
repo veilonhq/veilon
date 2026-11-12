@@ -49,6 +49,7 @@ class _PerAppPageState extends State<PerAppPage> {
     final st = app.settings;
     final selected = st.perAppPackages.toSet();
     final own = app.device['package'];
+    final iconPx = (36 * MediaQuery.devicePixelRatioOf(context)).round();
     final list = _apps.where((a) {
       if (a['package'] == own) return false;
       if (!_system && a['system'] == true && !selected.contains(a['package'])) return false;
@@ -120,12 +121,14 @@ class _PerAppPageState extends State<PerAppPage> {
                               SizedBox(
                                 width: 36,
                                 height: 36,
-                                child: FutureBuilder<Uint8List?>(
-                                  future: _icon(pkg),
-                                  builder: (_, snap) => snap.data == null
-                                      ? const Icon(Icons.android_rounded, color: Palette.muted)
-                                      : ClipRRect(borderRadius: BorderRadius.circular(9), child: Image.memory(snap.data!, gaplessPlayback: true)),
-                                ),
+                                // 1.0.7: a loaded icon is used straight from the cache
+                                // (no new Future per build) and decoded at its shown size.
+                                child: _icons.containsKey(pkg)
+                                    ? _iconImage(_icons[pkg], iconPx)
+                                    : FutureBuilder<Uint8List?>(
+                                        future: _icon(pkg),
+                                        builder: (_, snap) => _iconImage(snap.data, iconPx),
+                                      ),
                               ),
                               const SizedBox(width: Gap.m),
                               Expanded(
@@ -150,6 +153,13 @@ class _PerAppPageState extends State<PerAppPage> {
     );
   }
 }
+
+Widget _iconImage(Uint8List? bytes, int px) => bytes == null
+    ? const Icon(Icons.android_rounded, color: Palette.muted)
+    : ClipRRect(
+        borderRadius: BorderRadius.circular(9),
+        child: Image.memory(bytes, gaplessPlayback: true, cacheWidth: px, filterQuality: FilterQuality.medium),
+      );
 
 const _modes = ['off', 'include', 'exclude'];
 

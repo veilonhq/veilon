@@ -198,6 +198,13 @@ class MainActivity : FlutterActivity() {
             "pickFile" -> pickFile(result)
             "scanQr" -> scanQr(result)
             "openUrl" -> result.success(openUrl(s("url")))
+            // In-app update (1.0.7): see AppUpdate.kt.
+            "installedAbis" -> bg(result) { AppUpdate.installedAbis(this) }
+            "updateDir" -> bg(result) { AppUpdate.updateDir(this).absolutePath }
+            "sha256File" -> bg(result) { AppUpdate.sha256(this, s("path")) }
+            "canInstallApks" -> result.success(AppUpdate.canInstall(this))
+            "openInstallPermission" -> result.success(AppUpdate.openInstallPermission(this))
+            "installApk" -> result.success(AppUpdate.install(this, s("path")))
             "openVpnSettings" -> {
                 val ok = runCatching { startActivity(Intent(Settings.ACTION_VPN_SETTINGS)) }.isSuccess ||
                     runCatching { startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS)) }.isSuccess

@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -40,7 +42,7 @@ android {
     // storeFile is relative to android/). Without it, release builds fall back
     // to <client>/keystore/veilon-release.jks + store-password.txt, then to the
     // debug key so `flutter run --release` still works.
-    val keyProps = java.util.Properties()
+    val keyProps = Properties()
     val keyPropsFile = rootProject.file("key.properties")
     if (keyPropsFile.exists()) keyPropsFile.inputStream().use { keyProps.load(it) }
     val ksDir = rootProject.file("../../keystore")
@@ -92,4 +94,6 @@ dependencies {
     // gomobile bind output (veiloncore.aar) dropped into app/libs/.
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar"))))
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+    // FileProvider for the in-app update (already in the graph via the Flutter embedding).
+    implementation("androidx.core:core:1.13.1")
 }

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 
 import '../../core/app_state.dart';
 import '../../core/errors.dart';
@@ -166,6 +167,10 @@ class _ProfileEditorPageState extends State<ProfileEditorPage> {
         autovalidateMode: AutovalidateMode.onUserInteraction,
         child: ListView(
           key: ValueKey(_gen),
+          // 1.0.7: each field group is one big list child; building one when
+          // it scrolled into view (a dozen text fields at once) cost a long
+          // frame. The whole form is built up front instead (it is short).
+          scrollCacheExtent: const ScrollCacheExtent.pixels(4000),
           padding: const EdgeInsets.fromLTRB(Gap.page, 0, Gap.page, Gap.xl),
           children: [
             _header(fa),

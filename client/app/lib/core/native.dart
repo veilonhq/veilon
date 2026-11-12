@@ -153,6 +153,26 @@ class Native {
 
   Future<void> openVpnSettings() => _call('openVpnSettings');
 
+  // ---- in-app update (1.0.7) ----
+
+  /// ABI folders (`lib/<abi>/`) of the installed APK(s).
+  Future<List<String>> installedAbis() async =>
+      ((await _call<List>('installedAbis')) ?? const []).map((e) => '$e').toList();
+
+  /// Folder for downloaded updates (app cache).
+  Future<String?> updateDir() => _call<String>('updateDir');
+
+  /// sha256 (lower-case hex) of a file in the update folder ('' if missing).
+  Future<String> sha256File(String path) async => await _call<String>('sha256File', {'path': path}) ?? '';
+
+  /// Whether the app may open the system installer ("install unknown apps").
+  Future<bool> canInstallApks() async => await _call<bool>('canInstallApks') ?? false;
+
+  /// Starts the system installer: 'ok', 'permission' (settings page opened)
+  /// or an error text.
+  Future<String> installApk(String path) async =>
+      await _call<String>('installApk', {'path': path}) ?? (lastError ?? 'install failed');
+
   Future<Map<String, dynamic>> versions() async => _decode(await _call<String>('versions'));
 
   Map<String, dynamic> _decode(String? s) {

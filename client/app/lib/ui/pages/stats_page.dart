@@ -35,8 +35,12 @@ class _StatsPageState extends State<StatsPage> {
     super.dispose();
   }
 
+  // 1.0.7: the page follows the stats ticks itself (AppState.statsTick);
+  // while it is hidden it skips them and catches up when shown again.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => StatsBuilder(builder: _page);
+
+  Widget _page(BuildContext context) {
     final app = AppScope.of(context);
     final s = S.of(context);
     final on = app.state == ConnState.connected;

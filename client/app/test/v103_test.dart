@@ -469,9 +469,10 @@ void main() {
           for (var i = 0; i < Shell.pageCount; i++)
             () {
               final f = find.byKey(ValueKey('deck-opacity-$i'), skipOffstage: false);
-              final o = t.widget<Opacity>(f);
+              // 1.0.7: the deck fades with FadeTransition (was Opacity).
+              final o = t.widget<FadeTransition>(f);
               final off = find.ancestor(of: f, matching: find.byType(Offstage)).evaluate().any((e) => (e.widget as Offstage).offstage);
-              return off ? 0.0 : o.opacity;
+              return off ? 0.0 : o.opacity.value;
             }(),
         ];
 

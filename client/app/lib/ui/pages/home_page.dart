@@ -38,8 +38,11 @@ class HomePage extends StatelessWidget {
       physics: pagePhysics,
       children: [
         const SizedBox(height: Gap.l),
+        // 1.0.7: the animated portal is its own layer (its frames and the
+        // press scale never repaint the page; scrolling only moves it).
         Center(
-          child: Portal(
+          child: RepaintBoundary(
+            child: Portal(
             state: app.state,
             size: hero,
             onTap: () async {
@@ -53,6 +56,7 @@ class HomePage extends StatelessWidget {
               }
             },
           ),
+          ),
         ),
         const SizedBox(height: Gap.m),
         _StatusLine(app: app),
@@ -60,7 +64,8 @@ class HomePage extends StatelessWidget {
         if (p != null) _ServerCapsule(profile: p, ping: app.pings[p.id], testing: app.testing.contains(p.id))
         else _EmptyCapsule(onTap: () => showAddSheet(context)),
         const SizedBox(height: Gap.l),
-        _LiveCard(app: app),
+        // Live numbers: rebuilt per stats tick on their own (1.0.7).
+        RepaintBoundary(child: StatsBuilder(builder: (context) => _LiveCard(app: app))),
         if (sub != null && sub.userInfo.present) ...[
           const SizedBox(height: Gap.l),
           UsageCard(info: sub.userInfo, title: sub.displayName),
@@ -315,9 +320,11 @@ class PingChip extends StatelessWidget {
       ]);
     }
     void details() => showErrorDetails(context, err ?? '', title: s.t('ping.failed'), onRetry: () => app.ping(profile));
-    return Tooltip(
-      message: s.t('ping.hint'),
-      triggerMode: TooltipTriggerMode.manual,
+    // 1.0.7: a Semantics hint instead of a manual-trigger Tooltip (never
+    // shown; it built an overlay portal and gesture plumbing into every
+    // server row).
+    return Semantics(
+      tooltip: s.t('ping.hint'),
       child: Pressable(
         scale: 0.9,
         onTap: testing ? null : (ping != null && ping! < 0 && err != null ? details : () => app.ping(profile)),

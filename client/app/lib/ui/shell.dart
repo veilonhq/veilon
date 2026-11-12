@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/app_state.dart';
+import '../core/models.dart';
 import '../l10n/strings.dart';
 import '../theme/palette.dart';
 import 'pages/home_page.dart';
@@ -50,6 +51,18 @@ class _ShellState extends State<Shell> with SingleTickerProviderStateMixin {
   void dispose() {
     _fade.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // When a fade ends, the pages that faded out go off stage (one rebuild
+    // per switch, not one per frame).
+    _fade.addStatusListener((st) {
+      if (st == AnimationStatus.completed && mounted) {
+        setState(() => _from = [for (var i = 0; i < Shell.pageCount; i++) i == _index ? 1.0 : 0.0]);
+      }
+    });
   }
 
   void go(int i) {
@@ -107,13 +120,23 @@ class _ShellState extends State<Shell> with SingleTickerProviderStateMixin {
 
 class _ShellAurora extends StatelessWidget {
   const _ShellAurora();
+  // 1.0.7: rebuilds only when the connection state changes (it used to
+  // rebuild on every app-state change).
   @override
-  Widget build(BuildContext context) => RepaintBoundary(child: AuroraBackground(state: AppScope.of(context).state));
+  Widget build(BuildContext context) => AppSelector<ConnState>(
+        select: (a) => a.state,
+        builder: (context, st, _) => RepaintBoundary(child: AuroraBackground(state: st)),
+      );
 }
 
 /// All pages stay mounted (state, scroll offsets kept); only the front page
 /// (and the one fading out) is painted, and only the front page's tickers
 /// run (TickerMode), so hidden animations are paused.
+///
+/// 1.0.7: the fade runs in the render tree (one FadeTransition per page
+/// driven by the shell's controller) instead of rebuilding the deck on every
+/// frame of the switch; the deck itself rebuilds only when the target page
+/// changes and once when the fade ends (to take the old page off stage).
 class _Deck extends StatelessWidget {
   const _Deck({required this.fade, required this.index, required this.from, required this.pages});
   final AnimationController fade;
@@ -132,29 +155,39 @@ class _Deck extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: fade,
-      builder: (context, _) {
-        final op = opacities(from, index, fade.value);
-        return Stack(fit: StackFit.expand, children: [
-          for (var i = 0; i < pages.length; i++)
-            _Slot(
-              key: ValueKey(i),
-              front: i == index,
-              visible: i == index || op[i] > 0.001,
-              opacity: op[i],
-              child: pages[i],
-            ),
-        ]);
-      },
-    );
+    return Stack(fit: StackFit.expand, children: [
+      for (var i = 0; i < pages.length; i++)
+        _Slot(
+          key: ValueKey(i),
+          front: i == index,
+          visible: i == index || from[i] > 0.001,
+          opacity: _SlotOpacity(fade, from[i], i == index ? 1.0 : 0.0),
+          child: pages[i],
+        ),
+    ]);
+  }
+}
+
+/// Opacity of one page during the fade: from → target along [Motion.curve]
+/// (the same values as [_Deck.opacities]).
+class _SlotOpacity extends Animation<double> with AnimationWithParentMixin<double> {
+  _SlotOpacity(this.parent, this.from, this.to);
+  @override
+  final Animation<double> parent;
+  final double from, to;
+
+  @override
+  double get value {
+    if (from == to) return to;
+    final t = Motion.curve.transform(parent.value.clamp(0.0, 1.0));
+    return (from + (to - from) * t).clamp(0.0, 1.0);
   }
 }
 
 class _Slot extends StatelessWidget {
   const _Slot({super.key, required this.front, required this.visible, required this.opacity, required this.child});
   final bool front, visible;
-  final double opacity;
+  final Animation<double> opacity;
   final Widget child;
 
   @override
@@ -167,9 +200,9 @@ class _Slot extends StatelessWidget {
           ignoring: !front,
           child: ExcludeSemantics(
             excluding: !front,
-            child: Opacity(
+            child: FadeTransition(
               key: ValueKey('deck-opacity-${(key as ValueKey<int>).value}'),
-              opacity: opacity.clamp(0.0, 1.0),
+              opacity: opacity,
               child: RepaintBoundary(child: child),
             ),
           ),

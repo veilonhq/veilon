@@ -52,6 +52,13 @@ class AppState extends ChangeNotifier {
   bool busyUpdating = false;
   StreamSubscription? _eventsSub;
 
+  /// Ticks once per stats event (speeds, history, session totals,
+  /// serverUnreachable). 1.0.7: stats no longer go through
+  /// [notifyListeners], which rebuilt the whole app (every page, the
+  /// MaterialApp and its theme) once a second while connected; only the
+  /// widgets that show these numbers listen here (see [StatsBuilder]).
+  final ValueNotifier<int> statsTick = ValueNotifier<int>(0);
+
   Profile? get selected {
     for (final p in profiles) {
       if (p.id == selectedId) return p;
@@ -89,6 +96,7 @@ class AppState extends ChangeNotifier {
   @override
   void dispose() {
     _eventsSub?.cancel();
+    statsTick.dispose();
     super.dispose();
   }
 
@@ -240,6 +248,7 @@ class AppState extends ChangeNotifier {
       downSpeed = upSpeed = 0;
     }
     if (state != ConnState.connected) serverUnreachable = false;
+    statsTick.value++;
     notifyListeners();
   }
 
@@ -255,7 +264,7 @@ class AppState extends ChangeNotifier {
     while (history.length > historyLen) {
       history.removeAt(0);
     }
-    notifyListeners();
+    statsTick.value++;
   }
 
   /// Returns an error string for the UI (or null on success / in progress).
@@ -684,4 +693,100 @@ class AppScope extends InheritedNotifier<AppState> {
 
   static AppState of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<AppScope>()!.notifier!;
   static AppState read(BuildContext context) => context.getInheritedWidgetOfExactType<AppScope>()!.notifier!;
+}
+
+/// Rebuilds [builder] only when [select] of the app state changes (not on
+/// every [AppState.notifyListeners]).
+class AppSelector<T> extends StatefulWidget {
+  const AppSelector({super.key, required this.select, required this.builder, this.child});
+  final T Function(AppState app) select;
+  final Widget Function(BuildContext context, T value, Widget? child) builder;
+  final Widget? child;
+
+  @override
+  State<AppSelector<T>> createState() => _AppSelectorState<T>();
+}
+
+class _AppSelectorState<T> extends State<AppSelector<T>> {
+  AppState? _app;
+  late T _value;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final a = AppScope.read(context);
+    if (!identical(a, _app)) {
+      _app?.removeListener(_changed);
+      _app = a..addListener(_changed);
+      _value = widget.select(a);
+    }
+  }
+
+  @override
+  void didUpdateWidget(AppSelector<T> old) {
+    super.didUpdateWidget(old);
+    _value = widget.select(_app!);
+  }
+
+  void _changed() {
+    if (!mounted) return;
+    final v = widget.select(_app!);
+    if (v != _value) setState(() => _value = v);
+  }
+
+  @override
+  void dispose() {
+    _app?.removeListener(_changed);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(context, _value, widget.child);
+}
+
+/// Rebuilds [builder] on every stats tick ([AppState.statsTick]) while its
+/// page is in front; a hidden page (TickerMode off) skips the ticks and
+/// catches up once when it comes back.
+class StatsBuilder extends StatefulWidget {
+  const StatsBuilder({super.key, required this.builder});
+  final WidgetBuilder builder;
+
+  @override
+  State<StatsBuilder> createState() => _StatsBuilderState();
+}
+
+class _StatsBuilderState extends State<StatsBuilder> {
+  ValueNotifier<int>? _tick;
+  bool _stale = false;
+  bool _enabled = true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final t = AppScope.read(context).statsTick;
+    if (!identical(t, _tick)) {
+      _tick?.removeListener(_changed);
+      _tick = t..addListener(_changed);
+    }
+    _enabled = TickerMode.valuesOf(context).enabled;
+    if (_enabled && _stale) _stale = false; // this rebuild catches up
+  }
+
+  void _changed() {
+    if (!mounted) return;
+    if (_enabled) {
+      setState(() {});
+    } else {
+      _stale = true;
+    }
+  }
+
+  @override
+  void dispose() {
+    _tick?.removeListener(_changed);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(context);
 }

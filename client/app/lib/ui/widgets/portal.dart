@@ -348,9 +348,15 @@ class PortalPainter extends CustomPainter {
         [const Color(0xFFEFFFB8), Palette.lime, const Color(0xFF6FA300)], [0, 0.5, 1]);
     canvas.drawCircle(c, faceR, Paint()..shader = idleCore);
     if (fill > 0) {
-      canvas.saveLayer(coreRect.inflate(2), Paint()..color = Colors.white.withValues(alpha: fill));
-      canvas.drawCircle(c, faceR, Paint()..shader = onCore);
-      canvas.restore();
+      // 1.0.7: drawn with the paint's alpha instead of an offscreen
+      // saveLayer (same pixels for this single circle, no extra layer on
+      // every frame while connected).
+      canvas.drawCircle(
+          c,
+          faceR,
+          Paint()
+            ..shader = onCore
+            ..color = Colors.white.withValues(alpha: fill.clamp(0.0, 1.0)));
     }
     // Accent track: a fine inner ring in the state colour, brightest at
     // the top (like a lit dial), dim at the bottom.

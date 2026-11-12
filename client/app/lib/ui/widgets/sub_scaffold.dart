@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/app_state.dart';
+import '../../core/models.dart';
 import '../../theme/palette.dart';
 import 'aurora.dart';
 import 'glass.dart';
@@ -15,12 +16,13 @@ class SubScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final app = AppScope.of(context);
     final rtl = Directionality.of(context) == TextDirection.rtl;
     return Scaffold(
       backgroundColor: Palette.bg,
-      body: AuroraBackground(
-        state: app.state,
+      // 1.0.7: only the aurora follows the connection state; the page is not
+      // rebuilt on app-state changes by this scaffold.
+      body: AppSelector<ConnState>(
+        select: (a) => a.state,
         child: SafeArea(
           child: Column(children: [
             Padding(
@@ -44,6 +46,7 @@ class SubScaffold extends StatelessWidget {
             ?bottom,
           ]),
         ),
+        builder: (context, st, page) => AuroraBackground(state: st, child: page),
       ),
     );
   }

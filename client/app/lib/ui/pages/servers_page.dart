@@ -622,8 +622,13 @@ class _ServerTile extends StatelessWidget {
     final app = AppScope.of(context);
     final s = S.of(context);
     final sel = app.selected?.id == profile.id;
+    // 1.0.7: the staggered fade-in is for rows that appear with the list
+    // (page open, group expanded). A row that scrolls into view during a
+    // scroll shows at once: animating every newly exposed row (an opacity
+    // layer per row, rebuilt each frame) made scrolling long lists stutter.
+    final scrolling = Scrollable.maybeOf(context)?.position.isScrollingNotifier.value ?? false;
     return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
+      tween: Tween(begin: scrolling ? 1 : 0, end: 1),
       duration: Duration(milliseconds: 220 + (index.clamp(0, 6) * 20)),
       curve: Curves.easeOutCubic,
       builder: (context, t, child) => Opacity(

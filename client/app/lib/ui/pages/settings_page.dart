@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/services.dart';
 
 import '../../core/app_state.dart';
@@ -6,6 +7,7 @@ import '../../core/contact.dart';
 import '../../core/native.dart';
 import '../../l10n/strings.dart';
 import '../../theme/palette.dart';
+import '../sheets/update_flow.dart';
 import '../widgets/glass.dart';
 import 'about_page.dart';
 import 'logs_page.dart';
@@ -25,6 +27,10 @@ class SettingsPage extends StatelessWidget {
 
     return ListView(
       physics: pagePhysics,
+      // 1.0.7: the settings groups are large list children; build them all
+      // up front (the page is kept alive) instead of in the middle of a
+      // scroll when one comes into view.
+      scrollCacheExtent: const ScrollCacheExtent.pixels(3000),
       padding: EdgeInsets.fromLTRB(Gap.page, 0, Gap.page, Gap.l + MediaQuery.viewPaddingOf(context).bottom),
       children: [
         if (app.needsReconnect)
@@ -259,6 +265,15 @@ class SettingsPage extends StatelessWidget {
               Clipboard.setData(ClipboardData(text: '${app.device['hwid'] ?? ''}'));
               showToast(context, s.t('menu.copied'));
             },
+          ),
+          _Tile(
+            key: const ValueKey('settings-update'),
+            icon: Icons.system_update_rounded,
+            title: s.t('settings.update'), info: 'info.update',
+            subtitle: '${app.device['appVersion'] ?? ''}',
+            ltrSubtitle: true,
+            chevron: true,
+            onTap: () => checkForUpdates(context),
           ),
           _Tile(icon: Icons.info_outline_rounded, title: s.t('settings.about'), chevron: true, onTap: () => push(const AboutPage())),
         ]),

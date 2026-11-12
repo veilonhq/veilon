@@ -92,6 +92,11 @@ class _LogsPageState extends State<LogsPage> {
               },
               child: Directionality(
                 textDirection: TextDirection.ltr,
+                // 1.0.7: one SelectionArea over plain Text rows instead of a
+                // SelectableText (a full text editor) per row: selection and
+                // copy still work (across rows too), scrolling builds far
+                // less per new row.
+                child: SelectionArea(
                 child: ListView.builder(
                   controller: _scroll,
                   padding: const EdgeInsets.fromLTRB(Gap.page, 0, Gap.page, Gap.xxl),
@@ -102,13 +107,14 @@ class _LogsPageState extends State<LogsPage> {
                     final ts = '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:${t.second.toString().padLeft(2, '0')}';
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 3),
-                      child: SelectableText.rich(TextSpan(children: [
+                      child: Text.rich(TextSpan(children: [
                         TextSpan(text: '$ts ', style: const TextStyle(color: Palette.muted)),
                         TextSpan(text: '${l['level']}'.toUpperCase().padRight(5), style: TextStyle(color: _color('${l['level']}'), fontWeight: FontWeight.w700)),
                         TextSpan(text: ' ${l['msg']}', style: const TextStyle(color: Palette.text2)),
                       ]), style: const TextStyle(fontSize: 11.5, height: 1.45, fontFamily: 'monospace')),
                     );
                   },
+                ),
                 ),
               ),
             ),
