@@ -1,6 +1,10 @@
 # Veilon Client (Android)
 
-The official Android client for the [Veilon](../README.md) panel.
+The official Android client for the [Veilon](https://github.com/veilonhq/veilon) panel.
+
+🖥 [Veilon panel: install and docs](https://github.com/veilonhq/veilon#readme) · [Latest panel release](https://github.com/veilonhq/veilon/releases/latest) · [Download this client](https://github.com/veilonhq/veilon/releases/tag/client-v1.0.6)
+
+**توسعه داده شده توسط &lrm;[@lxhosein](https://t.me/lxhosein)**
 
 کلاینت اندروید Veilon: رابط Flutter و هسته Go، سازگار با لینک اشتراک پنل Veilon.
 
@@ -78,6 +82,12 @@ separate from the panel's `v*` tags.
 
 ## License
 
-Same as the repository (see [LICENSE](../LICENSE)).
+All rights reserved. No one may copy, modify, redistribute or sell this code. Using the official released builds is allowed. See [LICENSE](../LICENSE).
 
-توسعه داده شده توسط @lxhosein
+همه حقوق محفوظ است. هیچ کس حق کپی، ویرایش، انتشار دوباره یا فروش این کد را ندارد. استفاده از نسخه های رسمی منتشر شده آزاد است.
+
+---
+
+**توسعه داده شده توسط &lrm;[@lxhosein](https://t.me/lxhosein)**
+
+**Developed by &lrm;[@lxhosein](https://t.me/lxhosein)**
