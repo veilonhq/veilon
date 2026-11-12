@@ -210,6 +210,7 @@ func (b *Bot) session(ctx context.Context, cfg Config) {
 	b.setStatus(func(s *Status) { *s = Status{Running: true, Username: me.Username, Since: &now} })
 	slog.Info("telegram bot started", "bot", me.Username, "admins", len(cfg.Admins))
 	defer slog.Info("telegram bot stopped")
+	go util.Safe("telegram notifications", func() { b.notifyLoop(ctx, cl) })
 
 	var offset int64
 	pause = 2 * time.Second
