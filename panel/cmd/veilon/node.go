@@ -143,8 +143,9 @@ func nodeServe(dir, token, listen string) error {
 		apiPort = v
 	}
 	ips := &guard.IPCollector{}
-	shaper := guard.New(nil, "") // speed limits from the master (tc only)
-	core := &nodes.ProcCore{Bin: filepath.Join(nodeXrayDir(dir), "xray"), Dir: dir, APIPort: apiPort, OnLine: ips.ObserveLine}
+	shaper := guard.New(nil, "") // speed limits from the master, per connection of this node
+	onLine := func(line string) { ips.ObserveLine(line); shaper.ObserveConnLine(line) }
+	core := &nodes.ProcCore{Bin: filepath.Join(nodeXrayDir(dir), "xray"), Dir: dir, APIPort: apiPort, OnLine: onLine}
 	self, _ := os.Executable()
 	engines := &cores.NodeEngines{Dir: dir, Self: self, MTGBin: filepath.Join(dir, "mtg", "mtg-multi"),
 		MTGVersion: envOr("VEILON_MTG_VERSION", cores.MTGVersion), AutoDownload: os.Getenv("VEILON_NODE_AUTO_DOWNLOAD") != "false"}

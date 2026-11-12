@@ -49,6 +49,19 @@ type Guard struct {
 	sbParser *SingboxParser
 	// shapes is the last speed-limit plan (for the nodes).
 	shapes []Shape
+	// MarkDelay batches new connections of shaped users before one nft
+	// run (0 = DefaultMarkDelay).
+	MarkDelay time.Duration
+	// conns are the recent client connections (IP and port) per user;
+	// marked are the users the applied plan shapes, and shapeReady says
+	// the nft marking table for it exists.
+	conns        map[connKey]connSeen
+	marked       map[int64]bool
+	shapeReady   bool
+	pendingConns []Conn
+	markTimer    bool
+	// nftMu serialises the nft runs of the shaping.
+	nftMu sync.Mutex
 }
 
 type limit struct {
@@ -88,8 +101,11 @@ func (g *Guard) ObserveEmail(email, ip string) {
 
 // ObserveLine parses an Xray access log line.
 func (g *Guard) ObserveLine(line string) {
-	if email, ip, ok := ParseAccessLine(line); ok {
+	if email, ip, port, ok := ParseAccessConn(line); ok {
 		g.ObserveEmail(email, ip)
+		if id := userID(email); id > 0 {
+			g.observeConn(id, ip, port)
+		}
 	}
 }
 
@@ -349,10 +365,14 @@ func (g *Guard) dev() string {
 	return DefaultInterface()
 }
 
+// shapeSig identifies what the shaping rules depend on: the users and their
+// rates (connections are added to the maps as they come, without a rebuild).
 func shapeSig(shapes []Shape) string {
 	var b strings.Builder
 	for _, s := range shapes {
-		fmt.Fprintf(&b, "%d:%d:%d:%s;", s.UserID, s.DownKbps, s.UpKbps, strings.Join(s.IPs, ","))
+		if _, ok := ShapeMark(s.UserID); ok && (s.DownKbps > 0 || s.UpKbps > 0) {
+			fmt.Fprintf(&b, "%d:%d:%d;", s.UserID, s.DownKbps, s.UpKbps)
+		}
 	}
 	return b.String()
 }
@@ -370,47 +390,78 @@ func (g *Guard) applyTC(shapes []Shape) {
 	if dev == "" {
 		return
 	}
-	if _, err := g.lookPath("tc"); err != nil {
-		if !failed {
-			slog.Warn("speed limit: tc not found; install iproute2 to enforce speed limits")
+	for _, bin := range []string{"tc", "nft"} {
+		if _, err := g.lookPath(bin); err != nil {
+			if !failed {
+				slog.Warn("speed limit: "+bin+" not found; install iproute2 and nftables to enforce speed limits", "err", err)
+			}
+			g.mu.Lock()
+			g.tcFailed = true
+			g.mu.Unlock()
+			return
 		}
-		g.mu.Lock()
-		g.tcFailed = true
-		g.mu.Unlock()
-		return
 	}
+	marked := map[int64]bool{}
+	for _, s := range shapes {
+		if _, ok := ShapeMark(s.UserID); ok && (s.DownKbps > 0 || s.UpKbps > 0) {
+			marked[s.UserID] = true
+		}
+	}
+	g.nftMu.Lock()
+	defer g.nftMu.Unlock()
 	// Deleting a qdisc that is not there is an error, so the deletes run on
 	// their own and their result is ignored; only the adds are checked.
 	_, _ = g.Run(TCDeleteScript(dev), "tc", "-force", "-batch", "-")
-	if len(shapes) > 0 {
-		if out, err := g.Run(TCScript(dev, shapes), "tc", "-batch", "-"); err != nil {
-			if !failed {
-				slog.Warn("speed limit: tc failed", "dev", dev, "err", err, "out", strings.TrimSpace(out))
-			}
-			// Leave no half-built tree behind and retry next round.
-			_, _ = g.Run(TCDeleteScript(dev), "tc", "-force", "-batch", "-")
-			g.mu.Lock()
-			g.tcSig, g.tcFailed = "", true
-			g.mu.Unlock()
+	if len(marked) == 0 {
+		_, _ = g.Run(ShapeDeleteScript(), "nft", "-f", "-")
+		g.mu.Lock()
+		g.marked, g.shapeReady, g.pendingConns = nil, false, nil
+		g.tcSig, g.tcFailed = sig, false
+		g.mu.Unlock()
+		return
+	}
+	g.mu.Lock()
+	g.marked, g.shapeReady = marked, true
+	replay := g.recentConnsLocked(marked, g.now())
+	g.mu.Unlock()
+	fail := func(what, out string, err error) {
+		if !failed {
+			slog.Warn("speed limit: "+what+" failed", "dev", dev, "err", err, "out", strings.TrimSpace(out))
+		}
+		// Leave no half-built rules behind and retry next round.
+		_, _ = g.Run(TCDeleteScript(dev), "tc", "-force", "-batch", "-")
+		_, _ = g.Run(ShapeDeleteScript(), "nft", "-f", "-")
+		g.mu.Lock()
+		g.shapeReady = false
+		g.tcSig, g.tcFailed = "", true
+		g.mu.Unlock()
+	}
+	if out, err := g.Run(ShapeScript(shapes)+ConnElemScript(replay), "nft", "-f", "-"); err != nil {
+		fail("nft", out, err)
+		return
+	}
+	if script := TCScript(dev, shapes); script != "" {
+		if out, err := g.Run(script, "tc", "-batch", "-"); err != nil {
+			fail("tc", out, err)
 			return
 		}
 	}
 	g.mu.Lock()
 	g.tcSig, g.tcFailed = sig, false
 	g.mu.Unlock()
-	if len(shapes) > 0 {
-		slog.Info("speed limit: shaping updated", "dev", dev, "users", len(shapes))
-	}
+	slog.Info("speed limit: shaping updated", "dev", dev, "users", len(marked))
 }
 
 func (g *Guard) clearTC() {
 	g.mu.Lock()
 	had := g.tcSig != ""
+	g.shapeReady = false
 	g.mu.Unlock()
 	if had {
 		if dev := g.dev(); dev != "" {
 			_, _ = g.Run(TCDeleteScript(dev), "tc", "-force", "-batch", "-")
 		}
+		_, _ = g.Run(ShapeDeleteScript(), "nft", "-f", "-")
 	}
 }
 

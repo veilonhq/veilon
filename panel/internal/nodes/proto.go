@@ -159,9 +159,11 @@ type StatsReply struct {
 // the IP limit, which the node drops on its inbound ports too.
 type BansPush struct {
 	Bans []guard.Ban `json:"bans"`
-	// Shapes is the speed-limit plan: users with a speed limit and their
-	// live IPs. The node shapes the IPs connected to it the same way as
-	// the main server (nil from masters older than v0.3.2 = unchanged).
+	// Shapes is the speed-limit plan: users with a speed limit (and their
+	// live IPs, used only by older agents that shape per IP). The node shapes the
+	// connections of those users that its own access log shows, the same
+	// way as the main server (nil from masters older than v0.3.2 =
+	// unchanged).
 	Shapes []guard.Shape `json:"shapes"`
 }
 

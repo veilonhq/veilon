@@ -102,3 +102,41 @@ func TestUpdateActiveUserDoesNotDeadlockOnSQLite(t *testing.T) {
 		t.Fatal("updating an active user deadlocked")
 	}
 }
+
+// One day is a valid expiry, from today (expire_at) and from the first
+// connection (on_hold_days), on create and on edit; a new user never
+// inherits another user's speed limit.
+func TestOneDayExpiryAndIndependentSpeed(t *testing.T) {
+	gdb := testutil.DB(t)
+	gdb.Create(&db.Inbound{Remark: "x", Enabled: true, Protocol: "vless", Port: 1000, Network: "tcp", Security: "none"})
+	s := &Service{DB: gdb, SubURL: func(tok, host string) string { return tok }}
+	exp := time.Now().UTC().Add(24 * time.Hour).Truncate(time.Second)
+	mk := func(body string) *View {
+		t.Helper()
+		var in Input
+		if err := json.Unmarshal([]byte(body), &in); err != nil {
+			t.Fatal(err)
+		}
+		v, err := s.Create(&in, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	a := mk(`{"username":"usera","expire_at":"` + exp.Format(time.RFC3339) + `","speed_limit_down":1,"speed_limit_up":1,"inbound_ids":[1]}`)
+	if a.ExpireAt == nil || a.ExpireAt.Sub(time.Now()) < 23*time.Hour || a.Status != db.StatusActive || a.SpeedLimitDown != 1 {
+		t.Fatalf("one-day user %+v", a)
+	}
+	b := mk(`{"username":"userb","on_hold_days":1,"inbound_ids":[1]}`)
+	if b.OnHoldDays == nil || *b.OnHoldDays != 1 || b.Status != db.StatusOnHold {
+		t.Fatalf("one-day on-hold user %+v", b)
+	}
+	if b.SpeedLimitDown != 0 || b.SpeedLimitUp != 0 {
+		t.Fatalf("user b inherited a speed limit: %+v", b)
+	}
+	var p Input
+	_ = json.Unmarshal([]byte(`{"on_hold_days":null,"expire_at":"`+exp.Format(time.RFC3339)+`"}`), &p)
+	if v, err := s.Update(b.ID, &p, ""); err != nil || v.ExpireAt == nil || v.Status != db.StatusActive {
+		t.Fatalf("edit to one day: %v %+v", err, v)
+	}
+}

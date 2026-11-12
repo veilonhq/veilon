@@ -258,3 +258,23 @@ func TestRefreshAndFlushWithDB(t *testing.T) {
 		t.Fatalf("rows %+v", rows)
 	}
 }
+
+// TUIC connections carry their client port too, so their speed limit is
+// per connection like Xray's.
+func TestSingboxParserPorts(t *testing.T) {
+	p := NewSingboxParser()
+	var got []string
+	for _, l := range captured(t) {
+		if u, ip, port, ok := p.LineConn(l); ok {
+			got = append(got, fmt.Sprintf("%s %s %d", u, ip, port))
+		}
+	}
+	if len(got) != 4 {
+		t.Fatalf("got %v", got)
+	}
+	for _, g := range got {
+		if strings.HasSuffix(g, " 0") {
+			t.Fatalf("no port in %v", got)
+		}
+	}
+}

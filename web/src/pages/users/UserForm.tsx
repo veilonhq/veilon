@@ -6,6 +6,7 @@ import { Sheet } from '@/components/Overlay';
 import { Field, Skeleton, Switch } from '@/components/misc';
 import { Select } from '@/components/Select';
 import { useI18n, type MessageKey } from '@/i18n';
+import { parseDays, persianDigits } from '@/lib/days';
 import { GB, USERNAME_RE } from '@/lib/user';
 import { toast } from '@/store/feedback';
 import { LimitField } from './LimitField';
@@ -24,6 +25,39 @@ type SecKey = 'data' | 'time' | 'conn' | 'speed' | 'access';
 
 export const round1 = (v: number) => Math.round(v * 10) / 10;
 export const gb = (bytes: number) => Math.round((bytes / GB) * 100) / 100;
+
+/**
+ * A free number of days (any whole number from 1, e.g. 1), typed with the
+ * Persian or Latin keyboard; 0 while empty, which the form treats as invalid.
+ */
+export function DaysInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const { t, lang } = useI18n();
+  const [draft, setDraft] = useState(value > 0 ? String(value) : '');
+  useEffect(() => {
+    setDraft((d) => (Number(d || 0) === value ? d : value > 0 ? String(value) : ''));
+  }, [value]);
+  return (
+    <label className={s.daysBox}>
+      <input
+        className={`num ${s.daysInput}`}
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        autoComplete="off"
+        maxLength={5}
+        placeholder={t('form.daysPlaceholder')}
+        value={lang === 'fa' ? persianDigits(draft) : draft}
+        onChange={(e) => {
+          const { draft: raw, days } = parseDays(e.target.value);
+          setDraft(raw);
+          onChange(days);
+        }}
+        aria-label={t('form.daysLabel')}
+      />
+      {draft !== '' && <span className={s.daysUnit}>{t('common.days')}</span>}
+    </label>
+  );
+}
 
 /** − value + stepper; laid out left to right in both languages. */
 export function Stepper({ value, onChange, step = 1, min = 0, max = 1000, format, label }: { value: number; onChange: (v: number) => void; step?: number; min?: number; max?: number; format: (v: number) => ReactNode; label: string }) {
@@ -378,17 +412,14 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
                       {n(d)} {t('common.days')}
                     </button>
                   ))}
-                  <input
-                    className={`input num ${s.inlineNum}`}
-                    type="number"
-                    min={1}
-                    value={days}
-                    onChange={(e) => setDays(Math.max(0, Number(e.target.value)))}
-                    aria-label={t('form.daysLabel')}
-                  />
-                  <span className="field__hint" style={{ width: '100%' }}>
-                    {t('form.expiresOn', { date: date(expDate, { year: 'numeric', month: 'long', day: 'numeric' }) })}
-                  </span>
+                  <DaysInput value={days} onChange={setDays} />
+                  {days > 0 ? (
+                    <span className="field__hint" style={{ width: '100%' }}>
+                      {t('form.expiresOn', { date: date(expDate, { year: 'numeric', month: 'long', day: 'numeric' }) })}
+                    </span>
+                  ) : (
+                    touched && <span className="field__error" style={{ width: '100%' }}>{t('form.required')}</span>
+                  )}
                 </div>
               )}
               {expMode === 'hold' && (
@@ -398,14 +429,8 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
                       {n(d)} {t('common.days')}
                     </button>
                   ))}
-                  <input
-                    className={`input num ${s.inlineNum}`}
-                    type="number"
-                    min={1}
-                    value={holdDays}
-                    onChange={(e) => setHoldDays(Math.max(0, Number(e.target.value)))}
-                    aria-label={t('form.daysLabel')}
-                  />
+                  <DaysInput value={holdDays} onChange={setHoldDays} />
+                  {touched && holdDays <= 0 && <span className="field__error" style={{ width: '100%' }}>{t('form.required')}</span>}
                 </div>
               )}
             </fieldset>
