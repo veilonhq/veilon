@@ -35,10 +35,17 @@ const (
 
 type fakeCore struct{}
 
-func (fakeCore) Status() xray.Status                   { return xray.Status{Name: "xray"} }
-func (fakeCore) Restart()                              {}
-func (fakeCore) Statuses() []xray.Status               { return []xray.Status{{Name: "xray"}} }
-func (fakeCore) Logs(string, int) ([]string, error)    { return nil, nil }
+func (fakeCore) Status() xray.Status     { return xray.Status{Name: "xray"} }
+func (fakeCore) Restart()                {}
+func (fakeCore) Statuses() []xray.Status { return []xray.Status{{Name: "xray"}} }
+func (fakeCore) Logs(name string, n int) ([]string, error) {
+	// Long lines, so a screen of them is too long for one message.
+	var out []string
+	for i := 0; i < n; i++ {
+		out = append(out, fmt.Sprintf("2026/11/12 10:00:%02d [Info] proxy/vless/inbound: accepted tcp:example.com:443 [vless-reality-inbound-4443 >> direct] email: user-%d.with.a.long.name@example.com sniffed tls host: www.some-long-host-name.example.com", i%60, i))
+	}
+	return out, nil
+}
 func (fakeCore) GenerateConfig(string) ([]byte, error) { return []byte(`{}`), nil }
 
 // call is one request the bot made to the fake Bot API.

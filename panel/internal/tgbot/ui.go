@@ -48,8 +48,8 @@ type view struct {
 
 // req is one admin interaction (a button press or a message).
 type req struct {
-	b        *Bot
-	ctx      context.Context
+	b   *Bot
+	ctx context.Context
 	// sctx lives as long as the bot session (for progress watchers).
 	sctx     context.Context
 	cl       *Client
