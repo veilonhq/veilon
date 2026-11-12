@@ -30,6 +30,8 @@ type chatState struct {
 	// restore is an uploaded backup waiting for the admin's confirmation.
 	restore     []byte
 	restoreName string
+	// xr is the Xray settings draft (nil: not loaded).
+	xr *xrState
 }
 
 // pending is a value the bot asked the admin to type (or a file to send).
