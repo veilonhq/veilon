@@ -14,7 +14,9 @@ type Admin struct {
 	UserQuota int `json:"user_quota"`
 	// TrafficQuota caps the total data limit a sub-admin may hand out
 	// across its users, in bytes (0 = unlimited).
-	TrafficQuota      int64      `json:"traffic_quota"`
+	TrafficQuota int64 `json:"traffic_quota"`
+	// Disabled admins cannot sign in and their tokens are refused.
+	Disabled          bool       `json:"disabled"`
 	PasswordChangedAt *time.Time `json:"-"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`
@@ -288,6 +290,17 @@ type AuditLog struct {
 	Action    string
 	Target    string
 	IP        string `gorm:"column:ip"`
+	CreatedAt time.Time
+}
+
+// TelegramNotice records a Telegram notification already sent: one row
+// per kind ("traffic90", "expired", ...), subject (user or node id) and mark
+// (the period or event it belongs to).
+type TelegramNotice struct {
+	ID        int64 `gorm:"primaryKey"`
+	Kind      string
+	SubjectID int64
+	Mark      string
 	CreatedAt time.Time
 }
 

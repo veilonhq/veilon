@@ -30,6 +30,7 @@ const pageImports = {
   logs: () => import('@/pages/Logs'),
   donate: () => import('@/pages/Donate'),
   update: () => import('@/pages/Update'),
+  telegram: () => import('@/pages/Telegram'),
   notFound: () => import('@/pages/NotFound'),
 };
 const UsersPage = lazyPage(pageImports.users);
@@ -44,10 +45,11 @@ const AuditPage = lazyPage(pageImports.audit);
 const LogsPage = lazyPage(pageImports.logs);
 const DonatePage = lazyPage(pageImports.donate);
 const UpdatePage = lazyPage(pageImports.update);
+const TelegramPage = lazyPage(pageImports.telegram);
 const NotFound = lazyPage(pageImports.notFound);
 /** Warm every route chunk and the data the dock pages open with. */
 export function preloadPages() {
-  for (const c of [UsersPage, InboundsPage, CertsPage, SettingsPage, UpdatePage, XrayConfigPage, LogsPage, AdminsPage, GroupsPage, AuditPage, NotFound]) c.preload().catch(() => undefined);
+  for (const c of [UsersPage, InboundsPage, CertsPage, SettingsPage, UpdatePage, TelegramPage, XrayConfigPage, LogsPage, AdminsPage, GroupsPage, AuditPage, NotFound]) c.preload().catch(() => undefined);
   prefetchPageData(qc);
 }
 
@@ -108,6 +110,7 @@ export function App() {
               <Route path="certs" element={<Guard need="certs" title="nav.certs"><CertsPage /></Guard>} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="update" element={<Guard need="sudo" title="nav.update"><UpdatePage /></Guard>} />
+              <Route path="telegram" element={<Guard need="sudo" title="nav.telegram"><TelegramPage /></Guard>} />
               <Route path="xray" element={<Guard need="sudo" title="nav.xray"><XrayConfigPage /></Guard>} />
               <Route path="nodes" element={<Guard need="sudo" title="nav.nodes"><NodesPage /></Guard>} />
               <Route path="groups" element={<Guard need="groups" title="nav.groups"><GroupsPage /></Guard>} />

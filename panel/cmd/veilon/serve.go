@@ -19,7 +19,9 @@ import (
 
 	"github.com/veilonhq/veilon/panel/internal/api"
 	"github.com/veilonhq/veilon/panel/internal/auth"
+	"github.com/veilonhq/veilon/panel/internal/backup"
 	"github.com/veilonhq/veilon/panel/internal/certs"
+	"github.com/veilonhq/veilon/panel/internal/config"
 	"github.com/veilonhq/veilon/panel/internal/cores"
 	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/guard"
@@ -31,6 +33,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/selfupdate"
 	"github.com/veilonhq/veilon/panel/internal/stats"
 	"github.com/veilonhq/veilon/panel/internal/sub"
+	"github.com/veilonhq/veilon/panel/internal/tgbot"
 	usagemeter "github.com/veilonhq/veilon/panel/internal/usage"
 	"github.com/veilonhq/veilon/panel/internal/users"
 	"github.com/veilonhq/veilon/panel/internal/util"
@@ -41,6 +44,17 @@ import (
 func cmdServe(args []string) error {
 	panelLogs := logbuf.New("panel", 2000)
 	slog.SetDefault(slog.New(&logbuf.Handler{Next: slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}), Ring: panelLogs}))
+	// A restore staged by the previous run (backup.Service.Restore) goes in
+	// place before the database is opened.
+	if c, err := config.Load(); err == nil {
+		applied, err := backup.ApplyPending(c.DBDriver, c.DBDSN, c.DataDir)
+		switch {
+		case err != nil:
+			slog.Error("database restore failed; starting with the current database", "err", err)
+		case applied:
+			slog.Warn("database restored from a backup")
+		}
+	}
 	cfg, gdb, err := openDB()
 	if err != nil {
 		return err
@@ -133,11 +147,26 @@ func cmdServe(args []string) error {
 	if d, err := time.ParseDuration(os.Getenv("VEILON_UPDATE_FIRST_CHECK")); err == nil {
 		updates.Checker.FirstDelay = d
 	}
+	// Telegram admin bot: acts through the API in process; Reload after
+	// the settings page saves.
+	// Backups: a restore stops the panel (exit RestartCode) so it is
+	// applied at the next start.
+	var restoreExit atomic.Bool
+	var stopServe atomic.Value
+	backups := &backup.Service{DB: gdb, Driver: cfg.DBDriver, DSN: cfg.DBDSN, DataDir: cfg.DataDir, Version: version.Version,
+		Exit: func() {
+			restoreExit.Store(true)
+			if f, ok := stopServe.Load().(context.CancelFunc); ok {
+				f()
+			}
+		}}
+	tgBot := &tgbot.Bot{DB: gdb, Version: version.Version, Backups: backups}
 	srv = api.New(&api.Server{
 		DB: gdb, Auth: authSvc, Users: userSvc, Inbounds: inbSvc, Certs: certSvc,
 		Sub: &sub.Service{DB: gdb}, Core: core, Sampler: sampler, TrustProxy: cfg.TrustProxy, PanelLogs: panelLogs, Update: updates,
-		Nodes: &nodes.Service{DB: gdb, PKI: nodeMgr.PKI, Manager: nodeMgr, CheckMoveToMain: inbSvc.CheckMoveToMain},
-		Live:  func(id int64) []string { return connGuard.Tracker.Live(id, time.Now().UTC()) },
+		Nodes:    &nodes.Service{DB: gdb, PKI: nodeMgr.PKI, Manager: nodeMgr, CheckMoveToMain: inbSvc.CheckMoveToMain},
+		Live:     func(id int64) []string { return connGuard.Tracker.Live(id, time.Now().UTC()) },
+		Telegram: tgBot,
 		OnListenerChange: func() {
 			select {
 			case restartListener <- struct{}{}:
@@ -157,11 +186,14 @@ func cmdServe(args []string) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	stopServe.Store(context.CancelFunc(stop))
 	coreDone := make(chan struct{})
 	go func() { util.Supervise(ctx, "cores", core.Run); close(coreDone) }()
 	go util.Supervise(ctx, "system stats", func(ctx context.Context) { sampler.Run(ctx, 3*time.Second) })
 	go util.Supervise(ctx, "update check", updates.Checker.Run)
 	go util.Supervise(ctx, "nodes", nodeMgr.Run)
+	tgBot.API = srv
+	go util.Supervise(ctx, "telegram", tgBot.Run)
 	// Online status lives in memory; last_online_at is stored on changes
 	// and at most once a minute while a user stays online.
 	go util.Supervise(ctx, "online status", func(ctx context.Context) { presence.Default.Run(ctx, gdb, 5*time.Second) })
@@ -251,6 +283,10 @@ func cmdServe(args []string) error {
 			shut(hs)
 			finish()
 			<-guardDone
+			if restoreExit.Load() {
+				slog.Warn("veilon stopped to apply a database restore")
+				return errRestartForRestore
+			}
 			slog.Info("veilon stopped")
 			return nil
 		case <-restartListener:
@@ -265,6 +301,10 @@ func cmdServe(args []string) error {
 		}
 	}
 }
+
+// errRestartForRestore ends "serve" with backup.RestartCode: systemd
+// (Restart=on-failure) starts the panel again, which applies the restore.
+var errRestartForRestore = errors.New("restarting to apply a database restore")
 
 func shut(hs *http.Server) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

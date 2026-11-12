@@ -25,6 +25,10 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, auth.ErrRateLimited):
 		writeErr(w, http.StatusTooManyRequests, "rate_limited", "too many failed attempts, try again later")
 		return
+	case errors.Is(err, auth.ErrAdminDisabled):
+		audit.Log(s.DB, nil, "auth.login_failed", req.Username, ip)
+		writeErr(w, http.StatusForbidden, "admin_disabled", "this admin account is disabled")
+		return
 	case errors.Is(err, auth.ErrInvalidCredentials):
 		audit.Log(s.DB, nil, "auth.login_failed", req.Username, ip)
 		writeErr(w, http.StatusUnauthorized, "invalid_credentials", "invalid username or password")
@@ -194,10 +198,15 @@ func (s *Server) deleteAdmin(w http.ResponseWriter, r *http.Request, a *db.Admin
 func (s *Server) listAudit(w http.ResponseWriter, r *http.Request, a *db.Admin) {
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	per, _ := strconv.Atoi(r.URL.Query().Get("per_page"))
-	items, total, err := audit.List(s.DB, page, per)
+	q := r.URL.Query()
+	items, total, err := audit.ListBy(s.DB, strings.TrimSpace(q.Get("admin")), page, per)
 	if err != nil {
 		writeServiceErr(w, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"items": items, "total": total})
+	out := map[string]any{"items": items, "total": total}
+	if q.Get("actors") == "1" {
+		out["actors"] = audit.Actors(s.DB, 30)
+	}
+	writeJSON(w, 200, out)
 }

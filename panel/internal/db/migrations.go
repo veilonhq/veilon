@@ -248,6 +248,23 @@ var migrations = []migration{
 		`ALTER TABLE traffic_points ADD COLUMN node_id BIGINT NOT NULL DEFAULT 0`,
 		`UPDATE nodes SET up = 0, down = 0`,
 	}},
+	// Telegram bot notifications already sent (kind + subject + mark), so a
+	// notice goes out once per event even across restarts. New table only;
+	// existing data is untouched.
+	{10, "telegram notices", []string{
+		`CREATE TABLE telegram_notices (
+			id {{PK}},
+			kind VARCHAR(32) NOT NULL,
+			subject_id BIGINT NOT NULL DEFAULT 0,
+			mark VARCHAR(64) NOT NULL DEFAULT '',
+			created_at {{TS}} NOT NULL)`,
+		`CREATE UNIQUE INDEX idx_telegram_notices_key ON telegram_notices(kind, subject_id, mark)`,
+	}},
+	// A disabled admin cannot sign in and its tokens stop working. Additive:
+	// every existing admin stays enabled.
+	{11, "admin disable", []string{
+		`ALTER TABLE admins ADD COLUMN disabled BOOLEAN NOT NULL DEFAULT FALSE`,
+	}},
 }
 
 type schemaMigration struct {
@@ -397,5 +414,16 @@ func applyMigration(gdb *gorm.DB, driver string, m migration) error {
 func SchemaVersion(gdb *gorm.DB) int {
 	var v int
 	gdb.Raw("SELECT COALESCE(MAX(version),0) FROM schema_migrations").Scan(&v)
+	return v
+}
+
+// LatestSchema is the newest migration version this build knows.
+func LatestSchema() int {
+	v := 0
+	for _, m := range migrations {
+		if m.Version > v {
+			v = m.Version
+		}
+	}
 	return v
 }

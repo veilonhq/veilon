@@ -9,6 +9,7 @@ import (
 	_ "time/tzdata" // IANA zones even on hosts without /usr/share/zoneinfo
 
 	"github.com/veilonhq/veilon/panel/internal/awgd"
+	"github.com/veilonhq/veilon/panel/internal/backup"
 	"github.com/veilonhq/veilon/panel/internal/version"
 )
 
@@ -144,6 +145,10 @@ func main() {
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s", os.Args[1], usage)
 		os.Exit(2)
+	}
+	if errors.Is(err, errRestartForRestore) {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(backup.RestartCode)
 	}
 	if err != nil {
 		if errors.Is(err, errAborted) {

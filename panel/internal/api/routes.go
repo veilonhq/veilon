@@ -97,6 +97,10 @@ func (s *Server) routes() http.Handler {
 	m.HandleFunc("POST /nodes/{id}/update", s.sudo(s.nodeUpdate))
 	m.HandleFunc("POST /nodes/update-outdated", s.sudo(s.nodesUpdateOutdated))
 
+	m.HandleFunc("GET /telegram", s.sudo(s.getTelegram))
+	m.HandleFunc("PUT /telegram", s.sudo(s.putTelegram))
+	m.HandleFunc("POST /telegram/test", s.sudo(s.testTelegram))
+
 	m.HandleFunc("GET /audit", s.perm(auth.PermLogs, s.listAudit))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

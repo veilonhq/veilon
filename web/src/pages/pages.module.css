@@ -1254,3 +1254,149 @@ html[lang='fa'] .termSearch input:placeholder-shown {
 .updatePage {
   max-width: 860px;
 }
+
+/* ---------- Telegram bot ---------- */
+.tgCol {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.tgNote {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.tgMuted {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.tgStatus {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.tgBadge {
+  width: 52px;
+  height: 52px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--panel-3);
+  border: 1px solid var(--line-2);
+  color: var(--muted);
+}
+.tgBadgeOn {
+  background: var(--accent-soft);
+  color: var(--accent-fg);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.tgBadgeErr {
+  background: var(--danger-soft);
+  color: var(--danger-fg);
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+}
+.tgStatusMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.tgStatusMain strong {
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.tgErrText {
+  color: var(--danger-fg);
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.tgResult {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+.tgResultBot {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.tgResultBot strong {
+  overflow-wrap: anywhere;
+}
+.tgResultList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tgResultList li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.tgResultList li > small {
+  flex-basis: 100%;
+}
+.tgOk {
+  color: var(--accent-fg);
+  flex: none;
+}
+.tgBad {
+  color: var(--danger-fg);
+  flex: none;
+}
+.tgResultErr {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--danger-soft);
+  color: var(--danger-fg);
+}
+.tgResultErr > svg {
+  flex: none;
+  margin-top: 3px;
+}
+.tgResultErr > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.tgResultErr small {
+  overflow-wrap: anywhere;
+}
+.adminOff .adminAvatar,
+.adminOff .adminMain {
+  opacity: 0.62;
+}
+.adminSwitch {
+  display: inline-flex;
+  align-items: center;
+  margin-inline-end: 4px;
+}
+.tgSpacer {
+  grid-column: 1 / -1;
+  height: 72px;
+}

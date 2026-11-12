@@ -1,6 +1,7 @@
 import {
   Activity,
   ArrowUpCircle,
+  Bot,
   Heart,
   Layers,
   Route,
@@ -39,6 +40,7 @@ export const SECONDARY: NavItem[] = [
   { to: '/update', key: 'nav.update', icon: ArrowUpCircle, need: 'sudo' },
   { to: '/xray', key: 'nav.xray', icon: Route, need: 'sudo' },
   { to: '/nodes', key: 'nav.nodes', icon: Server, need: 'sudo' },
+  { to: '/telegram', key: 'nav.telegram', icon: Bot, need: 'sudo' },
   { to: '/admins', key: 'nav.admins', icon: UserCog, need: 'sudo' },
   { to: '/audit', key: 'nav.audit', icon: Activity, need: 'logs' },
   { to: '/groups', key: 'nav.groups', icon: Layers, need: 'groups' },

@@ -247,6 +247,16 @@ const admins: Admin[] = [
   { id: 2, username: 'support', is_sudo: false, created_at: iso(now() - 40 * DAY), permissions: [...SUB_PERMS, 'all_users', 'logs'], user_quota: 0, traffic_quota: 0 },
   { id: 3, username: 'billing', is_sudo: false, created_at: iso(now() - 7 * DAY), permissions: SUB_PERMS, user_quota: 50, traffic_quota: 40 * 1024 * GB },
 ];
+/* Telegram bot (mock): the token stays here, only its hint goes out. */
+const tg = { enabled: false, admins: [] as number[], proxy: '', notify: { traffic: true, expiry: true, nodes: true, update: true }, token: '' };
+function tgView() {
+  const hint = tg.token ? `${tg.token.split(':')[0]}:••••${tg.token.slice(-4)}` : '';
+  return {
+    enabled: tg.enabled, admins: tg.admins, proxy: tg.proxy, notify: tg.notify, token_set: !!tg.token, token_hint: hint, max_admins: 20,
+    status: tg.enabled ? { running: true, username: 'veilon_demo_bot', error: '', since: iso(now() - 3600_000) } : { running: false, username: '', error: '', since: null },
+  };
+}
+
 /** Admin view with usage, as GET /admins returns it. */
 const adminFull = (a: Admin): Admin => {
   const own = users.filter((u) => (u.admin_id ?? 1) === a.id);
@@ -523,6 +533,23 @@ function route(method: string, path: string, q: URLSearchParams, body: Body): un
   if (path === '/auth/me') return adminFull(currentAdmin());
   if (path === '/auth/password') return { ok: true, token: 'mock.' + b64(32), expires_at: iso(now() + DAY) };
 
+  if (path === '/telegram' && method === 'GET') return tgView();
+  if (path === '/telegram' && method === 'PUT') {
+    const b = body as { enabled?: boolean; admins?: number[]; proxy?: string; notify?: typeof tg.notify; token?: string; clear_token?: boolean };
+    if (b.clear_token) tg.token = '';
+    if (b.token) tg.token = b.token;
+    if (b.admins) tg.admins = b.admins;
+    if (b.proxy !== undefined) tg.proxy = b.proxy;
+    if (b.notify) tg.notify = b.notify;
+    if (b.enabled !== undefined) tg.enabled = b.enabled;
+    if (tg.enabled && (!tg.token || tg.admins.length === 0)) throw new HttpError(400, 'validation_error', 'a bot token and at least one admin id are required to turn the bot on');
+    addAudit('telegram.update', '—');
+    return tgView();
+  }
+  if (path === '/telegram/test' && method === 'POST') {
+    const b = body as { admins?: number[] };
+    return { bot: { id: 123456789, username: 'veilon_demo_bot', name: 'Veilon' }, admins: (b.admins ?? tg.admins).map((id, i) => (i === 1 ? { id, ok: false, error: 'Forbidden: bot was blocked by the user' } : { id, ok: true })) };
+  }
   if (path === '/system/stats') return stats();
   if (path === '/system/traffic') return traffic(q.get('range') || '24h');
   if (path === '/core/restart') {
@@ -888,7 +915,10 @@ function route(method: string, path: string, q: URLSearchParams, body: Body): un
     }
     if (method === 'PATCH') {
       const a = byId(admins, id);
-      const b = body as { permissions?: Perm[]; user_quota?: number; traffic_quota?: number; is_sudo?: boolean };
+      const b = body as { permissions?: Perm[]; user_quota?: number; traffic_quota?: number; is_sudo?: boolean; disabled?: boolean };
+      if (b.disabled && a.id === currentAdmin().id) throw new HttpError(400, 'validation_error', 'you cannot disable yourself');
+      if (b.disabled && a.is_sudo && admins.filter((x) => x.is_sudo && !x.disabled && x.id !== a.id).length === 0) throw new HttpError(400, 'validation_error', 'cannot disable the last sudo admin');
+      if (b.disabled !== undefined) a.disabled = b.disabled;
       if (b.is_sudo === false && a.is_sudo) {
         if (a.id === currentAdmin().id) throw new HttpError(400, 'validation_error', 'you cannot remove your own sudo access');
         if (admins.filter((x) => x.is_sudo).length <= 1) throw new HttpError(400, 'validation_error', 'cannot demote the last sudo admin');
