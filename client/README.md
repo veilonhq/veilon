@@ -73,7 +73,7 @@ keyPassword=...
 
 ## Releases
 
-Client releases use their own tag prefix, `client-v` (for example `client-v0.1.0`),
+Client releases use their own tag prefix, `client-v` (for example `client-v1.0.6`),
 separate from the panel's `v*` tags.
 
 ## License
