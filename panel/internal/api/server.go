@@ -25,6 +25,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/selfupdate"
 	"github.com/veilonhq/veilon/panel/internal/stats"
 	"github.com/veilonhq/veilon/panel/internal/sub"
+	"github.com/veilonhq/veilon/panel/internal/tgbot"
 	"github.com/veilonhq/veilon/panel/internal/users"
 	"github.com/veilonhq/veilon/panel/internal/webui"
 	"github.com/veilonhq/veilon/panel/internal/xray"
@@ -63,6 +64,8 @@ type Server struct {
 	Update *selfupdate.Service
 	// Nodes manages remote nodes (may be nil).
 	Nodes *nodes.Service
+	// Telegram is the admin bot (may be nil).
+	Telegram *tgbot.Bot
 
 	settings atomic.Pointer[db.Settings]
 	api      http.Handler
@@ -262,6 +265,10 @@ type authed func(w http.ResponseWriter, r *http.Request, a *db.Admin)
 
 func (s *Server) authn(h authed) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if a := actorFrom(r); a != nil {
+			h(w, r, a)
+			return
+		}
 		hdr := r.Header.Get("Authorization")
 		tok, ok := strings.CutPrefix(hdr, "Bearer ")
 		if !ok || tok == "" {

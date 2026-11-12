@@ -291,6 +291,17 @@ type AuditLog struct {
 	CreatedAt time.Time
 }
 
+// TelegramNotice records a Telegram notification already sent: one row
+// per kind ("traffic90", "expired", ...), subject (user or node id) and mark
+// (the period or event it belongs to).
+type TelegramNotice struct {
+	ID        int64 `gorm:"primaryKey"`
+	Kind      string
+	SubjectID int64
+	Mark      string
+	CreatedAt time.Time
+}
+
 // TrafficPoint is system-wide traffic during one sampling interval.
 type TrafficPoint struct {
 	ID   int64 `gorm:"primaryKey"`

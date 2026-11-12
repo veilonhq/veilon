@@ -248,6 +248,18 @@ var migrations = []migration{
 		`ALTER TABLE traffic_points ADD COLUMN node_id BIGINT NOT NULL DEFAULT 0`,
 		`UPDATE nodes SET up = 0, down = 0`,
 	}},
+	// Telegram bot notifications already sent (kind + subject + mark), so a
+	// notice goes out once per event even across restarts. New table only;
+	// existing data is untouched.
+	{10, "telegram notices", []string{
+		`CREATE TABLE telegram_notices (
+			id {{PK}},
+			kind VARCHAR(32) NOT NULL,
+			subject_id BIGINT NOT NULL DEFAULT 0,
+			mark VARCHAR(64) NOT NULL DEFAULT '',
+			created_at {{TS}} NOT NULL)`,
+		`CREATE UNIQUE INDEX idx_telegram_notices_key ON telegram_notices(kind, subject_id, mark)`,
+	}},
 }
 
 type schemaMigration struct {

@@ -31,6 +31,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/selfupdate"
 	"github.com/veilonhq/veilon/panel/internal/stats"
 	"github.com/veilonhq/veilon/panel/internal/sub"
+	"github.com/veilonhq/veilon/panel/internal/tgbot"
 	usagemeter "github.com/veilonhq/veilon/panel/internal/usage"
 	"github.com/veilonhq/veilon/panel/internal/users"
 	"github.com/veilonhq/veilon/panel/internal/util"
@@ -133,11 +134,15 @@ func cmdServe(args []string) error {
 	if d, err := time.ParseDuration(os.Getenv("VEILON_UPDATE_FIRST_CHECK")); err == nil {
 		updates.Checker.FirstDelay = d
 	}
+	// Telegram admin bot: acts through the API in process; Reload after
+	// the settings page saves.
+	tgBot := &tgbot.Bot{DB: gdb, Version: version.Version}
 	srv = api.New(&api.Server{
 		DB: gdb, Auth: authSvc, Users: userSvc, Inbounds: inbSvc, Certs: certSvc,
 		Sub: &sub.Service{DB: gdb}, Core: core, Sampler: sampler, TrustProxy: cfg.TrustProxy, PanelLogs: panelLogs, Update: updates,
-		Nodes: &nodes.Service{DB: gdb, PKI: nodeMgr.PKI, Manager: nodeMgr, CheckMoveToMain: inbSvc.CheckMoveToMain},
-		Live:  func(id int64) []string { return connGuard.Tracker.Live(id, time.Now().UTC()) },
+		Nodes:    &nodes.Service{DB: gdb, PKI: nodeMgr.PKI, Manager: nodeMgr, CheckMoveToMain: inbSvc.CheckMoveToMain},
+		Live:     func(id int64) []string { return connGuard.Tracker.Live(id, time.Now().UTC()) },
+		Telegram: tgBot,
 		OnListenerChange: func() {
 			select {
 			case restartListener <- struct{}{}:
@@ -162,6 +167,8 @@ func cmdServe(args []string) error {
 	go util.Supervise(ctx, "system stats", func(ctx context.Context) { sampler.Run(ctx, 3*time.Second) })
 	go util.Supervise(ctx, "update check", updates.Checker.Run)
 	go util.Supervise(ctx, "nodes", nodeMgr.Run)
+	tgBot.API = srv
+	go util.Supervise(ctx, "telegram", tgBot.Run)
 	// Online status lives in memory; last_online_at is stored on changes
 	// and at most once a minute while a user stays online.
 	go util.Supervise(ctx, "online status", func(ctx context.Context) { presence.Default.Run(ctx, gdb, 5*time.Second) })
