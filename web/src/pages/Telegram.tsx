@@ -268,6 +268,8 @@ export default function TelegramPage() {
             </Section>
           </div>
 
+          {/* room for the floating save bar, so it never covers the last card */}
+          {dirty && <div className={s.tgSpacer} aria-hidden="true" />}
           <AnimatePresence>
             {dirty && (
               <motion.div className={s.saveBar} initial={{ y: 30, opacity: 0, x: '-50%' }} animate={{ y: 0, opacity: 1, x: '-50%' }} exit={{ y: 30, opacity: 0, x: '-50%' }}>

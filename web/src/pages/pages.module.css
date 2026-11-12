@@ -1396,3 +1396,7 @@ html[lang='fa'] .termSearch input:placeholder-shown {
   align-items: center;
   margin-inline-end: 4px;
 }
+.tgSpacer {
+  grid-column: 1 / -1;
+  height: 72px;
+}
