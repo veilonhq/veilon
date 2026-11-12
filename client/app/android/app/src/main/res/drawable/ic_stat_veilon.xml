@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status-bar / notification / quick-settings tile glyph (1.0.6): the app
+     logo's "V" (both strokes + the joint, from the launcher icon's V,
+     viewBox 108 mapped to 24), flat white on transparent. Android tints it;
+     no colour or alpha detail is used, as status-bar icons require. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M2,2.6L7,2.6L12,15.93L17,2.6L22,2.6L13.67,21.35L10.33,21.35Z"/>
+</vector>

@@ -1,0 +1,21 @@
+# Build outputs
+build/
+**/build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.apk
+*.aab
+app/android/app/libs/*.aar
+
+# Signing (never commit)
+*.jks
+*.keystore
+key.properties
+keystore/
+store-password.txt
+
+# Local config
+local.properties
+.idea/
+*.iml

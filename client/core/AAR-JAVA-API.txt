@@ -1,0 +1,62 @@
+Compiled from "Veiloncore.java"
+public abstract class veiloncore.Veiloncore {
+  public static final java.lang.String DefaultResolvers;
+  public static final java.lang.String TypeAmneziaWG;
+  public static final java.lang.String TypeDNSTT;
+  public static final java.lang.String TypeHTTP;
+  public static final java.lang.String TypeHysteria2;
+  public static final java.lang.String TypeMTProto;
+  public static final java.lang.String TypeMasque;
+  public static final java.lang.String TypeNaive;
+  public static final java.lang.String TypeNoizDNS;
+  public static final java.lang.String TypeSOCKS;
+  public static final java.lang.String TypeSSH;
+  public static final java.lang.String TypeShadowsocks;
+  public static final java.lang.String TypeSlipstream;
+  public static final java.lang.String TypeSoar;
+  public static final java.lang.String TypeTUIC;
+  public static final java.lang.String TypeTrojan;
+  public static final java.lang.String TypeVLESS;
+  public static final java.lang.String TypeVMess;
+  public static final java.lang.String TypeVayDNS;
+  public static final java.lang.String TypeWireGuard;
+  public static final java.lang.String Version;
+  public static void touch();
+  public static native java.lang.String buildConfig(java.lang.String, java.lang.String);
+  public static native java.lang.String checkProfile(java.lang.String, java.lang.String);
+  public static native void clearLogs();
+  public static native java.lang.String coreFor(java.lang.String);
+  public static native java.lang.String coreVersions();
+  public static native java.lang.String defaultResolverList();
+  public static native java.lang.String fetchSubscription(java.lang.String, java.lang.String, java.lang.String, int);
+  public static native java.lang.String getLogs(long);
+  public static native boolean isRunning();
+  public static native void networkChanged();
+  public static native java.lang.String parseConf(java.lang.String, java.lang.String);
+  public static native veiloncore.ParseResult parseContent(java.lang.String);
+  public static native veiloncore.Profile parseLink(java.lang.String) throws java.lang.Exception;
+  public static native veiloncore.Profile parseSlipnet(java.lang.String) throws java.lang.Exception;
+  public static native java.lang.String parseText(java.lang.String);
+  public static native java.lang.String parseUserInfoHeader(java.lang.String);
+  public static native veiloncore.Profile parseWGConf(java.lang.String, java.lang.String) throws java.lang.Exception;
+  public static native void start(java.lang.String, java.lang.String, veiloncore.Platform) throws java.lang.Exception;
+  public static native void startScan(java.lang.String, java.lang.String, int, int, veiloncore.ScanListener);
+  public static native void stop() throws java.lang.Exception;
+  public static native void stopScan();
+  public static native int urlTest(java.lang.String, java.lang.String, java.lang.String, int);
+  public static native java.lang.String urlTestError(java.lang.String, java.lang.String, java.lang.String, int);
+  public static native void writeLog(java.lang.String, java.lang.String);
+  static {};
+}
+Compiled from "Platform.java"
+public interface veiloncore.Platform {
+  public abstract void onLog(int, java.lang.String);
+  public abstract int openTun(java.lang.String) throws java.lang.Exception;
+  public abstract boolean protect(int);
+}
+Compiled from "ScanListener.java"
+public interface veiloncore.ScanListener {
+  public abstract void onDone();
+  public abstract void onProgress(int, int);
+  public abstract void onResult(java.lang.String);
+}
