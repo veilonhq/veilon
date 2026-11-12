@@ -59,10 +59,6 @@ https://github.com/veilonhq/veilon/releases/download/client-latest/veilon-client
 2. در برنامه دکمه **+** را بزنید و لینک اشتراک را وارد کنید (یا کد QR آن را اسکن کنید).
 3. یک سرور انتخاب کنید و دکمه اتصال را بزنید. برای بروزرسانی اشتراک از دکمه بروزرسانی استفاده کنید.
 
-## ساخت از سورس
-
-مراحل ساخت در [بخش انگلیسی](#building) آمده است.
-
 </div>
 
 ---
@@ -126,50 +122,6 @@ client/
   app/    Flutter app + Android (Kotlin) VpnService
   core/   Go core (gomobile -> veiloncore.aar)
 ```
-
-<a id="building"></a>
-
-## Building
-
-Requirements: Go (see `core/go.mod`), gomobile, Android SDK + NDK, Flutter (Dart SDK per `app/pubspec.yaml`), JDK 17.
-
-**1. Build the Go core AAR** (arm64 and armv7):
-
-```sh
-cd client/core
-go install golang.org/x/mobile/cmd/gomobile@latest
-gomobile init
-gomobile bind -target=android/arm64,android/arm -androidapi 24 \
-  -tags with_quic,with_utls,with_wireguard,with_gvisor -trimpath \
-  -ldflags="-s -w -buildid= -checklinkname=0" \
-  -o ../app/android/app/libs/veiloncore.aar ./veiloncore
-```
-
-The AAR is a build output and is not committed.
-
-**2. Build the APKs:**
-
-```sh
-cd client/app
-flutter pub get
-flutter build apk --release --split-per-abi --target-platform android-arm,android-arm64
-```
-
-Output: `app/build/app/outputs/flutter-apk/` (`app-arm64-v8a-release.apk`, `app-armeabi-v7a-release.apk`).
-
-**Signing:** no signing key is included. Create your own keystore and an
-`app/android/key.properties` (ignored by git):
-
-```properties
-storeFile=../my-release.jks
-storePassword=...
-keyAlias=...
-keyPassword=...
-```
-
-`storeFile` is relative to `app/android/`. Without it, release builds are signed with the debug key.
-
-**Tests:** `cd core && go test ./veiloncore/` and `cd app && flutter test`.
 
 ## License
 
