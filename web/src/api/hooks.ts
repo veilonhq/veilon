@@ -8,6 +8,9 @@ import type {
   AcmeRequest,
   Admin,
   AdminPatch,
+  TelegramInput,
+  TelegramSettings,
+  TelegramTestResult,
   GroupInput,
   AuditEntry,
   BulkAction,
@@ -56,6 +59,7 @@ export const qk = {
   config: (core: string) => ['core-config', core] as const,
   me: ['me'] as const,
   nodes: ['nodes'] as const,
+  telegram: ['telegram'] as const,
 };
 
 /* ---------- auth ---------- */
@@ -584,6 +588,27 @@ export function useSaveSettings() {
   return useMutation({
     mutationFn: (b: Partial<Settings>) => api<Settings>('/settings', { method: 'PATCH', body: b }),
     onSuccess: (s) => qc.setQueryData(qk.settings, s),
+  });
+}
+
+/* ---------- Telegram bot ---------- */
+export function useTelegram() {
+  return useQuery({ queryKey: qk.telegram, queryFn: () => api<TelegramSettings>('/telegram'), refetchInterval: 10_000 });
+}
+export function useSaveTelegram() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (b: TelegramInput) => api<TelegramSettings>('/telegram', { method: 'PUT', body: b }),
+    onSuccess: (v) => {
+      qc.setQueryData(qk.telegram, v);
+      // the bot restarts with the new settings; its status follows shortly
+      setTimeout(() => qc.invalidateQueries({ queryKey: qk.telegram }), 2500);
+    },
+  });
+}
+export function useTestTelegram() {
+  return useMutation({
+    mutationFn: (b: { token?: string; admins?: number[]; proxy?: string }) => api<TelegramTestResult>('/telegram/test', { method: 'POST', body: b }),
   });
 }
 

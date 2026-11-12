@@ -1,9 +1,9 @@
 import { Crown, Lock, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { useAdmins, useDeleteAdmin } from '@/api/hooks';
+import { useAdmins, useDeleteAdmin, useUpdateAdmin } from '@/api/hooks';
 import { ApiError } from '@/api/client';
 import type { Admin } from '@/api/types';
-import { EmptyState, ErrorState, PageHeader, Section, Skeleton } from '@/components/misc';
+import { EmptyState, ErrorState, PageHeader, Section, Skeleton, Switch } from '@/components/misc';
 import { useI18n } from '@/i18n';
 import { confirmAction, toast } from '@/store/feedback';
 import { useSession } from '@/store/session';
@@ -16,6 +16,7 @@ export default function AdminsPage() {
   const sudo = !!me?.is_sudo;
   const q = useAdmins(sudo);
   const del = useDeleteAdmin();
+  const upd = useUpdateAdmin();
   const [editId, setEditId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -35,6 +36,17 @@ export default function AdminsPage() {
   const remove = async (a: Admin) => {
     if (!(await confirmAction({ title: t('adm.deleteConfirm', { name: a.username }), danger: true, confirmLabel: t('common.delete') }))) return;
     del.mutate(a.id, { onSuccess: () => toast.success(t('adm.deleted')), onError: (x) => toast.error(t('common.error'), x instanceof ApiError && x.status === 409 ? t('adm.ownsUsers') : (x as Error).message) });
+  };
+
+  const setDisabled = async (a: Admin, disabled: boolean) => {
+    if (disabled && !(await confirmAction({ title: t('adm.disableConfirm', { name: a.username }), body: t('adm.disableBody'), danger: true, confirmLabel: t('adm.disable') }))) return;
+    upd.mutate(
+      { id: a.id, patch: { disabled } },
+      {
+        onSuccess: () => toast.success(disabled ? t('adm.disabledToast') : t('adm.enabledToast')),
+        onError: (x) => toast.error(t('common.error'), x instanceof ApiError && /last sudo/.test(x.message) ? t('adm.lastSudo') : (x as Error).message),
+      },
+    );
   };
 
   return (
@@ -57,7 +69,7 @@ export default function AdminsPage() {
           <EmptyState kind="search" title="—" />
         ) : (
           q.data.map((a) => (
-            <article key={a.id} className={`glass ${s.adminCard}`}>
+            <article key={a.id} className={`glass ${s.adminCard} ${a.disabled ? s.adminOff : ''}`}>
               <span className={`${s.adminAvatar} ${a.is_sudo ? s.adminSudo : ''}`}>{a.username.slice(0, 1).toUpperCase()}</span>
               <div className={s.adminMain}>
                 <strong className="ltr">{a.username}</strong>
@@ -66,6 +78,7 @@ export default function AdminsPage() {
                     {a.is_sudo && <Crown size={12} />}
                     {a.is_sudo ? t('adm.sudo') : t('adm.regular')}
                   </span>
+                  {a.disabled && <span className="chip chip--disabled">{t('adm.disabled')}</span>}
                   {!a.is_sudo && a.permissions && <span className="chip">{t('adm.permCount', { n: n(a.permissions.length) })}</span>}
                 </span>
                 {!a.is_sudo && (
@@ -79,6 +92,9 @@ export default function AdminsPage() {
                 <span className="chip chip--active">{t('adm.you')}</span>
               ) : (
                 <span className={s.adminBtns}>
+                  <span className={s.adminSwitch} title={a.disabled ? t('adm.enable') : t('adm.disable')}>
+                    <Switch checked={!a.disabled} onChange={(on) => setDisabled(a, !on)} label={`${a.disabled ? t('adm.enable') : t('adm.disable')} ${a.username}`} />
+                  </span>
                   <button className="btn btn--sm btn--icon btn--ghost" onClick={() => setEditId(a.id)} aria-label={`${t('adm.access')} ${a.username}`} title={t('adm.access')}>
                     <SlidersHorizontal size={16} />
                   </button>

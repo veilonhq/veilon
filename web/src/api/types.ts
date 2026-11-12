@@ -18,6 +18,8 @@ export interface Admin {
   id: number;
   username: string;
   is_sudo: boolean;
+  /** a disabled admin cannot sign in and its tokens are refused */
+  disabled?: boolean;
   created_at?: string;
   /** granted flags; missing on old servers (treated as full access) */
   permissions?: Perm[];
@@ -35,6 +37,7 @@ export interface AdminPatch {
   user_quota?: number;
   traffic_quota?: number;
   is_sudo?: boolean;
+  disabled?: boolean;
 }
 
 export interface LoginResponse {
@@ -551,4 +554,42 @@ export interface NodeInstall {
   token: string;
   command: string;
   port: number;
+}
+
+/* ---------- Telegram admin bot ---------- */
+export interface TelegramNotify {
+  traffic: boolean;
+  expiry: boolean;
+  nodes: boolean;
+  update: boolean;
+}
+export interface TelegramStatus {
+  running: boolean;
+  username: string;
+  error: string;
+  since: string | null;
+}
+/** GET/PUT /telegram. The token itself never comes back: only token_set and a hint. */
+export interface TelegramSettings {
+  enabled: boolean;
+  admins: number[];
+  proxy: string;
+  notify: TelegramNotify;
+  token_set: boolean;
+  token_hint: string;
+  max_admins: number;
+  status: TelegramStatus;
+}
+export interface TelegramInput {
+  enabled?: boolean;
+  admins?: number[];
+  proxy?: string;
+  notify?: TelegramNotify;
+  /** "" or missing keeps the stored token */
+  token?: string;
+  clear_token?: boolean;
+}
+export interface TelegramTestResult {
+  bot: { id: number; username: string; name: string };
+  admins: { id: number; ok: boolean; error?: string }[];
 }
