@@ -28,11 +28,13 @@
 
 **توسعه داده شده توسط &lrm;[@lxhosein](https://t.me/lxhosein)**
 
-پنل مدیریت پروکسی رایگان و متن باز؛ یک فایل اجرایی، نصب با یک دستور
+پنل مدیریت پروکسی رایگان؛ یک فایل اجرایی، نصب با یک دستور
+
+📱 [دانلود کلاینت اندروید Veilon](https://github.com/veilonhq/veilon/releases/tag/client-v1.0.6)
 
 </div>
 
-Veilon یک پنل مدیریت پروکسی رایگان و متن باز است. یک فایل اجرایی Go همه کار را انجام می دهد: رابط وب، API، لینک اشتراک (Subscription) و مدیریت هسته های پروکسی. نصب با یک دستور انجام می شود و رابط کاربری فارسی و انگلیسی دارد.
+Veilon یک پنل مدیریت پروکسی رایگان است. یک فایل اجرایی Go همه کار را انجام می دهد: رابط وب، API، لینک اشتراک (Subscription) و مدیریت هسته های پروکسی. نصب با یک دستور انجام می شود و رابط کاربری فارسی و انگلیسی دارد.
 
 <table>
   <tr>
@@ -339,6 +341,7 @@ veilon cert list
 
 | برنامه | سیستم عامل | روش |
 | --- | --- | --- |
+| **[Veilon Client](https://github.com/veilonhq/veilon/releases/tag/client-v1.0.6)** | اندروید | کلاینت رسمی Veilon: لینک اشتراک را با دکمه + وارد کنید یا QR را اسکن کنید |
 | **v2rayNG** | اندروید | لینک اشتراک را کپی کنید ← دکمه + ← Import from clipboard؛ یا کد QR را اسکن کنید |
 | **Hiddify** | اندروید، iOS، ویندوز، macOS، لینوکس | New Profile ← لینک اشتراک را وارد کنید |
 | **Streisand** | iOS و macOS | دکمه + ← لینک اشتراک یا اسکن QR |
@@ -506,7 +509,7 @@ UQCr7FXmeLsKLplHAgb1HIT0rxmQJpvAh4w2pST-DBGicbi2
 
 ## مجوز
 
-AGPL-3.0. متن کامل در [LICENSE](LICENSE).
+همه حقوق محفوظ است. هیچ کس حق کپی، ویرایش، انتشار دوباره یا فروش این کد را ندارد. استفاده از نسخه های رسمی منتشر شده آزاد است. متن کامل در [LICENSE](LICENSE).
 
 </div>
 
@@ -520,11 +523,13 @@ AGPL-3.0. متن کامل در [LICENSE](LICENSE).
 
 **Developed by &lrm;[@lxhosein](https://t.me/lxhosein)**
 
-Free, open-source proxy panel. One binary, one-line install.
+Free proxy panel. One binary, one-line install.
+
+📱 [Download the Veilon Android client](https://github.com/veilonhq/veilon/releases/tag/client-v1.0.6)
 
 </div>
 
-Veilon is a free, open-source proxy panel. One Go binary serves the web UI, the API and subscriptions, and supervises the proxy cores. One-command install, Persian and English UI.
+Veilon is a free proxy panel. One Go binary serves the web UI, the API and subscriptions, and supervises the proxy cores. One-command install, Persian and English UI.
 
 <table>
   <tr>
@@ -743,6 +748,7 @@ veilon cert issue --ip auto --panel
 
 | App | Platforms | How |
 | --- | --- | --- |
+| **[Veilon Client](https://github.com/veilonhq/veilon/releases/tag/client-v1.0.6)** | Android | The official Veilon client: add the subscription link with + or scan the QR code |
 | **v2rayNG** | Android | Import the subscription link or scan the QR code |
 | **Hiddify** | All platforms | Import the subscription link or scan the QR code |
 | **Streisand** | iOS, macOS | Import the subscription link or scan the QR code |
@@ -845,6 +851,6 @@ UQCr7FXmeLsKLplHAgb1HIT0rxmQJpvAh4w2pST-DBGicbi2
 
 ## License
 
-AGPL-3.0. See [LICENSE](LICENSE).
+All rights reserved. No one may copy, modify, redistribute or sell this code. Using the official released builds is allowed. See [LICENSE](LICENSE).
 
 <p align="center"><sub>Made with care by <a href="https://t.me/lxhosein">@lxhosein</a></sub></p>

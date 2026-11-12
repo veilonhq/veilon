@@ -37,7 +37,7 @@
     <path d="M19 21 L32 45 L45 21" fill="none" stroke="#8B7CFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
   <text x="380" y="196" fill="#F4F6FA" font-family="Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="136" font-weight="800" letter-spacing="-3">Veilon</text>
-  <text x="386" y="252" fill="#AEB4C2" font-family="Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="40" font-weight="500">Free, open-source proxy panel</text>
+  <text x="386" y="252" fill="#AEB4C2" font-family="Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="40" font-weight="500">Free proxy panel</text>
   <g font-family="Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="26" font-weight="600">
     <rect x="386" y="280" width="196" height="50" rx="25" fill="#C6FF3D" fill-opacity=".12" stroke="#C6FF3D" stroke-opacity=".45"/>
     <text x="484" y="314" fill="#C6FF3D" text-anchor="middle">One binary</text>
