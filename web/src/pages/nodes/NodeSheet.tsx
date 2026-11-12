@@ -257,6 +257,12 @@ export function NodeSheet({ open, node, onClose, inbounds, onCreated, askInstall
             </span>
           </div>
         )}
+        {!!node?.state.needs_update?.length && (
+          <div className={s.stateErr} role="status">
+            <TriangleAlert size={16} aria-hidden="true" />
+            <span>{t('node.needsUpdate', { list: node.state.needs_update.map((x) => x.remark).join('، ') })}</span>
+          </div>
+        )}
         <Field label={t('node.name')} error={touched ? (nameErr ?? undefined) : undefined}>
           <input className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={48} data-autofocus aria-invalid={touched && !!nameErr} />
         </Field>

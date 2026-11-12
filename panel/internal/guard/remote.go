@@ -3,6 +3,7 @@ package guard
 import (
 	"log/slog"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -72,9 +73,16 @@ func (c *IPCollector) ObserveLine(line string) {
 		}
 		id = id*10 + int64(ch-'0')
 	}
-	if id <= 0 {
+	c.Observe(id, ip)
+}
+
+// Observe records one hit of a client IP for a user (engines that report
+// client addresses without an access log: AmneziaWG, MTProto).
+func (c *IPCollector) Observe(id int64, ip string) {
+	if id <= 0 || ip == "" {
 		return
 	}
+	idStr := strconv.FormatInt(id, 10)
 	now := c.now()
 	c.mu.Lock()
 	defer c.mu.Unlock()

@@ -53,10 +53,36 @@ func Engine(protocol string) string {
 	return EngineXray
 }
 
-// NodeCapable reports whether inbounds of this protocol can run on a node
-// (Xray-core inbounds, except TUN which needs the host's network).
+// NodeCapable reports whether inbounds of this protocol can run on a node:
+// Xray-core inbounds (except TUN, which needs the host's network),
+// AmneziaWG and MTProto.
 func NodeCapable(protocol string) bool {
-	return Engine(protocol) == EngineXray && protocol != TUN
+	switch Engine(protocol) {
+	case EngineXray:
+		return protocol != TUN
+	case EngineAWG, EngineMTG:
+		return true
+	}
+	return false
+}
+
+// Node agent capabilities needed by protocols other than Xray's.
+const (
+	CapAWG     = "amneziawg"
+	CapMTProto = "mtproto"
+)
+
+// NodeCap returns the capability a node agent needs to run inbounds of this
+// protocol ("" for Xray inbounds, which every agent runs). Agents before
+// v0.3.8 have none of them.
+func NodeCap(protocol string) string {
+	switch protocol {
+	case AmneziaWG:
+		return CapAWG
+	case MTProto:
+		return CapMTProto
+	}
+	return ""
 }
 
 // HasUsers reports whether the protocol authenticates individual users.

@@ -13,11 +13,13 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"gorm.io/gorm"
 
+	"github.com/veilonhq/veilon/panel/internal/cores"
 	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/testutil"
 	"github.com/veilonhq/veilon/panel/internal/xray"
@@ -79,6 +81,10 @@ type rig struct {
 	node *db.Node
 	// wrap, when set, wraps the fake core of the next agents started.
 	wrap func(*fakeCore) Core
+	// engines: the next agents started run AmneziaWG / MTProto (v0.3.8+);
+	// enginePuts counts their PUT /v1/engines.
+	engines    bool
+	enginePuts atomic.Int32
 }
 
 // startAgent enrolls node n and serves its agent on 127.0.0.1.
@@ -100,7 +106,16 @@ func startAgentIn(t *testing.T, r *rig, n *db.Node, dir string) (*Agent, *fakeCo
 		c = r.wrap(core)
 	}
 	a := &Agent{Enrollment: e, Dir: dir, Core: c, Version: "test"}
-	ts := httptest.NewUnstartedServer(a.Handler())
+	if r.engines {
+		a.Engines = &cores.NodeEngines{Dir: dir, Self: "/nonexistent", MTGBin: "/nonexistent"}
+	}
+	h := a.Handler()
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, q *http.Request) {
+		if q.Method == http.MethodPut && q.URL.Path == "/v1/engines" {
+			r.enginePuts.Add(1)
+		}
+		h.ServeHTTP(w, q)
+	}))
 	tc, err := ServerTLS(e)
 	if err != nil {
 		t.Fatal(err)
@@ -129,7 +144,7 @@ func newRig(t *testing.T) *rig {
 			t.Fatal(err)
 		}
 	}
-	for i, p := range []string{"vless", "vmess", "mtproto"} {
+	for i, p := range []string{"vless", "vmess", "mtproto", "tuic"} {
 		ib := db.Inbound{Remark: p, Protocol: p, Port: 4000 + i, Network: "tcp", Security: "none", Enabled: true, CreatedAt: now, UpdatedAt: now}
 		if err := gdb.Create(&ib).Error; err != nil {
 			t.Fatal(err)
@@ -480,7 +495,7 @@ func TestServiceValidationAndEnrollment(t *testing.T) {
 		{Name: s("a"), Address: s("https://x.example.com")},
 		{Name: s("a"), Address: s("1.2.3.4:443")},
 		{Name: s("a"), Address: s("nodot")},
-		{Name: s("a"), Address: s("1.2.3.4"), InboundIDs: ids(3)},  // mtproto
+		{Name: s("a"), Address: s("1.2.3.4"), InboundIDs: ids(4)},  // tuic
 		{Name: s("a"), Address: s("1.2.3.4"), InboundIDs: ids(99)}, // missing
 	} {
 		if _, _, err := r.svc.Create(in); err == nil {

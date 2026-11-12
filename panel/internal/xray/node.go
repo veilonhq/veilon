@@ -30,6 +30,9 @@ func NodeConfig(gdb *gorm.DB, dataDir string, inboundIDs []int64, apiPort int) (
 		if !want[ib.ID] {
 			continue
 		}
+		if inbounds.Engine(ib.Protocol) != inbounds.EngineXray && inbounds.NodeCapable(ib.Protocol) {
+			continue // AmneziaWG / MTProto: the node's own engines run them
+		}
 		if !NodeCapable(ib.Protocol) {
 			in.Skipped = append(in.Skipped, fmt.Sprintf("%s: %s inbounds cannot run on a node", ib.Remark, ib.Protocol))
 			continue
@@ -55,7 +58,7 @@ func NodeConfig(gdb *gorm.DB, dataDir string, inboundIDs []int64, apiPort int) (
 }
 
 // NodeCapable reports whether inbounds of this protocol can be served by a
-// node (Xray-core inbounds, except TUN which needs the host's network).
+// node (see inbounds.NodeCapable).
 func NodeCapable(protocol string) bool { return inbounds.NodeCapable(protocol) }
 
 // inlineFiles replaces certificateFile / keyFile references with the file

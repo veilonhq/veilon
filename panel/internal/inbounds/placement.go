@@ -76,7 +76,10 @@ func (s *Service) checkNodes(v *View) error {
 		clean = append(clean, id)
 	}
 	if len(clean) > 0 && !NodeCapable(v.Protocol) {
-		return verr("%s inbounds cannot run on a node; nodes serve Xray inbounds only", v.Protocol)
+		return verr("%s inbounds cannot run on a node; nodes serve Xray, AmneziaWG and MTProto inbounds only", v.Protocol)
+	}
+	if err := s.checkAgents(v, clean); err != nil {
+		return err
 	}
 	sort.Slice(clean, func(i, j int) bool { return clean[i] < clean[j] })
 	v.NodeIDs = clean
@@ -84,6 +87,50 @@ func (s *Service) checkNodes(v *View) error {
 		v.ServeMain = true
 	}
 	return nil
+}
+
+// checkAgents refuses AmneziaWG and MTProto inbounds on nodes whose agent
+// is known to lack the capability (agents before v0.3.8). Only nodes the
+// inbound did not run on before are checked, so an inbound stays editable
+// while one of its nodes waits for its update. A node that was never
+// reached is let through; its sync skips the inbound until it can.
+func (s *Service) checkAgents(v *View, ids []int64) error {
+	need := NodeCap(v.Protocol)
+	if need == "" || s.NodeCaps == nil || len(ids) == 0 {
+		return nil
+	}
+	had := map[int64]bool{}
+	if v.ID != 0 {
+		var prev db.Inbound
+		if s.DB.Select("id", "protocol").First(&prev, v.ID).Error == nil && prev.Protocol == v.Protocol {
+			for _, id := range Placements(s.DB)[v.ID] {
+				had[id] = true
+			}
+		}
+	}
+	for _, id := range ids {
+		if had[id] {
+			continue
+		}
+		caps, known := s.NodeCaps(id)
+		if !known || hasCap(caps, need) {
+			continue
+		}
+		var n db.Node
+		s.DB.Select("id", "name").First(&n, id)
+		return &NodeAgentError{NodeID: id, NodeName: n.Name, Protocol: v.Protocol,
+			Msg: fmt.Sprintf("node %s runs an older agent that cannot serve %s inbounds; update the node first", n.Name, v.Protocol)}
+	}
+	return nil
+}
+
+func hasCap(caps []string, c string) bool {
+	for _, x := range caps {
+		if x == c {
+			return true
+		}
+	}
+	return false
 }
 
 // setNodes replaces the nodes of an inbound.

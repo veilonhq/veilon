@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/veilonhq/veilon/panel/internal/cores"
 	"github.com/veilonhq/veilon/panel/internal/guard"
 	"github.com/veilonhq/veilon/panel/internal/nodes"
 	"github.com/veilonhq/veilon/panel/internal/version"
@@ -144,8 +145,11 @@ func nodeServe(dir, token, listen string) error {
 	ips := &guard.IPCollector{}
 	shaper := guard.New(nil, "") // speed limits from the master (tc only)
 	core := &nodes.ProcCore{Bin: filepath.Join(nodeXrayDir(dir), "xray"), Dir: dir, APIPort: apiPort, OnLine: ips.ObserveLine}
+	self, _ := os.Executable()
+	engines := &cores.NodeEngines{Dir: dir, Self: self, MTGBin: filepath.Join(dir, "mtg", "mtg-multi"),
+		MTGVersion: envOr("VEILON_MTG_VERSION", cores.MTGVersion), AutoDownload: os.Getenv("VEILON_NODE_AUTO_DOWNLOAD") != "false"}
 	a := &nodes.Agent{Enrollment: e, Dir: dir, Core: core, APIPort: apiPort, Version: version.Version,
-		IPs: ips, Firewall: &guard.NodeFirewall{}, Shaper: shaper, Updater: nodeUpdater(dir)}
+		IPs: ips, Firewall: &guard.NodeFirewall{}, Shaper: shaper, Updater: nodeUpdater(dir), Engines: engines}
 	defer shaper.ClearShapes()
 	a.Updater.Resume()
 	a.Restore(ctx)

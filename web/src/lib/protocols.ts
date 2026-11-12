@@ -60,8 +60,15 @@ export const isQuic = (p: Protocol) => p === 'hysteria' || p === 'tuic' || p ===
 export const isWG = (p: Protocol) => p === 'wireguard' || p === 'amneziawg';
 export const hasUsers = (p: Protocol) => p !== 'tunnel' && p !== 'tun';
 export const hasPort = (p: Protocol) => p !== 'tun';
-/** Inbounds a node can run: Xray-core ones, except TUN. */
-export const nodeCapable = (p: Protocol) => engineOf(p) === 'xray' && p !== 'tun';
+/** Inbounds a node can run: Xray-core ones (except TUN), AmneziaWG and MTProto. */
+export const nodeCapable = (p: Protocol) => (engineOf(p) === 'xray' && p !== 'tun') || p === 'amneziawg' || p === 'mtproto';
+/** The node agent capability a protocol needs ('' = every agent runs it). */
+export const nodeCap = (p: Protocol): string => (p === 'amneziawg' ? 'amneziawg' : p === 'mtproto' ? 'mtproto' : '');
+/** A reached node whose agent is too old for this protocol (agents before v0.3.8). */
+export const nodeTooOld = (p: Protocol, st: { version: string; caps?: string[] | null }) => {
+  const c = nodeCap(p);
+  return !!c && !!st.version && !(st.caps ?? []).includes(c);
+};
 export const sniffingApplies = (p: Protocol) => !(p === 'tun' || p === 'tunnel' || p === 'amneziawg' || p === 'mtproto');
 /** protocols that need root-level network capability on the host */
 export const needsNetAdmin = (p: Protocol) => p === 'tun' || p === 'amneziawg';

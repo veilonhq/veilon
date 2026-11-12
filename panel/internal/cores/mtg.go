@@ -26,21 +26,39 @@ const MTGVersion = "1.15.0"
 
 // MTGConfig renders the mtg-multi TOML config of one MTProto inbound.
 func MTGConfig(ib *inbounds.View, in *xray.Input, apiPort int) []byte {
+	return mtgTOML(ib.ID, ib.Remark, ib.Listen, ib.Port, apiPort, mtgSecrets(ib, in))
+}
+
+// MTGSecret is one user's MTProto secret; Name is the user's Xray email
+// ("ID.username"), which the stats API reports traffic by.
+type MTGSecret struct {
+	Name   string `json:"name"`
+	Secret string `json:"secret"`
+}
+
+func mtgSecrets(ib *inbounds.View, in *xray.Input) []MTGSecret {
+	out := make([]MTGSecret, 0, len(in.Users[ib.ID]))
+	for _, u := range in.Users[ib.ID] {
+		out = append(out, MTGSecret{Name: xray.Email(&u), Secret: inbounds.MTProtoSecret(ib.Settings.FakeTLSDomain, u.Password)})
+	}
+	return out
+}
+
+func mtgTOML(id int64, remark, listen string, port, apiPort int, secrets []MTGSecret) []byte {
 	var b strings.Builder
-	listen := ib.Listen
 	if listen == "" {
 		listen = "0.0.0.0"
 	}
-	fmt.Fprintf(&b, "# Veilon: MTProto inbound %d (%s)\n", ib.ID, strings.ReplaceAll(ib.Remark, "\n", " "))
-	fmt.Fprintf(&b, "bind-to = %q\n", net.JoinHostPort(listen, strconv.Itoa(ib.Port)))
+	fmt.Fprintf(&b, "# Veilon: MTProto inbound %d (%s)\n", id, strings.ReplaceAll(remark, "\n", " "))
+	fmt.Fprintf(&b, "bind-to = %q\n", net.JoinHostPort(listen, strconv.Itoa(port)))
 	fmt.Fprintf(&b, "api-bind-to = %q\n", "127.0.0.1:"+strconv.Itoa(apiPort))
 	b.WriteString("prefer-ip = \"prefer-ipv4\"\n\n")
 	b.WriteString("[defense.blocklist]\nenabled = false\n\n")
 	b.WriteString("[defense.anti-replay]\nenabled = true\nmax-size = \"1mib\"\nerror-rate = 0.001\n\n")
 	// [secrets] must be the last section.
 	b.WriteString("[secrets]\n")
-	for _, u := range in.Users[ib.ID] {
-		fmt.Fprintf(&b, "%q = %q\n", xray.Email(&u), inbounds.MTProtoSecret(ib.Settings.FakeTLSDomain, u.Password))
+	for _, s := range secrets {
+		fmt.Fprintf(&b, "%q = %q\n", s.Name, s.Secret)
 	}
 	return []byte(b.String())
 }
@@ -93,7 +111,8 @@ func (e *MTG) apiPort(id int64) int {
 }
 
 func (e *MTG) plan() ([]Instance, error) {
-	in, err := xray.LoadInput(e.opt.DB, e.opt.DataDir, 0)
+	// Inbounds that run on nodes only are served there.
+	in, err := xray.LoadMainInput(e.opt.DB, e.opt.DataDir, 0)
 	if err != nil {
 		return nil, err
 	}

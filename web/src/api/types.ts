@@ -498,6 +498,10 @@ export interface NodeState {
   can_update: boolean;
   /** the last agent update asked from this panel */
   update: NodeUpdate | null;
+  /** capabilities the agent announced */
+  caps?: string[] | null;
+  /** inbounds the agent is too old to run (AmneziaWG / MTProto before v0.3.8) */
+  needs_update?: { id: number; remark: string; protocol: Protocol }[] | null;
 }
 export type NodeUpdatePhase = 'downloading' | 'verifying' | 'restarting' | 'done' | 'failed';
 export interface NodeUpdate {

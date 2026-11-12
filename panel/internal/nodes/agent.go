@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/veilonhq/veilon/panel/internal/cores"
 	"github.com/veilonhq/veilon/panel/internal/guard"
 	"github.com/veilonhq/veilon/panel/internal/util"
 	"github.com/veilonhq/veilon/panel/internal/xray"
@@ -67,15 +68,21 @@ type Agent struct {
 	Updater *SelfUpdater
 	// Arch overrides the reported CPU architecture (tests; "" = GOARCH).
 	Arch string
+	// Engines runs the AmneziaWG and MTProto inbounds (nil = the agent
+	// does not announce CapAWG / CapMTProto).
+	Engines *cores.NodeEngines
 
-	mu      sync.Mutex
-	hash    string
-	pending StatsReply
-	unacked *StatsReply
-	boot    string
-	batch   int
-	started time.Time
-	applyMu sync.Mutex
+	mu          sync.Mutex
+	hash        string
+	enginesHash string
+	xrayPorts   []int
+	enginePorts []int
+	pending     StatsReply
+	unacked     *StatsReply
+	boot        string
+	batch       int
+	started     time.Time
+	applyMu     sync.Mutex
 }
 
 func (a *Agent) init() {
@@ -92,6 +99,14 @@ func (a *Agent) init() {
 	if a.APIPort == 0 {
 		a.APIPort = DefaultAPIPort
 	}
+	if a.Engines != nil {
+		if a.Engines.Traffic == nil {
+			a.Engines.Traffic = a.engineTraffic
+		}
+		if a.Engines.SeenIP == nil && a.IPs != nil {
+			a.Engines.SeenIP = a.IPs.Observe
+		}
+	}
 }
 
 // Restore starts Xray with the last config the master pushed, so a node
@@ -99,6 +114,7 @@ func (a *Agent) init() {
 func (a *Agent) Restore(ctx context.Context) {
 	a.init()
 	a.loadStats()
+	a.restoreEngines()
 	cfg, err := os.ReadFile(filepath.Join(a.Dir, "config.json"))
 	if err != nil {
 		return
@@ -111,6 +127,50 @@ func (a *Agent) Restore(ctx context.Context) {
 	a.hash = Hash(cfg)
 	a.mu.Unlock()
 	a.setPorts(cfg)
+}
+
+// restoreEngines runs the engines spec the master pushed last.
+func (a *Agent) restoreEngines() {
+	if a.Engines == nil {
+		return
+	}
+	b, err := os.ReadFile(a.enginesFile())
+	if err != nil {
+		return
+	}
+	var spec cores.NodeSpec
+	if err := json.Unmarshal(b, &spec); err != nil || spec.Validate() != nil {
+		slog.Warn("saved engines spec is not valid; waiting for the master", "err", err)
+		return
+	}
+	a.Engines.Set(spec)
+	a.mu.Lock()
+	a.enginesHash = Hash(b)
+	a.enginePorts = spec.Ports()
+	a.mu.Unlock()
+	a.applyPorts()
+}
+
+func (a *Agent) enginesFile() string { return filepath.Join(a.Dir, "engines.json") }
+
+// engineTraffic adds the engines' traffic to the pending batch.
+func (a *Agent) engineTraffic(users map[int64][2]int64, up, down int64) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.pending.Users == nil {
+		a.pending.Users = map[int64][2]int64{}
+	}
+	if a.pending.Engines == nil {
+		a.pending.Engines = map[int64][2]int64{}
+	}
+	for id, v := range users {
+		p := a.pending.Users[id]
+		a.pending.Users[id] = [2]int64{p[0] + v[0], p[1] + v[1]}
+		e := a.pending.Engines[id]
+		a.pending.Engines[id] = [2]int64{e[0] + v[0], e[1] + v[1]}
+	}
+	a.pending.Up += up
+	a.pending.Down += down
 }
 
 // setPorts tells the firewall which ports the config's inbounds use.
@@ -127,7 +187,7 @@ func (a *Agent) setPorts(cfg []byte) {
 	if json.Unmarshal(cfg, &c) != nil {
 		return
 	}
-	var ports []int
+	ports := []int{}
 	for _, ib := range c.Inbounds {
 		if ib.Tag == "api" {
 			continue
@@ -143,6 +203,21 @@ func (a *Agent) setPorts(cfg []byte) {
 			}
 		}
 	}
+	a.mu.Lock()
+	a.xrayPorts = ports
+	a.mu.Unlock()
+	a.applyPorts()
+}
+
+// applyPorts gives the firewall the ports of Xray's and the engines'
+// inbounds.
+func (a *Agent) applyPorts() {
+	if a.Firewall == nil {
+		return
+	}
+	a.mu.Lock()
+	ports := append(append([]int{}, a.xrayPorts...), a.enginePorts...)
+	a.mu.Unlock()
 	a.Firewall.SetPorts(ports)
 }
 
@@ -165,6 +240,11 @@ func (a *Agent) Serve(ctx context.Context, listen string) error {
 		_ = hs.Shutdown(sctx)
 	}()
 	go a.statsLoop(ctx)
+	var engDone chan struct{}
+	if a.Engines != nil {
+		engDone = make(chan struct{})
+		go func() { defer close(engDone); a.Engines.Run(ctx) }()
+	}
 	slog.Info("veilon node listening", "addr", listen, "node", a.Enrollment.ID)
 	err = hs.ServeTLS(ln, "", "")
 	if errors.Is(err, http.ErrServerClosed) {
@@ -172,6 +252,13 @@ func (a *Agent) Serve(ctx context.Context, listen string) error {
 	}
 	a.collect(context.Background())
 	a.Core.Stop()
+	if engDone != nil {
+		// The engines read their last traffic as they stop.
+		select {
+		case <-engDone:
+		case <-time.After(15 * time.Second):
+		}
+	}
 	a.saveStats()
 	return err
 }
@@ -190,7 +277,7 @@ func (a *Agent) saveStats() {
 	a.mu.Lock()
 	s := savedStats{Pending: a.pending, Unacked: a.unacked}
 	a.mu.Unlock()
-	if s.Unacked == nil && len(s.Pending.Users) == 0 && s.Pending.Up == 0 && s.Pending.Down == 0 {
+	if s.Unacked == nil && len(s.Pending.Users) == 0 && s.Pending.Up == 0 && s.Pending.Down == 0 && len(s.Pending.Engines) == 0 {
 		_ = os.Remove(a.statsFile())
 		return
 	}
@@ -226,6 +313,13 @@ func (a *Agent) loadStats() {
 	for id, v := range s.Pending.Users {
 		p := a.pending.Users[id]
 		a.pending.Users[id] = [2]int64{p[0] + v[0], p[1] + v[1]}
+	}
+	for id, v := range s.Pending.Engines {
+		if a.pending.Engines == nil {
+			a.pending.Engines = map[int64][2]int64{}
+		}
+		p := a.pending.Engines[id]
+		a.pending.Engines[id] = [2]int64{p[0] + v[0], p[1] + v[1]}
 	}
 	a.pending.Up += s.Pending.Up
 	a.pending.Down += s.Pending.Down
@@ -310,6 +404,7 @@ func (a *Agent) Handler() http.Handler {
 	m := http.NewServeMux()
 	m.HandleFunc("GET /v1/info", func(w http.ResponseWriter, r *http.Request) { writeJ(w, 200, a.info()) })
 	m.HandleFunc("PUT /v1/config", a.putConfig)
+	m.HandleFunc("PUT /v1/engines", a.putEngines)
 	m.HandleFunc("GET /v1/stats", a.stats)
 	m.HandleFunc("PUT /v1/bans", a.putBans)
 	m.HandleFunc("GET /v1/online", a.online)
@@ -358,7 +453,7 @@ func (a *Agent) postUpdate(w http.ResponseWriter, r *http.Request) {
 func (a *Agent) info() Info {
 	running, ver, lastErr := a.Core.Status()
 	a.mu.Lock()
-	hash := a.hash
+	hash, ehash := a.hash, a.enginesHash
 	a.mu.Unlock()
 	in := Info{NodeID: a.Enrollment.ID, Version: a.Version, XrayVersion: ver, XrayRunning: running, XrayError: lastErr,
 		ConfigHash: hash, APIPort: a.APIPort, StartedAt: a.started, CPUs: runtime.NumCPU(), Arch: runtime.GOARCH}
@@ -371,6 +466,11 @@ func (a *Agent) info() Info {
 	}
 	if _, ok := a.Core.(OnlineCore); ok {
 		in.Caps = append(in.Caps, CapOnline)
+	}
+	if a.Engines != nil {
+		in.Caps = append(in.Caps, CapAWG, CapMTProto)
+		in.EnginesHash = ehash
+		in.EngineErrors = a.Engines.Errors()
 	}
 	in.Load1, in.MemUsed = hostLoad()
 	return in
@@ -434,6 +534,49 @@ func (a *Agent) putConfig(w http.ResponseWriter, r *http.Request) {
 	a.mu.Unlock()
 	a.setPorts(p.Config)
 	slog.Info("node config applied", "hash", p.Hash[:12])
+	writeJ(w, 200, a.info())
+}
+
+// putEngines replaces the AmneziaWG and MTProto inbounds the node runs.
+// The engines apply it a moment later; their errors show in /v1/info.
+func (a *Agent) putEngines(w http.ResponseWriter, r *http.Request) {
+	if a.Engines == nil {
+		writeJ(w, 404, map[string]string{"error": "this agent does not run AmneziaWG or MTProto inbounds"})
+		return
+	}
+	var p EnginesPush
+	if err := json.NewDecoder(io.LimitReader(r.Body, 32<<20)).Decode(&p); err != nil {
+		writeJ(w, 400, map[string]string{"error": "bad request: " + err.Error()})
+		return
+	}
+	if !json.Valid(p.Spec) || Hash(p.Spec) != p.Hash {
+		writeJ(w, 400, map[string]string{"error": "engines spec does not match its hash"})
+		return
+	}
+	var spec cores.NodeSpec
+	if err := json.Unmarshal(p.Spec, &spec); err != nil {
+		writeJ(w, 400, map[string]string{"error": "bad engines spec: " + err.Error()})
+		return
+	}
+	if err := spec.Validate(); err != nil {
+		writeJ(w, 422, map[string]string{"error": err.Error()})
+		return
+	}
+	a.applyMu.Lock()
+	defer a.applyMu.Unlock()
+	if err := os.MkdirAll(a.Dir, 0o700); err == nil {
+		tmp := a.enginesFile() + ".tmp"
+		if os.WriteFile(tmp, p.Spec, 0o600) == nil {
+			_ = os.Rename(tmp, a.enginesFile())
+		}
+	}
+	a.Engines.Set(spec)
+	a.mu.Lock()
+	a.enginesHash = p.Hash
+	a.enginePorts = spec.Ports()
+	a.mu.Unlock()
+	a.applyPorts()
+	slog.Info("node engines applied", "hash", p.Hash[:12], "amneziawg", len(spec.AWG), "mtproto", len(spec.MTG))
 	writeJ(w, 200, a.info())
 }
 

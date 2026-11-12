@@ -18,6 +18,7 @@ import {
   emptyTls,
   inboundDefaults,
   nodeCapable,
+  nodeTooOld,
   portHint,
   quicTls,
   engineName,
@@ -385,6 +386,8 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
           const x = e instanceof ApiError ? e.details : undefined;
           if (x?.field === 'port' && (x.server === 'main' || x.server === 'node')) {
             setServerErr(portMsg(x.server === 'main' ? { server: 'main' } : { server: 'node', nodeId: Number(x.node_id), name: String(x.node_name ?? '') }));
+          } else if (e instanceof ApiError && e.code === 'node_agent_old') {
+            setServerErr(t('inb.nodeOldErr', { node: String(x?.node_name ?? '') }));
           } else setServerErr((e as Error).message);
         },
       },
@@ -621,12 +624,16 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
                       <div className={s.nodePick} role="group" aria-label={t('inb.runNodes')}>
                         {nodes.map((nd) => {
                           const on = d.node_ids.includes(nd.id);
+                          // An agent too old for this protocol cannot take it (one it already runs stays listed).
+                          const old = nodeTooOld(p, nd.state) && !(editing?.protocol === p && editing.node_ids?.includes(nd.id));
                           return (
                             <button
                               key={nd.id}
                               type="button"
                               role="checkbox"
                               aria-checked={on}
+                              disabled={old && !on}
+                              title={old ? t('inb.nodeOldHint') : undefined}
                               className={`${s.nodeOpt} ${on ? s.nodeOn : ''}`}
                               onClick={() => patch({ node_ids: on ? d.node_ids.filter((x) => x !== nd.id) : [...d.node_ids, nd.id] })}
                             >
@@ -636,6 +643,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
                                 <small className="ltr">{nd.address}</small>
                               </span>
                               {!nd.enabled && <span className="chip chip--disabled">{t('inb.nodeOff')}</span>}
+                              {old && <span className="chip chip--disabled">{t('inb.nodeOld')}</span>}
                             </button>
                           );
                         })}

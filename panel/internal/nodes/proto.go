@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/veilonhq/veilon/panel/internal/guard"
+	"github.com/veilonhq/veilon/panel/internal/inbounds"
 )
 
 // DefaultPort is the port "veilon node" listens on.
@@ -36,6 +37,11 @@ type Info struct {
 	Caps []string `json:"caps,omitempty"`
 	// Update is the agent's last self-update (nil when none ran).
 	Update *UpdateStatus `json:"update,omitempty"`
+	// EnginesHash is the hash of the engines spec the agent runs ("" =
+	// none; agents with CapAWG / CapMTProto only).
+	EnginesHash string `json:"engines_hash,omitempty"`
+	// EngineErrors are the AmneziaWG / MTProto engines' current errors.
+	EngineErrors []string `json:"engine_errors,omitempty"`
 }
 
 // CapUpdate: the agent updates itself on request (POST /v1/update).
@@ -54,6 +60,21 @@ type OnlineReply struct {
 	Users []int64        `json:"users"`
 	Now   time.Time      `json:"now"`
 	IPs   []guard.SeenIP `json:"ips,omitempty"`
+}
+
+// CapAWG and CapMTProto: the agent runs AmneziaWG / MTProto inbounds
+// (PUT /v1/engines). Agents before v0.3.8 do not: the master skips those
+// inbounds for them and asks for an agent update.
+const (
+	CapAWG     = inbounds.CapAWG
+	CapMTProto = inbounds.CapMTProto
+)
+
+// EnginesPush is the body of PUT /v1/engines: the node's AmneziaWG and
+// MTProto inbounds (a cores.NodeSpec) and the hash of exactly these bytes.
+type EnginesPush struct {
+	Hash string          `json:"hash"`
+	Spec json.RawMessage `json:"spec"`
 }
 
 // HasCap reports whether the agent announced capability c.
@@ -128,6 +149,10 @@ type StatsReply struct {
 	// Now is the node's clock when it answered (the master corrects the
 	// IP times for clock differences with it).
 	Now time.Time `json:"now"`
+	// Engines is the part of Users carried by the AmneziaWG / MTProto
+	// engines (already counted in Users), for the online status: those
+	// engines cannot list open connections, so traffic decides.
+	Engines map[int64][2]int64 `json:"engines,omitempty"`
 }
 
 // BansPush is the body of PUT /v1/bans: the client IPs the master drops for

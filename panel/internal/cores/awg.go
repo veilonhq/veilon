@@ -64,28 +64,44 @@ func awgIfaces(in *xray.Input) (c awgd.Config, keys []string, owners map[string]
 		if ib.Protocol != inbounds.AmneziaWG || ib.Settings.AWG == nil {
 			continue
 		}
-		a := ib.Settings.AWG
-		it := awgd.Iface{
-			Name: AWGIfaceName(ib.ID), ListenPort: ib.Port, PrivateKey: ib.Settings.PrivateKey,
-			Address: ib.Settings.Address, MTU: ib.Settings.MTU,
-			Params: awgd.Params{Jc: a.Jc, Jmin: a.Jmin, Jmax: a.Jmax, S1: a.S1, S2: a.S2, H1: a.H1, H2: a.H2, H3: a.H3, H4: a.H4},
-			Peers:  []awgd.Peer{},
-		}
-		for _, u := range in.Users[ib.ID] {
-			p, ok := in.Peers[ib.ID][u.ID]
-			if !ok {
-				continue
-			}
-			it.Peers = append(it.Peers, awgd.Peer{PublicKey: p.PublicKey, PresharedKey: p.PresharedKey, AllowedIP: p.Address})
-			owners[it.Name+"/"+p.PublicKey] = u.ID
+		it, own := awgIface(ib, in)
+		for pk, uid := range own {
+			owners[it.Name+"/"+pk] = uid
 		}
 		c.Interfaces = append(c.Interfaces, it)
-		head := it
-		head.Peers = nil
-		hb, _ := json.Marshal(head)
-		keys = append(keys, string(hb))
+		keys = append(keys, awgReloadKey(it))
 	}
 	return c, keys, owners
+}
+
+// awgIface renders one AmneziaWG inbound's interface and the owner (user
+// id) of each peer, by public key.
+func awgIface(ib *inbounds.View, in *xray.Input) (awgd.Iface, map[string]int64) {
+	a := ib.Settings.AWG
+	it := awgd.Iface{
+		Name: AWGIfaceName(ib.ID), ListenPort: ib.Port, PrivateKey: ib.Settings.PrivateKey,
+		Address: ib.Settings.Address, MTU: ib.Settings.MTU,
+		Params: awgd.Params{Jc: a.Jc, Jmin: a.Jmin, Jmax: a.Jmax, S1: a.S1, S2: a.S2, H1: a.H1, H2: a.H2, H3: a.H3, H4: a.H4},
+		Peers:  []awgd.Peer{},
+	}
+	owners := map[string]int64{}
+	for _, u := range in.Users[ib.ID] {
+		p, ok := in.Peers[ib.ID][u.ID]
+		if !ok {
+			continue
+		}
+		it.Peers = append(it.Peers, awgd.Peer{PublicKey: p.PublicKey, PresharedKey: p.PresharedKey, AllowedIP: p.Address})
+		owners[p.PublicKey] = u.ID
+	}
+	return it, owners
+}
+
+// awgReloadKey is the interface without its peers: when only peers change
+// the sidecar reloads them instead of restarting.
+func awgReloadKey(it awgd.Iface) string {
+	it.Peers = nil
+	hb, _ := json.Marshal(it)
+	return string(hb)
 }
 
 // AWG runs the built-in AmneziaWG sidecar.
@@ -111,7 +127,8 @@ func NewAWG(opt Options, self string) *AWG {
 		ReloadSignal: syscall.SIGHUP,
 		ConfigGlob:   filepath.Join(cfgDir, "vawg*.json"),
 		Plan: func() ([]Instance, error) {
-			in, err := xray.LoadInput(opt.DB, opt.DataDir, 0)
+			// Inbounds that run on nodes only are served there.
+			in, err := xray.LoadMainInput(opt.DB, opt.DataDir, 0)
 			if err != nil {
 				return nil, err
 			}

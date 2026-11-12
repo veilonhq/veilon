@@ -36,3 +36,34 @@ func TestNodesAddLinks(t *testing.T) {
 		t.Fatal("share link without the node address")
 	}
 }
+
+// Node-only AmneziaWG and MTProto inbounds: the .conf endpoint and the
+// tg:// link use the node's address, never the main server's.
+func TestNodeOnlyEngineLinks(t *testing.T) {
+	ibs, ex := extraFixtures(t)
+	ex.Nodes = map[int64][]inbounds.NodeTarget{14: {{ID: 1, Name: "DE", Address: "203.0.113.50"}}, 19: {{ID: 1, Name: "DE", Address: "203.0.113.50"}}}
+	ex.Placed = map[int64]bool{14: true, 19: true}
+	ex.NodeOnly = map[int64]bool{14: true, 19: true}
+	ps := BuildProxiesX(user(), ibs, db.Settings{ServerAddress: "srv.example.com"}, "h", ex)
+	var awg, tg []Proxy
+	for _, p := range ps {
+		switch p.InboundID {
+		case 14:
+			awg = append(awg, p)
+		case 19:
+			tg = append(tg, p)
+		}
+	}
+	if len(awg) != 1 || len(tg) != 1 {
+		t.Fatalf("awg %d tg %d", len(awg), len(tg))
+	}
+	if _, body, ok := ConfFile(&awg[0]); !ok || !strings.Contains(body, "Endpoint = 203.0.113.50:51821") || strings.Contains(body, "srv.example.com") {
+		t.Fatalf("awg conf:\n%s", body)
+	}
+	if u := URI(&tg[0]); !strings.Contains(u, "server=203.0.113.50") || !strings.Contains(u, "port=993") || strings.Contains(u, "srv.example.com") {
+		t.Fatalf("tg link %s", u)
+	}
+	if awg[0].Name != "AWG · DE" {
+		t.Fatalf("name %q", awg[0].Name)
+	}
+}

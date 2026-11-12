@@ -119,6 +119,7 @@ func cmdServe(args []string) error {
 		ReservedPorts: func() []int {
 			return []int{srv.Settings().PanelPort, apiPort, sbPort}
 		},
+		NodeCaps: nodeMgr.Caps,
 	}
 	sampler := &stats.Sampler{DiskPath: cfg.DataDir}
 	// Loopback health URL of this panel, for the updater's health check.

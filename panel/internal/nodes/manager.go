@@ -19,8 +19,10 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/veilonhq/veilon/panel/internal/cores"
 	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/guard"
+	"github.com/veilonhq/veilon/panel/internal/inbounds"
 	"github.com/veilonhq/veilon/panel/internal/presence"
 	"github.com/veilonhq/veilon/panel/internal/usage"
 	"github.com/veilonhq/veilon/panel/internal/util"
@@ -58,9 +60,22 @@ type State struct {
 	CanUpdate bool `json:"can_update"`
 	// Update is the last agent update asked from this panel (nil = none).
 	Update *UpdateStatus `json:"update"`
+	// Caps are the capabilities the agent announced.
+	Caps []string `json:"caps"`
+	// NeedsUpdate lists the node's inbounds its agent is too old to run
+	// (AmneziaWG / MTProto on agents before v0.3.8); they are skipped
+	// until the agent is updated.
+	NeedsUpdate []SkippedInbound `json:"needs_update"`
 	// liveOnline: the agent lists the users with open connections
 	// (CapOnline, v0.3.6 and later).
 	liveOnline bool
+}
+
+// SkippedInbound is an inbound a node does not run.
+type SkippedInbound struct {
+	ID       int64  `json:"id"`
+	Remark   string `json:"remark"`
+	Protocol string `json:"protocol"`
 }
 
 // Manager is the master side: it keeps every node's config in sync, reads
@@ -88,6 +103,9 @@ type Manager struct {
 	ApplyTraffic func(gdb *gorm.DB, deltas map[int64][2]int64, now time.Time) (up, down int64, err error)
 	// BuildConfig renders a node's Xray config (default xray.NodeConfig).
 	BuildConfig func(gdb *gorm.DB, dataDir string, inboundIDs []int64, apiPort int) ([]byte, []string, error)
+	// BuildEngines renders a node's AmneziaWG and MTProto inbounds
+	// (default cores.BuildNodeSpec).
+	BuildEngines func(gdb *gorm.DB, dataDir string, inboundIDs []int64) (*cores.NodeSpec, error)
 	// OnIPs receives the client IPs a node reported (with the master-minus-
 	// node clock difference), for IP limits across servers (nil = ignored).
 	OnIPs func(ips []guard.SeenIP, skew time.Duration)
@@ -110,11 +128,13 @@ type Manager struct {
 	inflight map[int64]bool
 	clients  map[int64]*nodeClient
 	rejected map[int64]rejection
-	bansSent map[int64]bansState
-	onlineIn map[int64]bool      // GET /v1/online in flight
-	noOnline map[int64]time.Time // the node's Xray cannot list online users
-	kick     chan struct{}
-	trafMu   sync.Mutex
+	// engRejected: the last engines spec a node refused.
+	engRejected map[int64]rejection
+	bansSent    map[int64]bansState
+	onlineIn    map[int64]bool      // GET /v1/online in flight
+	noOnline    map[int64]time.Time // the node's Xray cannot list online users
+	kick        chan struct{}
+	trafMu      sync.Mutex
 }
 
 type bansState struct {
@@ -155,10 +175,14 @@ func (m *Manager) init() {
 		if m.BuildConfig == nil {
 			m.BuildConfig = xray.NodeConfig
 		}
+		if m.BuildEngines == nil {
+			m.BuildEngines = cores.BuildNodeSpec
+		}
 		m.states = map[int64]*State{}
 		m.inflight = map[int64]bool{}
 		m.clients = map[int64]*nodeClient{}
 		m.rejected = map[int64]rejection{}
+		m.engRejected = map[int64]rejection{}
 		m.bansSent = map[int64]bansState{}
 		m.kick = make(chan struct{}, 1)
 	})
@@ -238,6 +262,7 @@ func (m *Manager) Round(ctx context.Context) {
 			delete(m.states, id)
 			delete(m.clients, id)
 			delete(m.rejected, id)
+			delete(m.engRejected, id)
 			delete(m.bansSent, id)
 		}
 	}
@@ -275,6 +300,7 @@ func (m *Manager) Forget(id int64) {
 	delete(m.clients, id)
 	delete(m.states, id)
 	delete(m.rejected, id)
+	delete(m.engRejected, id)
 	delete(m.bansSent, id)
 	delete(m.noOnline, id)
 }
@@ -339,7 +365,7 @@ func (m *Manager) SyncNode(parent context.Context, n *db.Node) {
 			status = StateWaiting // never reached: most likely not installed yet
 		}
 		st := &State{Status: status, Error: err.Error(), Version: prev.Version, XrayVersion: prev.XrayVersion,
-			Arch: prev.Arch, CanUpdate: prev.CanUpdate}
+			Arch: prev.Arch, CanUpdate: prev.CanUpdate, Caps: prev.Caps, NeedsUpdate: prev.NeedsUpdate}
 		m.setState(n.ID, st)
 		m.trackUpdate(n, nil)
 		return
@@ -347,7 +373,7 @@ func (m *Manager) SyncNode(parent context.Context, n *db.Node) {
 	m.trackUpdate(n, &info)
 	st := &State{Version: info.Version, XrayVersion: info.XrayVersion, XrayRunning: info.XrayRunning, Load1: info.Load1,
 		MemUsed: info.MemUsed, CPUs: info.CPUs, LatencyMS: time.Since(t0).Milliseconds(), Arch: info.Arch, CanUpdate: info.HasCap(CapUpdate),
-		liveOnline: info.HasCap(CapOnline)}
+		liveOnline: info.HasCap(CapOnline), Caps: info.Caps}
 	if !info.StartedAt.IsZero() {
 		s := info.StartedAt
 		st.StartedAt = &s
@@ -408,6 +434,11 @@ func (m *Manager) SyncNode(parent context.Context, n *db.Node) {
 				slog.Info("node config pushed", "node", n.Name, "inbounds", len(ids))
 			}
 		}
+	}
+
+	// AmneziaWG and MTProto inbounds
+	if eerr := m.syncEngines(ctx, hc, n, &info, ids, st); eerr != "" && pushErr == "" {
+		pushErr = eerr
 	}
 
 	// traffic
@@ -472,6 +503,7 @@ func (m *Manager) storeTraffic(n *db.Node, sr *StatsReply) error {
 		}
 		n.StatsSeq = sr.Seq
 		m.Presence.Traffic(Source(n.ID), sr.Users, now)
+		m.Presence.Traffic(EngineSource(n.ID), sr.Engines, now)
 		return node(m.DB, up, down)
 	}
 	// Users' counters, the node's totals and the batch id commit together:
@@ -491,11 +523,87 @@ func (m *Manager) storeTraffic(n *db.Node, sr *StatsReply) error {
 	n.StatsSeq = sr.Seq
 	usage.For(n.ID).Add(up, down)
 	m.Presence.Traffic(Source(n.ID), sr.Users, now)
+	m.Presence.Traffic(EngineSource(n.ID), sr.Engines, now)
 	return nil
 }
 
 // Source is a node's name in package presence.
 func Source(id int64) string { return "node:" + strconv.FormatInt(id, 10) }
+
+// EngineSource is the presence source of a node's AmneziaWG and MTProto
+// traffic (traffic only: those engines cannot list open connections).
+func EngineSource(id int64) string { return Source(id) + ":engines" }
+
+// syncEngines pushes the node's AmneziaWG and MTProto inbounds when they
+// changed and returns an error for the node's status ("" = fine). Inbounds
+// the agent cannot run (no capability: agents before v0.3.8) are left out
+// and listed in st.NeedsUpdate; an agent without any engine capability is
+// not asked at all, so older agents keep working as before.
+func (m *Manager) syncEngines(ctx context.Context, hc *http.Client, n *db.Node, info *Info, ids []int64, st *State) string {
+	var spec *cores.NodeSpec
+	var err error
+	if !util.Safe("node engines", func() { spec, err = m.BuildEngines(m.DB, m.DataDir, ids) }) {
+		err = errors.New("internal error while rendering the node's AmneziaWG / MTProto inbounds")
+	}
+	if err != nil {
+		st.Synced = false
+		return "engines: " + err.Error()
+	}
+	if spec == nil {
+		spec = &cores.NodeSpec{}
+	}
+	canAWG, canMTG := info.HasCap(CapAWG), info.HasCap(CapMTProto)
+	if !canAWG {
+		for _, a := range spec.AWG {
+			st.NeedsUpdate = append(st.NeedsUpdate, SkippedInbound{ID: a.InboundID, Remark: a.Remark, Protocol: inbounds.AmneziaWG})
+		}
+		spec.AWG = nil
+	}
+	if !canMTG {
+		for _, x := range spec.MTG {
+			st.NeedsUpdate = append(st.NeedsUpdate, SkippedInbound{ID: x.InboundID, Remark: x.Remark, Protocol: inbounds.MTProto})
+		}
+		spec.MTG = nil
+	}
+	if !canAWG && !canMTG {
+		return "" // an older agent: it runs Xray only
+	}
+	raw := []byte("{}") // nothing to run (clears what an earlier push started)
+	if !spec.Empty() {
+		if raw, err = json.Marshal(spec); err != nil {
+			st.Synced = false
+			return "engines: " + err.Error()
+		}
+	}
+	hash := Hash(raw)
+	if info.EnginesHash == hash || (spec.Empty() && info.EnginesHash == "") {
+		if len(info.EngineErrors) > 0 && !spec.Empty() {
+			return strings.Join(info.EngineErrors, "; ")
+		}
+		return ""
+	}
+	m.mu.Lock()
+	rj, wasRejected := m.engRejected[n.ID]
+	m.mu.Unlock()
+	if wasRejected && rj.hash == hash && time.Since(rj.at) < 5*time.Minute {
+		st.Synced = false
+		return "the node rejected its AmneziaWG / MTProto inbounds"
+	}
+	var after Info
+	if err := m.call(ctx, hc, http.MethodPut, baseURL(n)+"/v1/engines", EnginesPush{Hash: hash, Spec: raw}, &after); err != nil {
+		m.mu.Lock()
+		m.engRejected[n.ID] = rejection{hash: hash, at: time.Now()}
+		m.mu.Unlock()
+		slog.Warn("node engines push failed", "node", n.Name, "err", err)
+		st.Synced = false
+		return "engines: " + err.Error()
+	}
+	m.mu.Lock()
+	delete(m.engRejected, n.ID)
+	m.mu.Unlock()
+	slog.Info("node engines pushed", "node", n.Name, "amneziawg", len(spec.AWG), "mtproto", len(spec.MTG))
+	return ""
+}
 
 // OnlineRound asks every reachable node whose agent lists online users for
 // them (one request each, in parallel, never blocking the caller). Older
@@ -643,7 +751,26 @@ func (m *Manager) Reset(ctx context.Context, n *db.Node) error {
 	if cfg, err = compact(cfg); err != nil {
 		return err
 	}
+	if info.HasCap(CapAWG) || info.HasCap(CapMTProto) {
+		empty := []byte("{}")
+		if err := m.call(ctx, hc, http.MethodPut, baseURL(n)+"/v1/engines", EnginesPush{Hash: Hash(empty), Spec: empty}, nil); err != nil {
+			slog.Warn("node engines reset failed", "node", n.Name, "err", err)
+		}
+	}
 	return m.call(ctx, hc, http.MethodPut, baseURL(n)+"/v1/config", ConfigPush{Hash: Hash(cfg), Config: cfg}, nil)
+}
+
+// Caps returns the capabilities a node's agent announced; known is false
+// while the node was never reached.
+func (m *Manager) Caps(id int64) (caps []string, known bool) {
+	m.init()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	st := m.states[id]
+	if st == nil || st.Version == "" {
+		return nil, false
+	}
+	return append([]string(nil), st.Caps...), true
 }
 
 // InboundIDs returns each node's inbound ids.

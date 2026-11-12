@@ -184,7 +184,7 @@ func (s *Service) check(n *db.Node, ids *[]int64, oldPort int) error {
 				return &ValidationError{fmt.Sprintf("inbound %d does not exist", id)}
 			}
 			if !xray.NodeCapable(ib.Protocol) {
-				return &ValidationError{fmt.Sprintf("%s (%s) cannot run on a node; nodes serve Xray inbounds only", ib.Remark, ib.Protocol)}
+				return &ValidationError{fmt.Sprintf("%s (%s) cannot run on a node; nodes serve Xray, AmneziaWG and MTProto inbounds only", ib.Remark, ib.Protocol)}
 			}
 			clean = append(clean, id)
 		}
@@ -408,6 +408,7 @@ func (s *Service) Delete(id int64) error {
 		s.Manager.Forget(id)
 		// Its users are no longer seen there.
 		s.Manager.Presence.Forget(Source(id))
+		s.Manager.Presence.Forget(EngineSource(id))
 	}
 	return err
 }

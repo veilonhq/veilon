@@ -231,3 +231,17 @@ func TestUAPIPeersOnly(t *testing.T) {
 		t.Fatalf("%q %v", u, err)
 	}
 }
+
+func TestParseEndpoints(t *testing.T) {
+	get := "private_key=00\nlisten_port=51820\npublic_key=" + strings.Repeat("ab", 32) + "\nendpoint=203.0.113.7:51000\nrx_bytes=5\n" +
+		"public_key=" + strings.Repeat("cd", 32) + "\nrx_bytes=0\n"
+	eps := ParseEndpoints(get)
+	if len(eps) != 1 {
+		t.Fatalf("endpoints %v (a peer without handshake has none)", eps)
+	}
+	for _, v := range eps {
+		if v != "203.0.113.7:51000" {
+			t.Fatal(v)
+		}
+	}
+}

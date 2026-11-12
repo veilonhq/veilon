@@ -118,6 +118,17 @@ type ConflictError struct {
 
 func (e *ConflictError) Error() string { return e.Msg }
 
+// NodeAgentError: a chosen node's agent is too old to run this protocol
+// (it has to be updated first).
+type NodeAgentError struct {
+	NodeID   int64
+	NodeName string
+	Protocol string
+	Msg      string
+}
+
+func (e *NodeAgentError) Error() string { return e.Msg }
+
 func verr(format string, a ...any) error { return &ValidationError{Msg: fmt.Sprintf(format, a...)} }
 
 // RealityFingerprints are the client fingerprints that work with Reality.
@@ -428,6 +439,9 @@ type Service struct {
 	DB *gorm.DB
 	// ReservedPorts returns ports that inbounds may not use (panel, xray api).
 	ReservedPorts func() []int
+	// NodeCaps returns what a node's agent announced (known is false when
+	// the node was never reached). nil = not checked.
+	NodeCaps func(nodeID int64) (caps []string, known bool)
 	// OnChange is called after any mutation (triggers an Xray reload).
 	OnChange func()
 	// SelfSigned creates a self-signed certificate for domain and returns

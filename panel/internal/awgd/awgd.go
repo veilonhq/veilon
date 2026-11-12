@@ -34,6 +34,14 @@ const Version = "amneziawg-go 0.2.12"
 // StatsPrefix starts a stats line on stdout.
 const StatsPrefix = "@@stats "
 
+// PeersPrefix starts a line with each peer's current endpoint (the client's
+// address), written after every stats line when EndpointsEnv is "1" (node
+// agents, for IP limits). The main server does not ask for it.
+const PeersPrefix = "@@peers "
+
+// EndpointsEnv turns the endpoint lines on.
+const EndpointsEnv = "VEILON_AWG_ENDPOINTS"
+
 // Peer is one client.
 type Peer struct {
 	PublicKey    string `json:"public_key"`
@@ -144,6 +152,32 @@ func ParseStats(get string) map[string][2]int64 {
 	return out
 }
 
+// ParseEndpoints parses amneziawg-go "get" output into public key (base64)
+// -> endpoint ("ip:port"); peers that never sent a handshake are left out.
+func ParseEndpoints(get string) map[string]string {
+	out := map[string]string{}
+	cur := ""
+	sc := bufio.NewScanner(strings.NewReader(get))
+	for sc.Scan() {
+		k, v, ok := strings.Cut(sc.Text(), "=")
+		if !ok {
+			continue
+		}
+		switch k {
+		case "public_key":
+			cur = ""
+			if b, err := hex.DecodeString(v); err == nil {
+				cur = base64.StdEncoding.EncodeToString(b)
+			}
+		case "endpoint":
+			if cur != "" && v != "" {
+				out[cur] = v
+			}
+		}
+	}
+	return out
+}
+
 // Load reads a config file.
 func Load(path string) (*Config, error) {
 	b, err := os.ReadFile(path)
@@ -213,15 +247,24 @@ func Run(path string) error {
 	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
 	tick := time.NewTicker(10 * time.Second)
 	defer tick.Stop()
+	endpoints := os.Getenv(EndpointsEnv) == "1"
 	report := func() {
 		all := map[string]map[string][2]int64{}
+		eps := map[string]map[string]string{}
 		for _, r := range devs {
 			if g, err := r.dev.IpcGet(); err == nil {
 				all[r.cfg.Name] = ParseStats(g)
+				if endpoints {
+					eps[r.cfg.Name] = ParseEndpoints(g)
+				}
 			}
 		}
 		b, _ := json.Marshal(all)
 		fmt.Println(StatsPrefix + string(b))
+		if endpoints {
+			b, _ = json.Marshal(eps)
+			fmt.Println(PeersPrefix + string(b))
+		}
 	}
 	for {
 		select {
