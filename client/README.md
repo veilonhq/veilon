@@ -1,8 +1,4 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/veilonhq/veilon/main/docs/assets/banner.svg" alt="Veilon" width="100%">
-</p>
-
-<p align="center">
   <a href="../LICENSE"><img src="https://img.shields.io/badge/license-All%20rights%20reserved-8B7CFF?style=flat-square&labelColor=0B0D12" alt="License: All rights reserved"></a>
 </p>
 
