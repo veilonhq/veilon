@@ -2,7 +2,7 @@
 
 The official Android client for the [Veilon](https://github.com/veilonhq/veilon) panel.
 
-🖥 [Veilon panel: install and docs](https://github.com/veilonhq/veilon#readme) · [Latest panel release](https://github.com/veilonhq/veilon/releases/latest) · [Download this client](https://github.com/veilonhq/veilon/releases/tag/client-v1.0.6)
+🖥 [Veilon panel: install and docs](https://github.com/veilonhq/veilon#readme) · [Latest panel release](https://github.com/veilonhq/veilon/releases/latest) · [Download this client](https://github.com/veilonhq/veilon/releases/tag/client-latest)
 
 **توسعه داده شده توسط &lrm;[@lxhosein](https://t.me/lxhosein)**
 
@@ -77,8 +77,11 @@ keyPassword=...
 
 ## Releases
 
-Client releases use their own tag prefix, `client-v` (for example `client-v1.0.6`),
-separate from the panel's `v*` tags.
+The newest client is always on the fixed release page
+[`client-latest`](https://github.com/veilonhq/veilon/releases/tag/client-latest), with direct download
+https://github.com/veilonhq/veilon/releases/download/client-latest/veilon-client-universal.apk
+(also `veilon-client-arm64-v8a.apk` and `veilon-client-armeabi-v7a.apk`). Versioned client releases use
+the tag prefix `client-v` (for example `client-v1.0.6`), separate from the panel's `v*` tags.
 
 ## License
 
