@@ -13,6 +13,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/veilonhq/veilon/panel/internal/backup"
 	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/util"
 )
@@ -30,9 +31,11 @@ type Backups interface {
 	// Check validates an uploaded backup and describes it.
 	Check(name string, data []byte) (string, error)
 	// Restore stages the backup and restarts the panel, which puts it in
-	// place before it opens the database (a safety copy of the current
-	// database is kept).
-	Restore(name string, data []byte) error
+	// place before it opens the database. It returns the path of the
+	// safety copy of the current database.
+	Restore(name string, data []byte) (safety string, err error)
+	// LastResult is the outcome of the last applied restore (nil: none).
+	LastResult() *backup.Result
 }
 
 // Status is the bot's live state for the settings page.
