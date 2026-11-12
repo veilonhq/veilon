@@ -260,6 +260,11 @@ var migrations = []migration{
 			created_at {{TS}} NOT NULL)`,
 		`CREATE UNIQUE INDEX idx_telegram_notices_key ON telegram_notices(kind, subject_id, mark)`,
 	}},
+	// A disabled admin cannot sign in and its tokens stop working. Additive:
+	// every existing admin stays enabled.
+	{11, "admin disable", []string{
+		`ALTER TABLE admins ADD COLUMN disabled BOOLEAN NOT NULL DEFAULT FALSE`,
+	}},
 }
 
 type schemaMigration struct {

@@ -284,6 +284,7 @@ func (s *Server) updateAdmin(w http.ResponseWriter, r *http.Request, a *db.Admin
 		TrafficQuota *int64    `json:"traffic_quota"`
 		IsSudo       *bool     `json:"is_sudo"`
 		Password     *string   `json:"password"`
+		Disabled     *bool     `json:"disabled"`
 	}
 	if !decode(w, r, &req) {
 		return
@@ -299,10 +300,24 @@ func (s *Server) updateAdmin(w http.ResponseWriter, r *http.Request, a *db.Admin
 			return
 		}
 		var n int64
-		s.DB.Model(&db.Admin{}).Where("is_sudo = ?", true).Count(&n)
-		if n <= 1 {
+		s.DB.Model(&db.Admin{}).Where("is_sudo = ? AND disabled = ? AND id <> ?", true, false, t.ID).Count(&n)
+		if n == 0 {
 			writeErr(w, http.StatusBadRequest, "validation_error", "cannot demote the last sudo admin")
 			return
+		}
+	}
+	if req.Disabled != nil && *req.Disabled && !t.Disabled {
+		if t.ID == a.ID {
+			writeErr(w, http.StatusBadRequest, "validation_error", "you cannot disable yourself")
+			return
+		}
+		if t.IsSudo {
+			var n int64
+			s.DB.Model(&db.Admin{}).Where("is_sudo = ? AND disabled = ? AND id <> ?", true, false, t.ID).Count(&n)
+			if n == 0 {
+				writeErr(w, http.StatusBadRequest, "validation_error", "cannot disable the last sudo admin")
+				return
+			}
 		}
 	}
 	upd := map[string]any{}
@@ -325,6 +340,9 @@ func (s *Server) updateAdmin(w http.ResponseWriter, r *http.Request, a *db.Admin
 	}
 	if req.IsSudo != nil {
 		upd["is_sudo"] = *req.IsSudo
+	}
+	if req.Disabled != nil {
+		upd["disabled"] = *req.Disabled
 	}
 	if req.Password != nil && *req.Password != "" {
 		if err := auth.SetPassword(s.DB, &t, *req.Password); err != nil {

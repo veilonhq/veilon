@@ -296,7 +296,8 @@ func (s *Server) sudo(h authed) http.HandlerFunc {
 
 func adminView(a *db.Admin) map[string]any {
 	return map[string]any{"id": a.ID, "username": a.Username, "is_sudo": a.IsSudo, "created_at": a.CreatedAt,
-		"permissions": auth.PermList(a), "user_quota": a.UserQuota, "traffic_quota": a.TrafficQuota}
+		"permissions": auth.PermList(a), "user_quota": a.UserQuota, "traffic_quota": a.TrafficQuota,
+		"disabled": a.Disabled}
 }
 
 func rfc(t time.Time) string { return t.UTC().Format(time.RFC3339) }

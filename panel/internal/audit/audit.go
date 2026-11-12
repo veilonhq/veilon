@@ -33,18 +33,44 @@ type Entry struct {
 
 // List returns a page of entries, newest first.
 func List(gdb *gorm.DB, page, perPage int) ([]Entry, int64, error) {
+	return ListBy(gdb, "", page, perPage)
+}
+
+// Actors lists the admin names that appear in the log (most recent first).
+func Actors(gdb *gorm.DB, limit int) []string {
+	var rows []struct {
+		AdminName string
+		Last      int64
+	}
+	gdb.Model(&db.AuditLog{}).Select("admin_name, MAX(id) AS last").Where("admin_name <> ''").
+		Group("admin_name").Order("last DESC").Limit(limit).Scan(&rows)
+	out := make([]string, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, r.AdminName)
+	}
+	return out
+}
+
+// ListBy is List limited to one actor ("" = everyone).
+func ListBy(gdb *gorm.DB, actor string, page, perPage int) ([]Entry, int64, error) {
 	if page < 1 {
 		page = 1
 	}
 	if perPage < 1 || perPage > 200 {
 		perPage = 50
 	}
+	q := func() *gorm.DB {
+		if actor != "" {
+			return gdb.Model(&db.AuditLog{}).Where("admin_name = ?", actor)
+		}
+		return gdb.Model(&db.AuditLog{})
+	}
 	var total int64
-	if err := gdb.Model(&db.AuditLog{}).Count(&total).Error; err != nil {
+	if err := q().Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	var rows []db.AuditLog
-	if err := gdb.Order("id DESC").Offset((page - 1) * perPage).Limit(perPage).Find(&rows).Error; err != nil {
+	if err := q().Order("id DESC").Offset((page - 1) * perPage).Limit(perPage).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 	out := make([]Entry, 0, len(rows))

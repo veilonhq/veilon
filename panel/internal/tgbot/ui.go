@@ -32,6 +32,10 @@ type chatState struct {
 	restoreName string
 	// xr is the Xray settings draft (nil: not loaded).
 	xr *xrState
+	// auditActor limits the audit log to one admin ("" = everyone);
+	// auditActors are the names the filter buttons point at.
+	auditActor  string
+	auditActors []string
 }
 
 // pending is a value the bot asked the admin to type (or a file to send).

@@ -315,7 +315,7 @@ func (b *Bot) handle(ctx context.Context, cl *Client, cfg Config, up *Update) {
 // named "telegram:<id>" in the audit log.
 func (b *Bot) actor(tgID int64) (*db.Admin, error) {
 	var a db.Admin
-	if err := b.DB.Where("is_sudo = ?", true).Order("id").Limit(1).Find(&a).Error; err != nil {
+	if err := b.DB.Where("is_sudo = ? AND disabled = ?", true, false).Order("id").Limit(1).Find(&a).Error; err != nil {
 		return nil, err
 	}
 	if a.ID == 0 {

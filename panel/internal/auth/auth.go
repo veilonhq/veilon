@@ -22,6 +22,7 @@ var (
 	ErrInvalidCredentials = errors.New("invalid username or password")
 	ErrInvalidToken       = errors.New("invalid or expired token")
 	ErrRateLimited        = errors.New("too many failed login attempts")
+	ErrAdminDisabled      = errors.New("this admin account is disabled")
 )
 
 // HashPassword returns a bcrypt hash.
@@ -124,6 +125,9 @@ func (s *Service) Verify(token string) (*db.Admin, error) {
 	if err := s.DB.First(&a, id).Error; err != nil {
 		return nil, ErrInvalidToken
 	}
+	if a.Disabled {
+		return nil, ErrInvalidToken
+	}
 	if a.PasswordChangedAt != nil && c.IssuedAt != nil && c.IssuedAt.Time.Before(a.PasswordChangedAt.Truncate(time.Second)) {
 		return nil, ErrInvalidToken
 	}
@@ -148,6 +152,9 @@ func (s *Service) Login(ip, username, password string) (*db.Admin, string, time.
 		return nil, "", time.Time{}, ErrInvalidCredentials
 	}
 	s.Limiter.Reset(ip)
+	if a.Disabled {
+		return nil, "", time.Time{}, ErrAdminDisabled
+	}
 	tok, exp, err := s.Issue(&a)
 	if err != nil {
 		return nil, "", time.Time{}, err
@@ -311,7 +318,7 @@ func DeleteAdmin(gdb *gorm.DB, username string) (*db.Admin, error) {
 		}
 		if a.IsSudo {
 			var n int64
-			tx.Model(&db.Admin{}).Where("is_sudo = ? AND id <> ?", true, a.ID).Count(&n)
+			tx.Model(&db.Admin{}).Where("is_sudo = ? AND disabled = ? AND id <> ?", true, false, a.ID).Count(&n)
 			if n == 0 {
 				return ErrLastSudo
 			}

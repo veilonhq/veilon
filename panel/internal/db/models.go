@@ -14,7 +14,9 @@ type Admin struct {
 	UserQuota int `json:"user_quota"`
 	// TrafficQuota caps the total data limit a sub-admin may hand out
 	// across its users, in bytes (0 = unlimited).
-	TrafficQuota      int64      `json:"traffic_quota"`
+	TrafficQuota int64 `json:"traffic_quota"`
+	// Disabled admins cannot sign in and their tokens are refused.
+	Disabled          bool       `json:"disabled"`
 	PasswordChangedAt *time.Time `json:"-"`
 	CreatedAt         time.Time  `json:"created_at"`
 	UpdatedAt         time.Time  `json:"updated_at"`
