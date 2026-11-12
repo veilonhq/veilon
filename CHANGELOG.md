@@ -2,6 +2,28 @@
 
 Each release's notes, Persian first. Older releases: https://github.com/veilonhq/veilon/releases
 
+## Unreleased
+
+### فارسی
+
+- ربات تلگرام برای مدیریت پنل: کاربران، ورودی ها، نودها، وضعیت سرور، بروزرسانی پنل، پشتیبان و بازگردانی، تنظیمات Xray، تنظیمات پنل، مدیران و گزارش فعالیت، با تایید برای کارهای خطرناک. ربات داخل خود پنل اجرا می شود و فقط به شناسه های عددی مدیران جواب می دهد. [راهنما](docs/fa/telegram-bot.md)
+- اعلان ها در تلگرام: ۹۰ و ۱۰۰ درصد حجم کاربر، کمتر از یک روز تا انقضا و منقضی شدن، قطع و وصل شدن نود، نسخه تازه پنل. هر نوع جدا روشن یا خاموش می شود و هر رویداد یک بار اعلام می شود
+- صفحه تازه **بیشتر ← ربات تلگرام** (فقط مدیر ارشد): توکن (فقط بخشی از آن نشان داده می شود و خالی گذاشتن آن توکن فعلی را نگه می دارد)، شناسه مدیران (عدد فارسی هم پذیرفته می شود)، پروکسی اختیاری، روشن و خاموش، اعلان ها، دکمه پیام آزمایشی با نتیجه برای هر مدیر و وضعیت زنده ربات
+- پشتیبان پایگاه داده از ربات (SQLite و PostgreSQL) و بازگردانی با بررسی فایل، نسخه ایمنی از پایگاه داده فعلی و راه اندازی دوباره خودکار پنل؛ سقف دریافت فایل در ربات تلگرام ۲۰ مگابایت است
+- مدیران را می توان غیرفعال کرد (کلید در صفحه مدیران وب و در ربات): مدیر غیرفعال نمی تواند وارد شود و توکن های او پذیرفته نمی شوند؛ آخرین مدیر ارشد فعال را نمی توان غیرفعال کرد
+- گزارش فعالیت را می توان بر اساس مدیر فیلتر کرد (API: `GET /audit?admin=`)؛ کارهای ربات با نام `telegram:<شناسه>` ثبت می شوند
+- مهاجرت پایگاه داده: schema 10 (جدول telegram_notices برای جلوگیری از اعلان تکراری) و schema 11 (ستون admins.disabled)، هر دو فقط افزودنی
+
+### English
+
+- Telegram bot to manage the panel: users, inbounds, nodes, server status, panel update, backup and restore, Xray settings, panel settings, admins and the event log, with confirmation for risky actions. The bot runs inside the panel and answers only the admins' numeric ids. [Guide](docs/en/telegram-bot.md)
+- Telegram notifications: a user at 90% and 100% of their data, less than a day before expiry and expired, a node going offline and coming back, a new panel release. Each type can be switched on or off, and each event is announced once
+- New page **More → Telegram bot** (full admins only): token (only a hint is shown; leaving it empty keeps the current one), admin ids (Persian digits work), optional proxy, on/off, notifications, a test message button with a result per admin, and the bot's live status
+- Database backup from the bot (SQLite and PostgreSQL) and restore with a file check, a safety copy of the current database and an automatic panel restart; Telegram bots can receive files up to 20 MB
+- Admins can be disabled (a switch on the web Admins page and in the bot): a disabled admin cannot sign in and their tokens are refused; the last enabled full admin cannot be disabled
+- The event log can be filtered by admin (API: `GET /audit?admin=`); the bot's actions are logged as `telegram:<id>`
+- Database migrations: schema 10 (telegram_notices table, so a notification is not sent twice) and schema 11 (admins.disabled column), both additive only
+
 ## v0.3.8 (2026-11-12)
 
 ### فارسی
