@@ -28,12 +28,17 @@ const maxPendingSources = 1024
 // user line of the same connection. It is safe for concurrent use.
 type SingboxParser struct {
 	mu      sync.Mutex
-	pending map[string]string // connection id -> client IP
+	pending map[string]sbSource // connection id -> client IP and port
+}
+
+type sbSource struct {
+	ip   string
+	port int
 }
 
 // NewSingboxParser creates a parser.
 func NewSingboxParser() *SingboxParser {
-	return &SingboxParser{pending: map[string]string{}}
+	return &SingboxParser{pending: map[string]sbSource{}}
 }
 
 // StripANSI removes ANSI escape sequences (colors) from s.
@@ -66,46 +71,56 @@ func StripANSI(s string) string {
 // Line parses one sing-box log line. It returns the user name and client
 // IP when the line completes a connection whose source was seen before.
 func (p *SingboxParser) Line(line string) (user, ip string, ok bool) {
+	user, ip, _, ok = p.LineConn(line)
+	return user, ip, ok
+}
+
+// LineConn is Line plus the client port (0 when the log had none).
+func (p *SingboxParser) LineConn(line string) (user, ip string, port int, ok bool) {
 	line = StripANSI(line)
 	id, msg, found := splitSingboxLine(line)
 	if !found {
-		return "", "", false
+		return "", "", 0, false
 	}
 	for _, pre := range []string{"inbound connection from ", "inbound packet connection from "} {
 		if rest, ok := strings.CutPrefix(msg, pre); ok {
-			src := clientIP(strings.TrimSpace(rest))
+			rest = strings.TrimSpace(rest)
+			src := clientIP(rest)
 			if src == "" {
-				return "", "", false
+				return "", "", 0, false
+			}
+			if f := strings.Fields(rest); len(f) > 0 {
+				rest = f[0]
 			}
 			p.mu.Lock()
 			if len(p.pending) >= maxPendingSources {
-				p.pending = map[string]string{}
+				p.pending = map[string]sbSource{}
 			}
-			p.pending[id] = src
+			p.pending[id] = sbSource{src, srcPort(rest)}
 			p.mu.Unlock()
-			return "", "", false
+			return "", "", 0, false
 		}
 	}
 	// "[user] inbound connection to dest" / "[user] inbound packet connection to dest"
 	if !strings.HasPrefix(msg, "[") {
-		return "", "", false
+		return "", "", 0, false
 	}
 	end := strings.Index(msg, "] ")
 	if end < 0 {
-		return "", "", false
+		return "", "", 0, false
 	}
 	user, rest := msg[1:end], msg[end+2:]
 	if !strings.HasPrefix(rest, "inbound connection to ") && !strings.HasPrefix(rest, "inbound packet connection to ") {
-		return "", "", false
+		return "", "", 0, false
 	}
 	p.mu.Lock()
 	src, have := p.pending[id]
 	delete(p.pending, id)
 	p.mu.Unlock()
 	if !have || user == "" || strings.ContainsAny(user, " \t") {
-		return "", "", false
+		return "", "", 0, false
 	}
-	return user, src, true
+	return user, src.ip, src.port, true
 }
 
 // splitSingboxLine finds "[<id> <duration>] inbound/<type>[<tag>]: <msg>"
@@ -170,7 +185,10 @@ func (g *Guard) ObserveSingboxLine(line string) {
 	}
 	p := g.sbParser
 	g.mu.Unlock()
-	if user, ip, ok := p.Line(line); ok {
+	if user, ip, port, ok := p.LineConn(line); ok {
 		g.ObserveEmail(user, ip)
+		if id := userID(user); id > 0 {
+			g.observeConn(id, ip, port)
+		}
 	}
 }

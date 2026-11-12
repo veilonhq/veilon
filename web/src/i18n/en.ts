@@ -218,6 +218,7 @@ const en: Record<MessageKey, string> = {
   'form.expiry.onHold': 'Start on first connect',
   'form.expiry.keep': 'Keep as is',
   'form.daysLabel': 'Days',
+  'form.daysPlaceholder': 'Number of days',
   'form.expiresOn': 'Expires on {date}',
   'form.reset.no_reset': 'Never',
   'form.reset.day': 'Daily',

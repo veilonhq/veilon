@@ -13,12 +13,15 @@
 //     newest IPs are dropped at the firewall (nftables set with a timeout,
 //     matching only the inbound ports) for BanTTL; they are re-banned while
 //     the user stays over the limit. The oldest live IPs keep working.
-//   - Speed limits: Linux traffic control on the default-route interface.
-//     Download (server -> client) is shaped with one HTB class per user that
-//     all of the user's live IPs feed (aggregate per user); upload (client
-//     -> server) is policed on ingress with one shared policer per user.
+//   - Speed limits: each connection of a limited user (client IP and port
+//     from the log) gets the user's conntrack mark (nftables, connshape.go).
+//     Download (server -> client) is shaped on the default-route interface
+//     with one HTB class per user fed by that mark (aggregate per user);
+//     upload (client -> server) is policed by one nftables rule per user on
+//     the same mark. Other users behind the same IP are not affected.
 //
-// Limits apply per IP address, so clients behind one NAT address share them.
+// The IP limit applies per IP address, so clients behind one NAT address
+// share it.
 package guard
 
 import (

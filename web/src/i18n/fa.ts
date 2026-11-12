@@ -217,6 +217,7 @@ const fa = {
   'form.expiry.onHold': 'شروع با اولین اتصال',
   'form.expiry.keep': 'بدون تغییر',
   'form.daysLabel': 'تعداد روز',
+  'form.daysPlaceholder': 'تعداد روز',
   'form.expiresOn': 'منقضی می شود در {date}',
   'form.reset.no_reset': 'هرگز',
   'form.reset.day': 'روزانه',

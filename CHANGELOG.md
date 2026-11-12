@@ -2,6 +2,20 @@
 
 Each release's notes, Persian first. Older releases: https://github.com/veilonhq/veilon/releases
 
+## Unreleased
+
+### فارسی
+
+- رفع ایراد مهم محدودیت سرعت: محدودیت سرعت یک کاربر به کاربران دیگر روی همان اینباند هم می رسید. علت: محدودیت بر اساس IP دستگاه اعمال می شد، پس هر کاربر دیگری که از همان IP وصل می شد (دو پروفایل روی یک گوشی، یک مودم یا NAT اپراتور) هم کند می شد؛ حتی ترافیک دیگر آن IP مثل AmneziaWG. اکنون هر اتصال (IP و پورت دستگاه از لاگ دسترسی) به کاربر خودش نسبت داده می شود: اتصال های کاربر محدود با nftables نشانه گذاری می شوند (`table inet veilon_shape`)، دانلود با tc روی همان نشانه و آپلود با یک قانون nftables برای هر کاربر محدود می شود. کاربر بدون محدودیت حتی روی همان اینباند و از همان IP با سرعت کامل کار می کند. برای سرور اصلی و نودها (برنامه نود این نسخه؛ نودهای قدیمی تر تا به روزرسانی مثل قبل بر اساس IP محدود می کنند). Xray و TUIC (sing-box)
+- روی سرور، محدودیت سرعت اکنون به nftables هم نیاز دارد (نصب کننده آن را نصب می کند؛ بدون آن یک هشدار در لاگ ثبت می شود و محدودیت سرعت اعمال نمی شود)
+- انقضای کاربر: کادر تعداد روز در «چند روز از امروز» و «شروع با اولین اتصال» در فرم کاربر جدید و ویرایش کاربر اکنون آزادانه قابل تایپ است، هر عدد صحیح از ۱ (مثلا ۱ روز)، با صفحه کلید فارسی یا انگلیسی و صفحه کلید عددی در گوشی؛ راهنمای «تعداد روز» و واحد «روز» دارد و خط «منقضی می شود در ...» همان لحظه به روز می شود. قبلا کادر عدد فارسی را نمی پذیرفت و پس از پاک کردن «۰» نشان می داد
+
+### English
+
+- Critical speed limit fix: one user's speed limit also slowed other users on the same inbound. Cause: limits were applied by device IP, so every other user connecting from the same IP (two profiles on one phone, one router, carrier NAT) was slowed too, even other traffic of that IP such as AmneziaWG. Now each connection (client IP and port from the access log) belongs to its own user: a limited user's connections are marked with nftables (`table inet veilon_shape`), download is shaped by tc on that mark and upload is policed by one nftables rule per user. A user with no limit runs at full speed even on the same inbound and from the same IP. Main server and nodes (this release's node agent; older agents keep shaping by IP until updated). Xray and TUIC (sing-box)
+- Speed limits now need nftables on the server as well (the installer installs it; without it the log shows one warning and speed limits are not applied)
+- User expiry: the number of days in "Days from today" and "Start on first connect" in the new user and edit user forms can now be typed freely, any whole number from 1 (e.g. 1 day), with Persian or Latin digits and the numeric keypad on phones; it has a "Number of days" placeholder and a "days" unit, and the "Expires on ..." line updates as you type. Before, the box rejected Persian digits and showed "0" once cleared
+
 ## v0.3.7 (2026-11-11)
 
 ### فارسی

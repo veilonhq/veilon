@@ -39,27 +39,63 @@ func TestTCScript(t *testing.T) {
 	if TCScript("eth0", nil) != "" {
 		t.Fatal("empty plan must build nothing")
 	}
-	s := TCScript("eth0", []Shape{{UserID: 7, DownKbps: 20000, UpKbps: 10000, IPs: []string{"10.0.0.2", "10.0.0.3", "fd00::2"}}})
+	if TCScript("eth0", []Shape{{UserID: 7, UpKbps: 1000}}) != "" {
+		t.Fatal("an upload-only plan needs no tc tree")
+	}
+	s := TCScript("eth0", []Shape{{UserID: 7, DownKbps: 20000, UpKbps: 10000, IPs: []string{"10.0.0.2", "fd00::2"}}})
 	for _, want := range []string{
 		"qdisc add dev eth0 root handle 1: htb default 1\n",
 		"class add dev eth0 parent 1: classid 1:1 htb rate 10gbit quantum 60000\n",
 		"class add dev eth0 parent 1: classid 1:10 htb rate 20000kbit ceil 20000kbit burst 125000 cburst 125000 quantum 60000\n",
-		"filter add dev eth0 parent 1: protocol ip prio 1 u32 match ip dst 10.0.0.3/32 flowid 1:10\n",
-		"filter add dev eth0 parent 1: protocol ipv6 prio 2 u32 match ip6 dst fd00::2/128 flowid 1:10\n",
-		"qdisc add dev eth0 handle ffff: ingress\n",
-		"u32 match ip src 10.0.0.2/32 action police rate 10000kbit burst 250000 mtu 64kb conform-exceed drop/ok index 16\n",
-		"u32 match ip src 10.0.0.3/32 action police index 16\n",
-		"u32 match ip6 src fd00::2/128 action police index 16\n",
+		"filter add dev eth0 parent 1: protocol all prio 1 handle 0x5e000007 fw flowid 1:10\n",
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("missing %q in\n%s", want, s)
 		}
 	}
-	if strings.Contains(s, " del ") {
-		t.Errorf("build script must not delete:\n%s", s)
+	// Never by client IP: other users behind the same address must not match.
+	for _, bad := range []string{" del ", "u32", "10.0.0.2", "ingress", "police"} {
+		if strings.Contains(s, bad) {
+			t.Errorf("unexpected %q in\n%s", bad, s)
+		}
 	}
 	if policeBurst(1000) != 65536 || htbBurst(100) != 16000 {
 		t.Fatal("burst floors")
+	}
+}
+
+func TestShapeScript(t *testing.T) {
+	s := ShapeScript([]Shape{{UserID: 7, DownKbps: 20000, UpKbps: 10000}, {UserID: 9, DownKbps: 500}})
+	for _, want := range []string{
+		"add table inet veilon_shape\ndelete table inet veilon_shape\n",
+		"map conn4 { type ipv4_addr . inet_service : mark; flags timeout; timeout 60s; }",
+		"ct mark 0 meta l4proto tcp ct mark set ip saddr . tcp sport map @conn4",
+		"ct mark 0 meta l4proto udp ct mark set ip6 daddr . udp dport map @conn6",
+		"ct mark 0x5e000007 limit rate over 1250000 bytes/second burst 250000 bytes drop",
+		"meta mark 0 ct mark and 0xff000000 == 0x5e000000 meta mark set ct mark",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("missing %q in\n%s", want, s)
+		}
+	}
+	if strings.Contains(s, "0x5e000009 limit") {
+		t.Error("user 9 has no upload limit")
+	}
+	if _, ok := ShapeMark(1 << 24); ok {
+		t.Error("ids above 24 bits must not get a mark")
+	}
+}
+
+func TestConnElemScript(t *testing.T) {
+	got := ConnElemScript([]Conn{{7, "1.2.3.4", 5000}, {7, "1.2.3.4", 5000}, {9, "::ffff:1.2.3.4", 5001}, {7, "2001:db8::1", 6000}, {7, "bogus", 1}, {7, "1.1.1.1", 0}})
+	want := "add element inet veilon_shape conn4 { 1.2.3.4 . 5000 : 0x5e000007, 1.2.3.4 . 5001 : 0x5e000009 }\n" +
+		"delete element inet veilon_shape conn4 { 1.2.3.4 . 5000, 1.2.3.4 . 5001 }\n" +
+		"add element inet veilon_shape conn4 { 1.2.3.4 . 5000 : 0x5e000007, 1.2.3.4 . 5001 : 0x5e000009 }\n" +
+		"add element inet veilon_shape conn6 { 2001:db8::1 . 6000 : 0x5e000007 }\n" +
+		"delete element inet veilon_shape conn6 { 2001:db8::1 . 6000 }\n" +
+		"add element inet veilon_shape conn6 { 2001:db8::1 . 6000 : 0x5e000007 }\n"
+	if got != want {
+		t.Fatalf("got\n%s\nwant\n%s", got, want)
 	}
 }
 
@@ -112,32 +148,89 @@ func TestApplyTCDeletesThenBuilds(t *testing.T) {
 	g := recordingGuard(&calls, nil)
 	shapes := []Shape{{UserID: 7, DownKbps: 1000, IPs: []string{"1.1.1.1"}}}
 	g.applyTC(shapes)
-	if len(calls) != 2 || calls[0].cmd != "tc -force -batch -" || calls[0].stdin != TCDeleteScript("eth0") ||
-		calls[1].cmd != "tc -batch -" || calls[1].stdin != TCScript("eth0", shapes) {
+	if len(calls) != 3 || calls[0].cmd != "tc -force -batch -" || calls[0].stdin != TCDeleteScript("eth0") ||
+		calls[1].cmd != "nft -f -" || calls[1].stdin != ShapeScript(shapes) ||
+		calls[2].cmd != "tc -batch -" || calls[2].stdin != TCScript("eth0", shapes) {
 		t.Fatalf("calls %+v", calls)
 	}
 	g.applyTC(shapes) // unchanged: nothing to do
-	if len(calls) != 2 {
+	if len(calls) != 3 {
 		t.Fatalf("re-applied an unchanged plan: %+v", calls)
 	}
+	// New live IPs of the same user do not rebuild anything.
+	g.applyTC([]Shape{{UserID: 7, DownKbps: 1000, IPs: []string{"1.1.1.1", "2.2.2.2"}}})
+	if len(calls) != 3 {
+		t.Fatalf("rebuilt for an IP change: %+v", calls)
+	}
 	g.applyTC(nil) // limit gone: only delete
-	if len(calls) != 3 || calls[2].stdin != TCDeleteScript("eth0") {
+	if len(calls) != 5 || calls[3].stdin != TCDeleteScript("eth0") || calls[4].stdin != ShapeDeleteScript() {
 		t.Fatalf("calls %+v", calls)
 	}
 }
 
 func TestApplyTCFailureRetries(t *testing.T) {
 	var calls []call
-	g := recordingGuard(&calls, func(c call) bool { return c.cmd == "tc -batch -" })
+	g := recordingGuard(&calls, func(c call) bool {
+		return c.cmd == "nft -f -" && strings.Contains(c.stdin, "table inet veilon_shape {")
+	})
 	shapes := []Shape{{UserID: 7, UpKbps: 1000, IPs: []string{"1.1.1.1"}}}
 	g.applyTC(shapes)
-	// delete, failed build, cleanup delete
-	if len(calls) != 3 || calls[2].stdin != TCDeleteScript("eth0") {
+	// delete, failed build, cleanup deletes (tc + nft)
+	if len(calls) != 4 || calls[2].stdin != TCDeleteScript("eth0") || calls[3].stdin != ShapeDeleteScript() {
 		t.Fatalf("calls %+v", calls)
 	}
+	g.ObserveLine(accessLine("1.1.1.1", 4000, "7.a"))
+	g.FlushMarks() // table is not there: nothing to mark
+	if len(calls) != 4 {
+		t.Fatalf("marked without a table: %+v", calls)
+	}
 	g.applyTC(shapes)
-	if len(calls) != 6 {
+	if len(calls) != 8 {
 		t.Fatalf("a failed plan must be retried, calls %+v", calls)
+	}
+}
+
+// A user whose limit starts while connected gets the connections the
+// access log already showed; a later connection is marked within
+// MarkDelay without rebuilding the rules.
+func TestShapingMarksKnownAndNewConnections(t *testing.T) {
+	var calls []call
+	g := recordingGuard(&calls, nil)
+	g.MarkDelay = time.Hour
+	g.ObserveLine(accessLine("1.1.1.1", 4000, "7.a"))
+	g.ObserveLine(accessLine("1.1.1.1", 4001, "8.b"))
+	g.applyTC([]Shape{{UserID: 7, DownKbps: 1000}})
+	if len(calls) != 3 || !strings.Contains(calls[1].stdin, "1.1.1.1 . 4000 : 0x5e000007") || strings.Contains(calls[1].stdin, "4001") {
+		t.Fatalf("known connections not marked: %+v", calls)
+	}
+	g.ObserveLine(accessLine("1.1.1.1", 4002, "7.a"))
+	g.ObserveLine(accessLine("1.1.1.1", 4003, "8.b"))
+	g.FlushMarks()
+	if len(calls) != 4 || calls[3].stdin != ConnElemScript([]Conn{{7, "1.1.1.1", 4002}}) {
+		t.Fatalf("new connection not marked alone: %+v", calls)
+	}
+	g.ObserveLine(accessLine("1.1.1.1", 4002, "7.a")) // same connection again (mux stream)
+	g.FlushMarks()
+	if len(calls) != 4 {
+		t.Fatalf("re-marked a fresh element: %+v", calls)
+	}
+}
+
+// A node agent marks connections from its own access log.
+func TestObserveConnLineNode(t *testing.T) {
+	var calls []call
+	g := recordingGuard(&calls, nil)
+	g.MarkDelay = time.Hour
+	g.ApplyShapes([]Shape{{UserID: 3, UpKbps: 2000, IPs: []string{"9.9.9.9"}}})
+	g.ObserveConnLine("2026/11/12 07:00:00 from tcp:[2001:db8::5]:7000 accepted tcp:x.com:443 [inbound-1 >> direct] email: 3.c")
+	g.ObserveConnLine("2026/11/12 07:00:00 from 9.9.9.9:7001 accepted tcp:x.com:443 [inbound-1 >> direct] email: 4.d")
+	g.FlushMarks()
+	last := calls[len(calls)-1]
+	if last.stdin != ConnElemScript([]Conn{{3, "2001:db8::5", 7000}}) {
+		t.Fatalf("calls %+v", calls)
+	}
+	if len(g.Tracker.Users(g.now())) != 0 {
+		t.Fatal("a node must not grow the IP tracker")
 	}
 }
 
@@ -155,5 +248,18 @@ func TestBanFailureRetries(t *testing.T) {
 	g.applyBans([]string{"9.9.9.9"}) // must not be considered banned
 	if len(calls) != 2 || !strings.Contains(calls[1].stdin, "9.9.9.9") {
 		t.Fatalf("ban not retried: %+v", calls)
+	}
+}
+
+func TestParseAccessConnPort(t *testing.T) {
+	for line, want := range map[string]int{
+		"2026/11/08 17:34:41.990991 from 10.231.0.2:56408 accepted tcp:10.231.0.1:18080 [inbound-9 >> direct] email: 7.alice":                             56408,
+		"2026/11/08 17:34:41.990991 from tcp:[2001:db8::1]:50000 accepted udp:1.1.1.1:53 [inbound-1 -> direct] email: 12.bob":                             50000,
+		"2026/11/10 17:22:41.990991 from [fe80::10b0:acff:fe10:cc5%eth0]:55832 accepted tcp:speed.cloudflare.com:80 [inbound-1 >> direct] email: 1.alice": 55832,
+		"2026/11/08 17:34:41.990991 from 5.6.7.8 accepted tcp:x.com:443 [inbound-1 >> direct] email: 3.c":                                                 0,
+	} {
+		if _, _, port, ok := ParseAccessConn(line); !ok || port != want {
+			t.Errorf("%q: port %d ok %v, want %d", line, port, ok, want)
+		}
 	}
 }
