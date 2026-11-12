@@ -24,6 +24,12 @@ type chatState struct {
 	// userQuery is the users list filter ("" = all) and search text.
 	userFilter string
 	userSearch string
+	// watch changes on every interaction; a running progress watcher
+	// stops once it no longer matches the value it started with.
+	watch int
+	// restore is an uploaded backup waiting for the admin's confirmation.
+	restore     []byte
+	restoreName string
 }
 
 // pending is a value the bot asked the admin to type (or a file to send).
@@ -44,6 +50,8 @@ type view struct {
 type req struct {
 	b        *Bot
 	ctx      context.Context
+	// sctx lives as long as the bot session (for progress watchers).
+	sctx     context.Context
 	cl       *Client
 	cfg      Config
 	chat     int64
@@ -96,10 +104,14 @@ func (r *req) route(data string) {
 	if r.st.pending != nil && key != "noop" {
 		r.st.pending = nil
 	}
+	if key != "noop" {
+		r.st.watch++
+	}
 	h(r, args)
 }
 
 func (r *req) onMessage(m *Message) {
+	r.st.watch++
 	text := strings.TrimSpace(m.Text)
 	if text == "/start" || text == "/menu" || strings.HasPrefix(text, "/start ") {
 		r.st.pending = nil
@@ -181,6 +193,46 @@ func (r *req) ask(kind string, args []string, title, prompt, back string, extra 
 func (r *req) progress(text string) {
 	r.toast("⏳")
 	r.show(view{text: "⏳ " + text + "\nلطفا چند لحظه صبر کنید...", kb: Keyboard{}})
+}
+
+// watch redraws the current screen every b.WatchEvery until draw reports
+// done, the admin presses anything else, or limit passes. The first draw
+// happens right away (in the caller).
+func (r *req) watch(limit time.Duration, draw func(w *req) (view, bool)) {
+	v, done := draw(r)
+	r.show(v)
+	if done {
+		return
+	}
+	token := r.st.watch
+	msg := r.msgID
+	b, sctx := r.b, r.sctx
+	if sctx == nil {
+		return
+	}
+	go func() {
+		deadline := time.Now().Add(limit)
+		for time.Now().Before(deadline) {
+			if !sleepCtx(sctx, b.watchEvery()) {
+				return
+			}
+			l := b.chatLock(r.chat)
+			l.Lock()
+			if r.st.watch != token || r.st.menuMsg != msg {
+				l.Unlock()
+				return
+			}
+			ctx, cancel := context.WithTimeout(sctx, 30*time.Second)
+			w := &req{b: b, ctx: ctx, sctx: sctx, cl: r.cl, cfg: r.cfg, chat: r.chat, from: r.from, st: r.st, msgID: msg}
+			v, done := draw(w)
+			w.show(v)
+			cancel()
+			l.Unlock()
+			if done {
+				return
+			}
+		}
+	}()
 }
 
 func (r *req) call(method, path string, body, out any) error {

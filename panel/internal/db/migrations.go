@@ -411,3 +411,14 @@ func SchemaVersion(gdb *gorm.DB) int {
 	gdb.Raw("SELECT COALESCE(MAX(version),0) FROM schema_migrations").Scan(&v)
 	return v
 }
+
+// LatestSchema is the newest migration version this build knows.
+func LatestSchema() int {
+	v := 0
+	for _, m := range migrations {
+		if m.Version > v {
+			v = m.Version
+		}
+	}
+	return v
+}

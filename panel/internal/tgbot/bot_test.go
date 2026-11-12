@@ -19,6 +19,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/certs"
 	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/inbounds"
+	"github.com/veilonhq/veilon/panel/internal/nodes"
 	"github.com/veilonhq/veilon/panel/internal/sub"
 	"github.com/veilonhq/veilon/panel/internal/testutil"
 	"github.com/veilonhq/veilon/panel/internal/tgbot"
@@ -56,10 +57,12 @@ type fakeTG struct {
 	calls   []call
 	nextMsg int
 	nextUp  int64
+	// files are the files users "sent" to the bot (file_id -> content).
+	files map[string][]byte
 }
 
 func newFakeTG(t *testing.T) *fakeTG {
-	f := &fakeTG{t: t, updates: make(chan map[string]any, 16), nextMsg: 100}
+	f := &fakeTG{t: t, updates: make(chan map[string]any, 16), nextMsg: 100, files: map[string][]byte{}}
 	f.srv = httptest.NewServer(http.HandlerFunc(f.serve))
 	t.Cleanup(f.srv.Close)
 	return f
@@ -71,6 +74,17 @@ func (f *fakeTG) reply(w http.ResponseWriter, result any) {
 }
 
 func (f *fakeTG) serve(w http.ResponseWriter, r *http.Request) {
+	if fp, ok := strings.CutPrefix(r.URL.Path, "/file/bot"+token+"/"); ok {
+		f.mu.Lock()
+		b, found := f.files[fp]
+		f.mu.Unlock()
+		if !found {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write(b)
+		return
+	}
 	if !strings.HasPrefix(r.URL.Path, "/bot"+token+"/") {
 		_, _ = io.WriteString(w, `{"ok":false,"error_code":401,"description":"Unauthorized"}`)
 		return
@@ -79,10 +93,30 @@ func (f *fakeTG) serve(w http.ResponseWriter, r *http.Request) {
 	p := map[string]any{}
 	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
 		_ = json.NewDecoder(r.Body).Decode(&p)
+	} else if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/") {
+		if err := r.ParseMultipartForm(64 << 20); err == nil {
+			for k, v := range r.MultipartForm.Value {
+				p[k] = v[0]
+			}
+			for k, fhs := range r.MultipartForm.File {
+				fh := fhs[0]
+				fr, _ := fh.Open()
+				b, _ := io.ReadAll(fr)
+				fr.Close()
+				p["_field"], p["_name"], p["_data"] = k, fh.Filename, string(b)
+			}
+		}
 	}
 	switch method {
 	case "getMe":
 		f.reply(w, map[string]any{"id": 123456789, "is_bot": true, "first_name": "Veilon", "username": "veilon_test_bot"})
+		return
+	case "getFile":
+		id := fmt.Sprint(p["file_id"])
+		f.mu.Lock()
+		b := f.files[id]
+		f.mu.Unlock()
+		f.reply(w, map[string]any{"file_id": id, "file_size": len(b), "file_path": id})
 		return
 	case "getUpdates":
 		select {
@@ -190,7 +224,11 @@ type rig struct {
 	menu int
 }
 
-func newRig(t *testing.T) *rig {
+func newRig(t *testing.T) *rig { return newRigWith(t, nil) }
+
+// newRigWith builds the rig; setup can add services to the API server and
+// the bot before the bot starts.
+func newRigWith(t *testing.T, setup func(srv *api.Server, b *tgbot.Bot)) *rig {
 	t.Helper()
 	gdb := testutil.DB(t)
 	_ = db.SaveSettings(gdb, db.Settings{PanelPort: 9000, PanelPath: "secret", SubPath: "sub", SubUpdateHours: 12, Language: "fa", Timezone: "UTC", ServerAddress: "1.2.3.4"})
@@ -207,6 +245,8 @@ func newRig(t *testing.T) *rig {
 		Sub:      &sub.Service{DB: gdb},
 		Core:     fakeCore{},
 	})
+	nm := &nodes.Manager{DB: gdb, DataDir: t.TempDir(), PKI: &nodes.PKI{Dir: t.TempDir()}, Version: "v0.3.8", RequestTimeout: time.Second}
+	srv.Nodes = &nodes.Service{DB: gdb, PKI: nm.PKI, Manager: nm, CheckMoveToMain: srv.Inbounds.CheckMoveToMain}
 	var root db.Admin
 	gdb.Where("username = ?", "root").First(&root)
 	st, raw := srv.Do(context.Background(), &root, "POST", "/inbounds", map[string]any{"remark": "VL", "protocol": "vless", "port": 4443,
@@ -224,7 +264,10 @@ func newRig(t *testing.T) *rig {
 	if err := tgbot.SaveConfig(gdb, tgbot.Config{Enabled: true, Admins: []int64{adminID}, Token: token, Notify: tgbot.Notify{}}); err != nil {
 		t.Fatal(err)
 	}
-	b := &tgbot.Bot{DB: gdb, API: srv, PollTimeout: 1}
+	b := &tgbot.Bot{DB: gdb, API: srv, PollTimeout: 1, WatchEvery: 100 * time.Millisecond}
+	if setup != nil {
+		setup(srv, b)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { b.Run(ctx); close(done) }()

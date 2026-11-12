@@ -57,6 +57,8 @@ type Bot struct {
 	NotifyEvery time.Duration
 	// Now is the clock (tests).
 	Now func() time.Time
+	// WatchEvery is how often a progress screen is redrawn (default 3 s).
+	WatchEvery time.Duration
 
 	once   sync.Once
 	reload chan struct{}
@@ -81,6 +83,13 @@ func (b *Bot) init() {
 			b.NotifyEvery = time.Minute
 		}
 	})
+}
+
+func (b *Bot) watchEvery() time.Duration {
+	if b.WatchEvery > 0 {
+		return b.WatchEvery
+	}
+	return 3 * time.Second
 }
 
 func (b *Bot) now() time.Time {
@@ -285,7 +294,7 @@ func (b *Bot) handle(ctx context.Context, cl *Client, cfg Config, up *Update) {
 	defer l.Unlock()
 	hctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
-	r := &req{b: b, ctx: hctx, cl: cl, cfg: cfg, chat: chat.ID, from: from.ID, st: b.state(chat.ID)}
+	r := &req{b: b, ctx: hctx, sctx: ctx, cl: cl, cfg: cfg, chat: chat.ID, from: from.ID, st: b.state(chat.ID)}
 	if q := up.CallbackQuery; q != nil {
 		r.cbID = q.ID
 		r.msgID = q.Message.MessageID

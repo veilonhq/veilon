@@ -69,11 +69,18 @@ type nodeRow struct {
 		CPUs        int     `json:"cpus"`
 		LatencyMS   int64   `json:"latency_ms"`
 		CanUpdate   bool    `json:"can_update"`
+		Arch        string  `json:"arch"`
 		Update      *struct {
-			Target string `json:"target"`
-			Phase  string `json:"phase"`
-			Error  string `json:"error"`
+			Target     string `json:"target"`
+			From       string `json:"from"`
+			Phase      string `json:"phase"`
+			Error      string `json:"error"`
+			RolledBack bool   `json:"rolled_back"`
 		} `json:"update"`
+		NeedsUpdate []struct {
+			ID     int64  `json:"id"`
+			Remark string `json:"remark"`
+		} `json:"needs_update"`
 	} `json:"state"`
 }
 
