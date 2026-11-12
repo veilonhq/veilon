@@ -16,6 +16,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/veilonhq/veilon/panel/internal/awgd"
+	"github.com/veilonhq/veilon/panel/internal/guard"
 	"github.com/veilonhq/veilon/panel/internal/inbounds"
 	"github.com/veilonhq/veilon/panel/internal/util"
 	"github.com/veilonhq/veilon/panel/internal/xray"
@@ -169,6 +170,9 @@ type NodeEngines struct {
 	// SeenIP receives client IPs per user (AmneziaWG endpoints that sent
 	// traffic, MTProto's live client addresses), for IP limits.
 	SeenIP func(userID int64, ip string)
+	// AWGPeers receives the AmneziaWG peers (interface, tunnel address,
+	// user) of every spec, for per-user speed limits.
+	AWGPeers func([]guard.AWGPeer)
 
 	once   sync.Once
 	mu     sync.Mutex
@@ -224,6 +228,17 @@ func (e *NodeEngines) Set(spec NodeSpec) {
 	e.mu.Lock()
 	e.spec = spec
 	e.mu.Unlock()
+	if e.AWGPeers != nil {
+		ifaces := make([]awgd.Iface, 0, len(spec.AWG))
+		owners := map[string]int64{}
+		for _, a := range spec.AWG {
+			ifaces = append(ifaces, a.Iface)
+			for pk, uid := range a.Owners {
+				owners[a.Iface.Name+"/"+pk] = uid
+			}
+		}
+		e.AWGPeers(AWGPeerList(ifaces, owners))
+	}
 	e.awg.RequestReload()
 	e.mtg.RequestReload()
 }

@@ -16,6 +16,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/veilonhq/veilon/panel/internal/certs"
+	"github.com/veilonhq/veilon/panel/internal/guard"
 	"github.com/veilonhq/veilon/panel/internal/inbounds"
 	"github.com/veilonhq/veilon/panel/internal/xray"
 )
@@ -34,6 +35,9 @@ type Options struct {
 	// OnLine receives every output line of the engine (sing-box: the
 	// connection log feeds the connection guard).
 	OnLine func(line string)
+	// AWGPeers receives the AmneziaWG peers (interface, tunnel address,
+	// user) after each plan, for per-user speed limits (AmneziaWG only).
+	AWGPeers func([]guard.AWGPeer)
 }
 
 type obj = map[string]any

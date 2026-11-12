@@ -62,6 +62,17 @@ type Guard struct {
 	markTimer    bool
 	// nftMu serialises the nft runs of the shaping.
 	nftMu sync.Mutex
+	// IfIndex returns an interface's ifindex, 0 when it is missing (nil =
+	// /sys/class/net; tests replace it).
+	IfIndex func(string) int
+	// AmneziaWG shaping (awgshape.go): the peers this server runs, the
+	// limits from the master on a node (awgRemote), and what is applied.
+	awgPeers  []AWGPeer
+	awgLimits map[int64]limit
+	awgRemote bool
+	awgNftSig string
+	awgTC     map[string]string
+	awgFailed bool
 }
 
 type limit struct {
@@ -280,6 +291,7 @@ func (g *Guard) Enforce() {
 	g.mu.Unlock()
 	g.applyBans(bans)
 	g.applyTC(shapes)
+	g.ApplyAWG()
 }
 
 // Shapes returns the current speed-limit plan (users with a speed limit
@@ -463,6 +475,7 @@ func (g *Guard) clearTC() {
 		}
 		_, _ = g.Run(ShapeDeleteScript(), "nft", "-f", "-")
 	}
+	g.clearAWG()
 }
 
 // Flush writes IPs seen since the last flush to the connection log.

@@ -48,6 +48,12 @@ type OnlineCore interface {
 // ErrOnlineUnsupported: the node's Xray does not list online users.
 var ErrOnlineUnsupported = errors.New("this Xray does not list online users")
 
+// AWGShaper is a Shaper that also limits AmneziaWG users by their tunnel
+// address (the agent then announces CapAWGShape).
+type AWGShaper interface {
+	ApplyAWGLimits([]guard.Shape)
+}
+
 // Agent is the node side ("veilon node serve").
 type Agent struct {
 	Enrollment *Enrollment
@@ -469,6 +475,9 @@ func (a *Agent) info() Info {
 	}
 	if a.Engines != nil {
 		in.Caps = append(in.Caps, CapAWG, CapMTProto)
+		if _, ok := a.Shaper.(AWGShaper); ok {
+			in.Caps = append(in.Caps, CapAWGShape)
+		}
 		in.EnginesHash = ehash
 		in.EngineErrors = a.Engines.Errors()
 	}
@@ -610,6 +619,9 @@ func (a *Agent) putBans(w http.ResponseWriter, r *http.Request) {
 	}
 	if a.Shaper != nil && p.Shapes != nil {
 		a.Shaper.ApplyShapes(p.Shapes)
+	}
+	if ls, ok := a.Shaper.(AWGShaper); ok && p.Limits != nil {
+		ls.ApplyAWGLimits(p.Limits)
 	}
 	if a.Firewall == nil {
 		writeJ(w, 200, map[string]bool{"ok": false})

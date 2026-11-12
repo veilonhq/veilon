@@ -85,12 +85,12 @@ func cmdServe(args []string) error {
 		cores.NewSingbox(cores.Options{DB: gdb, DataDir: cfg.DataDir, BinPath: cfg.SingboxBin, Version: cfg.SingboxVersion, AutoDownload: cfg.XrayAutoDownload, BridgePort: sbPort,
 			OnLine: connGuard.ObserveSingboxLine}),
 		cores.NewMTG(cores.Options{DB: gdb, DataDir: cfg.DataDir, BinPath: cfg.MTGBin, Version: cfg.MTGVersion, AutoDownload: cfg.XrayAutoDownload}),
-		cores.NewAWG(cores.Options{DB: gdb, DataDir: cfg.DataDir}, self),
+		cores.NewAWG(cores.Options{DB: gdb, DataDir: cfg.DataDir, AWGPeers: connGuard.SetAWGPeers}, self),
 	}}
 	// Remote nodes get every change too (their config is rendered from the
 	// same users, inbounds and template).
 	nodeMgr := &nodes.Manager{DB: gdb, DataDir: cfg.DataDir, PKI: &nodes.PKI{Dir: filepath.Join(cfg.DataDir, "nodes")},
-		OnIPs: connGuard.ObserveRemote, Bans: connGuard.Bans, Shapes: connGuard.Shapes, Version: version.Version}
+		OnIPs: connGuard.ObserveRemote, Bans: connGuard.Bans, Shapes: connGuard.Shapes, Limits: connGuard.SpeedLimits, Version: version.Version}
 	reloadAll := func() { core.RequestReload(); nodeMgr.Kick() }
 	certSvc := &certs.Service{DB: gdb, DataDir: cfg.DataDir, ACMEDirectory: cfg.ACMEDirectory, OnChange: reloadAll,
 		AllowNonPublicIPs: cfg.ACMEAllowPrivateIPs}

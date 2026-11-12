@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/veilonhq/veilon/panel/internal/awgd"
+	"github.com/veilonhq/veilon/panel/internal/guard"
 	"github.com/veilonhq/veilon/panel/internal/inbounds"
 	"github.com/veilonhq/veilon/panel/internal/presence"
 	"github.com/veilonhq/veilon/panel/internal/xray"
@@ -96,6 +97,25 @@ func awgIface(ib *inbounds.View, in *xray.Input) (awgd.Iface, map[string]int64) 
 	return it, owners
 }
 
+// AWGPeerList lists the peers of the interfaces with their tunnel
+// address and user (for the AmneziaWG speed limits); owners maps
+// "iface/pubkey" to the user id.
+func AWGPeerList(ifaces []awgd.Iface, owners map[string]int64) []guard.AWGPeer {
+	var out []guard.AWGPeer
+	for _, it := range ifaces {
+		for _, p := range it.Peers {
+			uid := owners[it.Name+"/"+p.PublicKey]
+			if uid <= 0 {
+				continue
+			}
+			if a := guard.AWGPeerAddr(p.AllowedIP); a != "" {
+				out = append(out, guard.AWGPeer{Iface: it.Name, Addr: a, UserID: uid})
+			}
+		}
+	}
+	return out
+}
+
 // awgReloadKey is the interface without its peers: when only peers change
 // the sidecar reloads them instead of restarting.
 func awgReloadKey(it awgd.Iface) string {
@@ -139,6 +159,10 @@ func NewAWG(opt Options, self string) *AWG {
 			e.mu.Lock()
 			e.owners = owners
 			e.mu.Unlock()
+			if opt.AWGPeers != nil {
+				c, _, own := awgIfaces(in)
+				opt.AWGPeers(AWGPeerList(c.Interfaces, own))
+			}
 			// The single config.json of older versions is not used anymore.
 			_ = os.Remove(filepath.Join(cfgDir, "config.json"))
 			out := make([]Instance, 0, len(list))

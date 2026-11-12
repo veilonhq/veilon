@@ -2,6 +2,16 @@
 
 Each release's notes, Persian first. Older releases: https://github.com/veilonhq/veilon/releases
 
+## Unreleased
+
+### فارسی
+
+- محدودیت سرعت برای کاربران AmneziaWG: همان محدودیت دانلود و آپلود فرم کاربر اکنون روی ورودی های AmneziaWG هم اعمال می شود. هر کاربر AmneziaWG آدرس داخلی تونل خودش را دارد، پس محدودیت فقط بر اساس همان آدرس اعمال می شود: دانلود با tc روی رابط همان ورودی (`vawg<شماره ورودی>`) و آپلود با یک محدودکننده nftables برای هر کاربر (`table inet veilon_awgshape`) که بین همه ورودی های AmneziaWG آن کاربر مشترک است. کاربر بدون محدودیت روی همان ورودی با سرعت کامل کار می کند. محدودیت سرعت Xray و TUIC مثل قبل کار می کند و جداست. برای سرور اصلی و نودها (برنامه نود این نسخه؛ نودهای قدیمی تر کاربران AmneziaWG را محدود نمی کنند). MTProto همچنان محدودیت سرعت ندارد
+
+### English
+
+- Speed limits for AmneziaWG users: the user form's download and upload limits now apply on AmneziaWG inbounds too. Every AmneziaWG user has its own tunnel address, so the limit is applied by that address only: download by tc on the inbound's interface (`vawg<inbound id>`), upload by one nftables limiter per user (`table inet veilon_awgshape`) shared across all of that user's AmneziaWG inbounds. A user with no limit on the same inbound runs at full speed. Xray and TUIC speed limits work as before and separately. Main server and nodes (this release's node agent; older agents do not limit AmneziaWG users). MTProto still has no speed limits
+
 ## v0.3.8 (2026-11-12)
 
 ### فارسی

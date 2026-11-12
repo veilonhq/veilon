@@ -70,6 +70,11 @@ const (
 	CapMTProto = inbounds.CapMTProto
 )
 
+// CapAWGShape: the agent applies speed limits to its AmneziaWG users by
+// their tunnel address (BansPush.Limits). Agents before it do not shape
+// AmneziaWG at all; the master sends Limits only to agents with it.
+const CapAWGShape = "awgshape"
+
 // EnginesPush is the body of PUT /v1/engines: the node's AmneziaWG and
 // MTProto inbounds (a cores.NodeSpec) and the hash of exactly these bytes.
 type EnginesPush struct {
@@ -165,6 +170,10 @@ type BansPush struct {
 	// way as the main server (nil from masters older than v0.3.2 =
 	// unchanged).
 	Shapes []guard.Shape `json:"shapes"`
+	// Limits are all users with a speed limit (no IPs), for the AmneziaWG
+	// shaping by tunnel address (agents with CapAWGShape only; nil from
+	// older masters = no AmneziaWG shaping).
+	Limits []guard.Shape `json:"limits,omitempty"`
 }
 
 // Hash is the config hash both sides agree on.

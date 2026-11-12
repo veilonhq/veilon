@@ -114,6 +114,9 @@ type Manager struct {
 	Bans func() []guard.Ban
 	// Shapes is the speed-limit plan; every node gets it with the bans.
 	Shapes func() []guard.Shape
+	// Limits lists every user with a speed limit; nodes with CapAWGShape
+	// get it with the bans, for their AmneziaWG users (nil = not sent).
+	Limits func() []guard.Shape
 	// Version is the main server's version: nodes are updated to it.
 	Version string
 	// ReleaseAPI is the release list nodes are updated from ("" = the
@@ -760,6 +763,15 @@ func (m *Manager) Reset(ctx context.Context, n *db.Node) error {
 	return m.call(ctx, hc, http.MethodPut, baseURL(n)+"/v1/config", ConfigPush{Hash: Hash(cfg), Config: cfg}, nil)
 }
 
+func hasCap(caps []string, c string) bool {
+	for _, x := range caps {
+		if x == c {
+			return true
+		}
+	}
+	return false
+}
+
 // Caps returns the capabilities a node's agent announced; known is false
 // while the node was never reached.
 func (m *Manager) Caps(id int64) (caps []string, known bool) {
@@ -817,6 +829,15 @@ func (m *Manager) sendBans(ctx context.Context, hc *http.Client, n *db.Node) {
 	if shapes == nil {
 		shapes = []guard.Shape{}
 	}
+	var limits []guard.Shape
+	if m.Limits != nil {
+		if caps, _ := m.Caps(n.ID); hasCap(caps, CapAWGShape) {
+			util.Safe("node limits", func() { limits = m.Limits() })
+			if limits == nil {
+				limits = []guard.Shape{}
+			}
+		}
+	}
 	ips := make([]string, len(bans))
 	for i, b := range bans {
 		ips[i] = b.IP
@@ -824,6 +845,12 @@ func (m *Manager) sendBans(ctx context.Context, hc *http.Client, n *db.Node) {
 	sig := strings.Join(ips, ",")
 	for _, s := range shapes {
 		sig += fmt.Sprintf("|%d:%d:%d:%s", s.UserID, s.DownKbps, s.UpKbps, strings.Join(s.IPs, ","))
+	}
+	if limits != nil {
+		sig += "#"
+		for _, s := range limits {
+			sig += fmt.Sprintf("|%d:%d:%d", s.UserID, s.DownKbps, s.UpKbps)
+		}
 	}
 	m.mu.Lock()
 	prev := m.bansSent[n.ID]
@@ -833,13 +860,13 @@ func (m *Manager) sendBans(ctx context.Context, hc *http.Client, n *db.Node) {
 		return
 	case !prev.unsupported && prev.sig == sig && time.Since(prev.at) < time.Minute:
 		return
-	case !prev.unsupported && prev.at.IsZero() && len(bans) == 0 && len(shapes) == 0:
+	case !prev.unsupported && prev.at.IsZero() && len(bans) == 0 && len(shapes) == 0 && len(limits) == 0:
 		m.mu.Lock()
 		m.bansSent[n.ID] = bansState{sig: sig, at: time.Now()}
 		m.mu.Unlock()
 		return
 	}
-	err := m.call(ctx, hc, http.MethodPut, baseURL(n)+"/v1/bans", BansPush{Bans: bans, Shapes: shapes}, nil)
+	err := m.call(ctx, hc, http.MethodPut, baseURL(n)+"/v1/bans", BansPush{Bans: bans, Shapes: shapes, Limits: limits}, nil)
 	st := bansState{sig: sig, at: time.Now()}
 	if err != nil {
 		if strings.Contains(err.Error(), "HTTP 404") || strings.Contains(err.Error(), "HTTP 405") {

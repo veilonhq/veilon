@@ -39,7 +39,7 @@ Xray inbounds (except TUN), AmneziaWG and MTProto (Telegram proxy) can run on no
 - Users' traffic on nodes counts towards their data caps like traffic on the main server. Each node's traffic batch is counted exactly once, even when the panel or the node restarts.
 - **Traffic by server:** the Dashboard history card and the Nodes page show how much users' traffic each server carried (main server, each node, removed nodes) and the total for all servers. A user's usage is the sum over all servers.
 - **IP limits across nodes:** a user's IP limit counts the IPs seen on the main server and on all nodes together. When a user goes over the limit, the newest IPs are blocked for 3 minutes on the main server and on every node.
-- **Speed limits** apply on nodes too. Each server shapes its own connections, so a user connected through two servers at once can reach the limit on each.
+- **Speed limits** apply on nodes too. Each server shapes its own connections, so a user connected through two servers at once can reach the limit on each. AmneziaWG users are limited by their own tunnel address (node agent v0.3.9 or newer).
 - Device (HWID) limits are checked by the panel on every subscription request, so they cover nodes as well.
 - The Nodes page shows status (online, needs attention, unreachable, waiting for install, off), last contact, latency, Xray version, CPU load, memory, traffic and whether the config is in sync.
 - With **Node is on** turned off, the node serves nothing and its links leave the subscriptions.

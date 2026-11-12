@@ -148,7 +148,9 @@ func nodeServe(dir, token, listen string) error {
 	core := &nodes.ProcCore{Bin: filepath.Join(nodeXrayDir(dir), "xray"), Dir: dir, APIPort: apiPort, OnLine: onLine}
 	self, _ := os.Executable()
 	engines := &cores.NodeEngines{Dir: dir, Self: self, MTGBin: filepath.Join(dir, "mtg", "mtg-multi"),
-		MTGVersion: envOr("VEILON_MTG_VERSION", cores.MTGVersion), AutoDownload: os.Getenv("VEILON_NODE_AUTO_DOWNLOAD") != "false"}
+		MTGVersion: envOr("VEILON_MTG_VERSION", cores.MTGVersion), AutoDownload: os.Getenv("VEILON_NODE_AUTO_DOWNLOAD") != "false",
+		AWGPeers: shaper.SetAWGPeers}
+	go shaper.RunAWGLoop(ctx)
 	a := &nodes.Agent{Enrollment: e, Dir: dir, Core: core, APIPort: apiPort, Version: version.Version,
 		IPs: ips, Firewall: &guard.NodeFirewall{}, Shaper: shaper, Updater: nodeUpdater(dir), Engines: engines}
 	defer shaper.ClearShapes()
