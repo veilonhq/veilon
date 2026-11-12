@@ -67,6 +67,14 @@ internal object TunnelWatch {
      */
     fun blockWhileReconnecting(killSwitch: Boolean): Boolean = killSwitch
 
+    /**
+     * 1.0.8 (audit M2): the core session died and auto reconnect is off.
+     * Kill switch on = keep all traffic blocked until the user disconnects;
+     * off = turn the VPN off (normal internet). With auto reconnect on the
+     * reconnect path applies instead ([blockWhileReconnecting]).
+     */
+    fun blockAfterCoreDeath(killSwitch: Boolean, autoReconnect: Boolean): Boolean = killSwitch && !autoReconnect
+
     /** Before a background reconnect brings the tun back: check the server first? */
     fun checkServerBeforeReconnect(killSwitch: Boolean): Boolean = !killSwitch
 

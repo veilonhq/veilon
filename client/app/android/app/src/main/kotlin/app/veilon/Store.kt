@@ -14,6 +14,7 @@ object Store {
     private const val K_PROFILE = "lastProfile"
     private const val K_SETTINGS = "lastSettings"
     private const val K_OPTIONS = "serviceOptions"
+    private const val K_HWID_MODE = "hwidMode"
 
     private fun prefs(ctx: Context): SharedPreferences =
         ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -54,6 +55,28 @@ object Store {
         val s = p.getString("flutter.settings", null) ?: return null
         return runCatching { JSONObject(s) }.getOrNull()
     }
+
+    /**
+     * 1.0.8 (audit L1): the device ID for subscription panels. Decided once
+     * per install and stored: an install that already has subscriptions
+     * (it has sent the raw ANDROID_ID to a panel, which may count devices)
+     * keeps the raw ID; every other install sends [Hwid.hashed].
+     */
+    fun hwid(ctx: Context, androidId: String): String {
+        val p = prefs(ctx)
+        var mode = p.getString(K_HWID_MODE, null)
+        if (mode == null) {
+            val flutter = ctx.applicationContext.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            val subs = flutter.getString("flutter.subs", null)?.trim().orEmpty()
+            mode = if (subs.isNotEmpty() && subs != "[]") "raw" else "hashed"
+            p.edit().putString(K_HWID_MODE, mode).apply()
+        }
+        return Hwid.choose(androidId, legacy = mode == "raw")
+    }
+
+    /** The app's theme choice ("dark" default, "light", "system"), read before Flutter starts. */
+    fun themeMode(ctx: Context): String =
+        runCatching { flutterSettings(ctx)?.optString("theme", "dark") }.getOrNull()?.ifEmpty { "dark" } ?: "dark"
 
     /** Rule-set files the core reads from Settings.assetDir. */
     private val RULE_FILES = listOf("geoip-ir.srs", "geosite-ir.srs", "geosite-category-ads-all.srs")
@@ -140,6 +163,13 @@ object VpnState {
     @Volatile var proxy: String = ""
     @Volatile var down: Double = 0.0
     @Volatile var up: Double = 0.0
+    /**
+     * 1.0.8 (audit M2): ERROR while the kill switch keeps blocking all
+     * traffic (the core died, auto reconnect off). Cleared by any other state;
+     * the app shows "Disconnect" so the user can release it.
+     */
+    @Volatile var blocking: Boolean = false
+        private set
 
     private val main = Handler(Looper.getMainLooper())
     /** Listeners always called on the main thread. */
@@ -156,9 +186,10 @@ object VpnState {
         }
     var onUiChanged: (() -> Unit)? = null
 
-    fun set(newState: String, err: String = "") {
+    fun set(newState: String, err: String = "", block: Boolean = false) {
         state = newState
         error = err
+        blocking = block && newState == ERROR
         if (newState == CONNECTED && since == 0L) since = System.currentTimeMillis()
         if (newState != CONNECTED && newState != CONNECTING) {
             since = 0; down = 0.0; up = 0.0
@@ -174,6 +205,7 @@ object VpnState {
     fun stateMap(): Map<String, Any?> = mapOf(
         "type" to "state", "state" to state, "error" to error, "profileId" to profileId,
         "since" to since, "sessionDown" to sessionDown, "sessionUp" to sessionUp,
+        "blocking" to blocking,
     )
 
     fun statsMap(): Map<String, Any?> = mapOf(

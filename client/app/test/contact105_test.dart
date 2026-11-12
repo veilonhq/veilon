@@ -72,7 +72,7 @@ void main() {
       // Bottom of the page: nothing below the row.
       final about = find.text(lang == 'fa' ? 'درباره' : 'About');
       expect(t.getTopLeft(row).dy, greaterThan(t.getTopLeft(about).dy));
-      await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/settings_contact_$lang.png'));
+      await expectLater(goldenRoot(), matchesGoldenFile('goldens/settings_contact_$lang.png'));
       await t.tap(row);
       await t.pump(const Duration(milliseconds: 200));
       expect(opened, [(Uri.parse('https://t.me/lxhosein'), LaunchMode.externalApplication)]);

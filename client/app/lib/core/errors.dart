@@ -4,7 +4,8 @@ String friendlyErrorKey(String raw) {
   final e = raw.trim();
   if (e.isEmpty) return 'err.friendly.generic';
   if (e == 'denied') return 'err.vpnDenied';
-  if (e.startsWith('err.') && !e.contains(' ')) return e;
+  // "err.key" or "err.key:detail" (err.subCertUntrusted:<sha256>).
+  if (e.startsWith('err.') && !e.contains(' ')) return e.split(':').first;
   // A core error key wrapped in context ("start: err.x").
   final key = RegExp(r'err\.[A-Za-z]+').firstMatch(e);
   if (key != null) return key.group(0)!;

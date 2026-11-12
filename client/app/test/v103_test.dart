@@ -258,7 +258,7 @@ void main() {
       final compact = t.getSize(tile).height;
       expect(compact, lessThan(full - 10), reason: 'compact $compact vs full $full');
       expect((await SharedPreferences.getInstance()).getBool('serversCompact'), isTrue);
-      await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/servers_compact_$lang.png'));
+      await expectLater(goldenRoot(), matchesGoldenFile('goldens/servers_compact_$lang.png'));
 
       final again = await fresh();
       expect(again.serversCompact, isTrue);
@@ -428,7 +428,7 @@ void main() {
         await settle(t, 10);
         expect(state.settings.perAppMode, 'include');
         if (tag != '1080px') {
-          await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/split_tunneling_${tag}_$lang.png'));
+          await expectLater(goldenRoot(), matchesGoldenFile('goldens/split_tunneling_${tag}_$lang.png'));
         }
         await done(t);
       });
@@ -464,16 +464,13 @@ void main() {
     });
   });
 
-  group('tab switch continuity (16 ms steps)', () {
+  // 1.0.8: tab switches are instant (no cross-fade: the 1.0.7 fade put two
+  // full-page offscreen layers on screen for 260 ms). Every frame shows
+  // exactly one page, the target from the first frame after the tap.
+  group('tab switch (16 ms steps, 1.0.8: instant)', () {
     List<double> deck(WidgetTester t) => [
           for (var i = 0; i < Shell.pageCount; i++)
-            () {
-              final f = find.byKey(ValueKey('deck-opacity-$i'), skipOffstage: false);
-              // 1.0.7: the deck fades with FadeTransition (was Opacity).
-              final o = t.widget<FadeTransition>(f);
-              final off = find.ancestor(of: f, matching: find.byType(Offstage)).evaluate().any((e) => (e.widget as Offstage).offstage);
-              return off ? 0.0 : o.opacity.value;
-            }(),
+            (t.widget<Offstage>(find.byKey(ValueKey('deck-page-$i'), skipOffstage: false)).offstage ? 0.0 : 1.0),
         ];
 
     Future<void> run(WidgetTester t, String name, List<(int?, int)> steps) async {
@@ -483,30 +480,19 @@ void main() {
       final k = GlobalKey();
       await t.pumpWidget(RepaintBoundary(key: k, child: VeilonApp(state: state)));
       await settle(t, 10);
-      final rows = <List<double>>[];
       final images = <ui.Image>[];
       var n = 0;
       for (final (tab, frames) in steps) {
         if (tab != null) await tapTab(t, tab);
         for (var i = 0; i < frames; i++) {
           await t.pump(frame);
-          rows.add(deck(t));
+          final r = deck(t);
+          expect(r.reduce((a, b) => a + b), 1.0, reason: '$name: exactly one page on stage $r');
+          if (tab != null && i == 0) expect(r[tab], 1.0, reason: '$name: target shown on the first frame');
           if (n++ % 2 == 0) images.add(await grab(t, k, 0.25));
         }
       }
       await saveStrip(t, images, 'tabs_$name');
-      for (var p = 0; p < Shell.pageCount; p++) {
-        final col = rows.map((r) => r[p]).toList();
-        expect(maxStep(col), lessThanOrEqualTo(0.2), reason: '$name: page $p opacity jumps: $col');
-      }
-      // Never a blank frame: something is (nearly) fully shown at every step.
-      for (final r in rows) {
-        expect(r.reduce((a, b) => a + b), greaterThan(0.6), reason: '$name: frame too empty $r');
-      }
-      final front = Shell.indexOf(t.element(find.byType(TabRail)));
-      for (var i = 0; i < Shell.pageCount; i++) {
-        expect(rows.last[i], closeTo(i == front ? 1.0 : 0.0, 0.001));
-      }
       await done(t);
     }
 

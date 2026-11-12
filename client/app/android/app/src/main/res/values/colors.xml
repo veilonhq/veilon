@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Window colours of the app themes (Palette.bg dark / light). -->
+    <color name="veilon_bg_dark">#FF07080C</color>
+    <color name="veilon_bg_light">#FFF4F5FA</color>
+    <!-- "System" follows the device: light here, dark in values-night. -->
+    <color name="veilon_bg_system">#FFF4F5FA</color>
+</resources>

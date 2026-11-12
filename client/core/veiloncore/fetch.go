@@ -213,13 +213,19 @@ func fetchSubscriptionOnce(rawURL string, d Device, proxyAddr string, timeout ti
 	c := httpClient(proxyAddr, timeout)
 	resp, body, err := get(ctx, c, rawURL, d)
 	if err != nil && isCertError(err) {
-		// Most panel sub links on an IP:port carry a
-		// self-signed or domain-only certificate. Like other v2ray clients,
-		// accept it rather than refuse the import (the body is the same
-		// share links the user pasted the URL for).
-		pushLogLevel("warn", "subscription: TLS certificate not trusted ("+certErrorKind(err)+"); retrying without verification")
-		c = httpClientTLS(proxyAddr, timeout, true)
-		resp, body, err = get(ctx, c, rawURL, d)
+		// 1.0.8 (audit H1): never retry without certificate verification.
+		// A literal-IP sub server (self-signed panel certificate) is
+		// retried only with the certificate the user approved (SHA-256
+		// pin); otherwise the app gets err.subCertUntrusted:<sha256> (IP)
+		// or err.subCertInvalid (domain). See subtls.go.
+		if pin := subPinFor(rawURL); pin != "" {
+			c = pinnedSubClient(proxyAddr, timeout, pin)
+			resp, body, err = get(ctx, c, rawURL, d)
+			err = cleanSubCertError(err)
+		} else {
+			pushLogLevel("warn", "subscription: TLS certificate not trusted ("+certErrorKind(err)+"); not fetched")
+			err = subCertFailure(ctx, rawURL, proxyAddr, timeout, err)
+		}
 	}
 	if err != nil {
 		res.Errors = append(res.Errors, err.Error())

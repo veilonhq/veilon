@@ -403,7 +403,12 @@ class VeilonVpnService : VpnService() {
         if (userStopped || destroyed) return
         options = Store.options(this)
         if (!options.autoReconnect) {
-            fail(reason)
+            // 1.0.8 (audit M2): with the kill switch on, a dead core must not
+            // hand traffic back to the clear network. Keep blocking until the
+            // user disconnects (until 1.0.7 fail() closed the tun and the
+            // blocker, so everything went out unprotected).
+            if (TunnelWatch.blockAfterCoreDeath(options.killSwitch, options.autoReconnect)) failBlocking(reason)
+            else fail(reason)
             return
         }
         stopTicker()
@@ -544,6 +549,38 @@ class VeilonVpnService : VpnService() {
         onCore("fail stop") {
             runCatching { Veiloncore.stop() }
             post("failed") { teardown(g, VpnState.ERROR, msg) }
+        }
+    }
+
+    /**
+     * 1.0.8 (audit M2): kill switch on + auto reconnect off and the session
+     * died. The blocking tun goes up BEFORE the core releases its own (no
+     * gap); the service stays in the foreground in ERROR + blocking until the
+     * user disconnects (stopVpn → teardown closes the blocker) or connects
+     * again (the new tun replaces the blocker).
+     */
+    private fun failBlocking(msg: String) {
+        if (destroyed) return
+        userStopped = true
+        val g = ++gen
+        cancelReconnect()
+        stopTicker()
+        openBlocker()
+        onCore("fail stop (blocking)") {
+            runCatching { Veiloncore.stop() }
+            post("failed (blocking)") {
+                if (g != gen) return@post
+                closeTun()
+                // establish() of the blocker can fail (permission revoked):
+                // then there is nothing to keep, fall back to a normal stop.
+                if (synchronized(tunLock) { blockPfd == null }) {
+                    teardown(g, VpnState.ERROR, msg)
+                    return@post
+                }
+                runCatching { Veiloncore.writeLog("warn", "connection lost: kill switch on and auto reconnect off, so all traffic stays blocked until you disconnect") }
+                VpnState.set(VpnState.ERROR, msg, block = true)
+                updateNotification()
+            }
         }
     }
 
@@ -929,6 +966,9 @@ class VeilonVpnService : VpnService() {
             VpnState.CONNECTED -> name to if (VpnState.proxy == "unreachable")
                 (if (fa) "سرور در دسترس نیست" else "Server unreachable")
             else speedLine(VpnState.up, VpnState.down)
+            VpnState.ERROR -> name to if (VpnState.blocking)
+                (if (fa) "اتصال قطع شد؛ کیل سوییچ اینترنت را مسدود نگه داشته" else "Connection lost; kill switch is blocking the internet")
+            else (if (fa) "خطا" else "Error")
             else -> name to if (fa) "در حال اتصال…" else "Connecting…"
         }
         val stop = PendingIntent.getService(
@@ -955,7 +995,7 @@ class VeilonVpnService : VpnService() {
 
     private fun updateNotification() {
         if (destroyed) return
-        if (userStopped && VpnState.state != VpnState.CONNECTING) return
+        if (userStopped && VpnState.state != VpnState.CONNECTING && !VpnState.blocking) return
         runCatching {
             (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIF_ID, buildNotification())
         }

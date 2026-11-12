@@ -29,34 +29,41 @@ class Glass extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final r = BorderRadius.circular(radius);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: r,
-        boxShadow: [
-          if (glow != null) BoxShadow(color: glow!.withValues(alpha: 0.22), blurRadius: 36, spreadRadius: -6),
-          // No dark drop shadow: the card is translucent, so it would show
-          // through as a hard inner rectangle.
-        ],
-      ),
+    final light = Palette.isLight;
+    final List<Color> colors;
+    if (light) {
+      // Light: near-opaque white cards (a tint washes in lightly).
+      colors = tint == null
+          ? [Palette.card, Palette.card2]
+          : [Color.alphaBlend(tint!.withValues(alpha: 0.10), Palette.card), Color.alphaBlend(tint!.withValues(alpha: 0.05), Palette.card2)];
+    } else {
+      colors = [
+        Color.alphaBlend((tint ?? Colors.white).withValues(alpha: tint == null ? 0.085 : 0.15), _base),
+        Color.alphaBlend((tint ?? Colors.white).withValues(alpha: tint == null ? 0.03 : 0.055), _base),
+      ];
+    }
+    final card = DecoratedBox(
       // No BackdropFilter: the background is a soft, constantly moving
       // aurora, so a live blur would be recomputed for every card on every
       // frame (the main source of jank) for almost no visual difference.
       // A translucent gradient over a slightly darker base looks the same.
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: r,
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color.alphaBlend((tint ?? Colors.white).withValues(alpha: tint == null ? 0.085 : 0.15), _base),
-              Color.alphaBlend((tint ?? Colors.white).withValues(alpha: tint == null ? 0.03 : 0.055), _base),
-            ],
-          ),
-          border: Border.all(color: borderColor ?? Palette.line, width: 1),
-        ),
-        child: Padding(padding: padding, child: child),
+      decoration: BoxDecoration(
+        borderRadius: r,
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: colors),
+        border: Border.all(color: borderColor ?? Palette.line, width: 1),
       ),
+      child: Padding(padding: padding, child: child),
+    );
+    // Glow: a rounded-rect shadow (drawn analytically by the GPU, no
+    // offscreen blur pass). No dark drop shadow: the card is translucent,
+    // so it would show through as a hard inner rectangle.
+    if (glow == null) return card;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: r,
+        boxShadow: [BoxShadow(color: glow!.withValues(alpha: light ? 0.16 : 0.22), blurRadius: 36, spreadRadius: -6)],
+      ),
+      child: card,
     );
   }
 }
@@ -136,9 +143,11 @@ class _PressableState extends State<Pressable> {
 
 /// Small rounded label.
 class Pill extends StatelessWidget {
-  const Pill({super.key, required this.text, this.color = Palette.text2, this.filled = false, this.icon});
+  // ignore: prefer_initializing_formals
+  const Pill({super.key, required this.text, Color? color, this.filled = false, this.icon}) : _color = color;
   final String text;
-  final Color color;
+  final Color? _color;
+  Color get color => _color ?? Palette.text2;
   final bool filled;
   final IconData? icon;
 
@@ -169,11 +178,11 @@ class SectionTitle extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(Gap.xs, Gap.xl, Gap.xs, Gap.s),
       child: Row(children: [
-        Container(width: 6, height: 6, decoration: const BoxDecoration(color: Palette.lime, shape: BoxShape.circle)),
+        Container(width: 6, height: 6, decoration: BoxDecoration(color: Palette.lime, shape: BoxShape.circle)),
         const SizedBox(width: Gap.s),
         Expanded(
           child: Text(text,
-              style: const TextStyle(
+              style: TextStyle(
                   color: Palette.text2, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
         ),
         ?trailing,
@@ -184,10 +193,12 @@ class SectionTitle extends StatelessWidget {
 
 /// Round icon button with glass backing.
 class GlassIconButton extends StatelessWidget {
-  const GlassIconButton({super.key, required this.icon, this.onTap, this.color = Palette.text, this.busy = false, this.tooltip});
+  // ignore: prefer_initializing_formals
+  const GlassIconButton({super.key, required this.icon, this.onTap, Color? color, this.busy = false, this.tooltip}) : _color = color;
   final IconData icon;
   final VoidCallback? onTap;
-  final Color color;
+  final Color? _color;
+  Color get color => _color ?? Palette.text;
   final bool busy;
   final String? tooltip;
 
@@ -231,17 +242,18 @@ class PrimaryButton extends StatelessWidget {
         height: 52,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(Radii.m),
-          gradient: const LinearGradient(colors: [Color(0xFFD8FF6E), Palette.lime]),
-          boxShadow: [BoxShadow(color: Palette.lime.withValues(alpha: 0.35), blurRadius: 24, spreadRadius: -6)],
+          gradient: LinearGradient(colors: [Palette.limeFill2, Palette.limeFill]),
+          border: Palette.isLight ? Border.all(color: Palette.lime.withValues(alpha: 0.35)) : null,
+          boxShadow: [BoxShadow(color: Palette.limeFill.withValues(alpha: Palette.isLight ? 0.45 : 0.35), blurRadius: 24, spreadRadius: -6)],
         ),
         child: Center(
           child: busy
-              ? const SizedBox(
+              ? SizedBox(
                   width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Palette.limeInk))
               : Row(mainAxisSize: MainAxisSize.min, children: [
                   if (icon != null) ...[Icon(icon, color: Palette.limeInk, size: 20), const SizedBox(width: Gap.s)],
                   Text(label,
-                      style: const TextStyle(color: Palette.limeInk, fontWeight: FontWeight.w800, fontSize: 15)),
+                      style: TextStyle(color: Palette.limeInk, fontWeight: FontWeight.w800, fontSize: 15)),
                 ]),
         ),
       ),

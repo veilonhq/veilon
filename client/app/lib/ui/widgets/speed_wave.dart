@@ -122,14 +122,20 @@ class _WavePainter extends CustomPainter {
           ..shader = ui.Gradient.linear(Offset(0, up ? 0 : h), Offset(0, mid),
               [color.withValues(alpha: active ? 0.38 : 0.12), color.withValues(alpha: 0.0)]),
       );
-      canvas.drawPath(
-        line,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 5
-          ..color = color.withValues(alpha: 0.25)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-      );
+      // 1.0.8: the glow under the line was a mask blur (an offscreen
+      // blur pass per curve on every frame the home page is shown); two
+      // wide translucent strokes look the same and need no blur pass.
+      for (final (wd, a) in [(14.0, 0.07), (8.0, 0.12)]) {
+        canvas.drawPath(
+          line,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = wd
+            ..strokeCap = StrokeCap.round
+            ..strokeJoin = StrokeJoin.round
+            ..color = color.withValues(alpha: a),
+        );
+      }
       canvas.drawPath(
         line,
         Paint()

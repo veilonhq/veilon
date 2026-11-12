@@ -84,7 +84,7 @@ class _RulesPageState extends State<RulesPage> {
             ],
           ]),
           const SizedBox(height: Gap.m),
-          Text(s.t('rules.hint'), style: const TextStyle(color: Palette.muted, fontSize: 12, height: 1.6)),
+          Text(s.t('rules.hint'), style: TextStyle(color: Palette.muted, fontSize: 12, height: 1.6)),
           const SizedBox(height: Gap.m),
           Expanded(
             child: TextField(

@@ -31,6 +31,22 @@ fun main() {
     check("reconnect wait, ks off: no tun", !W.blockWhileReconnecting(false))
     check("reconnect wait, ks on: block", W.blockWhileReconnecting(true))
     check("ks off: server checked before the tun comes back", W.checkServerBeforeReconnect(false) && !W.checkServerBeforeReconnect(true))
+    // 1.0.8 (M2): core died, auto reconnect off.
+    check("ks on + no reconnect: keep blocking", W.blockAfterCoreDeath(true, false))
+    check("ks off + no reconnect: VPN off", !W.blockAfterCoreDeath(false, false))
+    check("auto reconnect on: reconnect path", !W.blockAfterCoreDeath(true, true) && !W.blockAfterCoreDeath(false, true))
+    // 1.0.8 (L1): hashed device ID.
+    val h = Hwid.hashed("0123456789abcdef")
+    check("hwid: 16 lower hex", h.length == 16 && h.all { it in "0123456789abcdef" })
+    check("hwid: stable", h == Hwid.hashed("0123456789abcdef"))
+    check("hwid: not the raw id", h != "0123456789abcdef" && Hwid.hashed("0123456789abcdee") != h)
+    check("hwid: empty stays empty", Hwid.hashed("") == "")
+    check("hwid: legacy installs keep the raw id", Hwid.choose("0123456789abcdef", legacy = true) == "0123456789abcdef")
+    check("hwid: new installs send the hash", Hwid.choose("0123456789abcdef", legacy = false) == h)
+    // 1.0.8 (L5): update APK signer check.
+    check("signers equal", AppUpdateCerts.sameSigners(setOf("aa", "bb"), setOf("bb", "aa")))
+    check("signers differ", !AppUpdateCerts.sameSigners(setOf("aa"), setOf("cc")))
+    check("signers: empty never matches", !AppUpdateCerts.sameSigners(emptySet(), emptySet()) && !AppUpdateCerts.sameSigners(setOf("aa"), emptySet()))
     // URLTestError parsing.
     check("answered 157", W.answered("{\"delay\":157}"))
     check("answered 0", W.answered("{\"delay\": 0}"))

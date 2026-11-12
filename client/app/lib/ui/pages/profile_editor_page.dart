@@ -121,7 +121,7 @@ class _ProfileEditorPageState extends State<ProfileEditorPage> {
         builder: (ctx) => AlertDialog(
           title: Text(fa ? 'هسته این پیکربندی را نپذیرفت' : 'The core rejected this config'),
           content: Text(friendlyErrorKey(coreErr).startsWith('err.friendly.') ? coreErr : s.t(friendlyErrorKey(coreErr)),
-              style: const TextStyle(color: Palette.warn, fontSize: 13)),
+              style: TextStyle(color: Palette.warn, fontSize: 13)),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(s.t('common.cancel'))),
             FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text(fa ? 'ذخیره در هر حال' : 'Save anyway')),
@@ -197,7 +197,7 @@ class _ProfileEditorPageState extends State<ProfileEditorPage> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
               const SizedBox(height: 2),
-              Text(p.label, style: const TextStyle(color: Palette.muted, fontSize: 12)),
+              Text(p.label, style: TextStyle(color: Palette.muted, fontSize: 12)),
             ]),
           ),
           if (widget.profile.subId != null)
@@ -235,12 +235,12 @@ class _ProfileEditorPageState extends State<ProfileEditorPage> {
           key: key,
           color: Palette.glass,
           shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(Radii.m), side: const BorderSide(color: Palette.line)),
+              borderRadius: BorderRadius.circular(Radii.m), side: BorderSide(color: Palette.line)),
           clipBehavior: Clip.antiAlias,
           child: SwitchListTile(
             dense: true,
             title: Text(f.label(fa), style: const TextStyle(fontSize: 14)),
-            subtitle: f.hint(fa).isEmpty ? null : Text(f.hint(fa), style: const TextStyle(color: Palette.muted, fontSize: 12)),
+            subtitle: f.hint(fa).isEmpty ? null : Text(f.hint(fa), style: TextStyle(color: Palette.muted, fontSize: 12)),
             value: _vals[f.path] == 'true',
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.m)),
             onChanged: (v) => setState(() => _vals[f.path] = v ? 'true' : 'false'),
@@ -333,8 +333,8 @@ class _ProfileEditorPageState extends State<ProfileEditorPage> {
         helperText: f.hint(fa).isEmpty ? null : f.hint(fa),
         helperMaxLines: 3,
         errorMaxLines: 3,
-        labelStyle: const TextStyle(color: Palette.text2),
-        helperStyle: const TextStyle(color: Palette.muted, fontSize: 11.5),
+        labelStyle: TextStyle(color: Palette.text2),
+        helperStyle: TextStyle(color: Palette.muted, fontSize: 11.5),
       );
 
   Widget _rawSection(bool fa) {
@@ -353,7 +353,7 @@ class _ProfileEditorPageState extends State<ProfileEditorPage> {
                 style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
             subtitle: Text(
                 fa ? 'برای فیلدهایی که در فرم بالا نیستند' : 'For anything the form above does not cover',
-                style: const TextStyle(color: Palette.muted, fontSize: 12)),
+                style: TextStyle(color: Palette.muted, fontSize: 12)),
             onExpansionChanged: (open) {
               if (open) {
                 _raw.text = const JsonEncoder.withIndent('  ').convert(_current());
@@ -485,13 +485,13 @@ class _MaskListFieldState extends State<_MaskListField> {
     final f = widget.spec;
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(children: [
-        Expanded(child: Text(f.label(fa), style: const TextStyle(color: Palette.text2, fontWeight: FontWeight.w600))),
+        Expanded(child: Text(f.label(fa), style: TextStyle(color: Palette.text2, fontWeight: FontWeight.w600))),
         Pill(text: '${_rows.length}', color: Palette.violetFg),
       ]),
       if (f.hint(fa).isNotEmpty)
         Padding(
           padding: const EdgeInsets.only(top: 2, bottom: Gap.s),
-          child: Text(f.hint(fa), style: const TextStyle(color: Palette.muted, fontSize: 11.5)),
+          child: Text(f.hint(fa), style: TextStyle(color: Palette.muted, fontSize: 11.5)),
         ),
       for (var i = 0; i < _rows.length; i++)
         Container(
@@ -505,7 +505,7 @@ class _MaskListFieldState extends State<_MaskListField> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Row(children: [
               Text(fa ? 'لایه ${i + 1}' : 'Layer ${i + 1}',
-                  style: const TextStyle(color: Palette.lime, fontWeight: FontWeight.w700, fontSize: 12.5)),
+                  style: TextStyle(color: Palette.lime, fontWeight: FontWeight.w700, fontSize: 12.5)),
               const Spacer(),
               IconButton(
                   visualDensity: VisualDensity.compact,
@@ -520,7 +520,7 @@ class _MaskListFieldState extends State<_MaskListField> {
               IconButton(
                   visualDensity: VisualDensity.compact,
                   tooltip: fa ? 'حذف' : 'Remove',
-                  icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Palette.danger),
+                  icon: Icon(Icons.delete_outline_rounded, size: 18, color: Palette.danger),
                   onPressed: () => _remove(i)),
             ]),
             TextFormField(
@@ -531,7 +531,7 @@ class _MaskListFieldState extends State<_MaskListField> {
                 labelText: fa ? 'نوع *' : 'Type *',
                 helperText: f.maskTypes.join(' · '),
                 helperMaxLines: 2,
-                helperStyle: const TextStyle(color: Palette.muted, fontSize: 11),
+                helperStyle: TextStyle(color: Palette.muted, fontSize: 11),
               ),
               validator: (v) => (v ?? '').trim().isEmpty ? errorText(('maskType', null, null), fa) : null,
               onChanged: (_) => _emit(),

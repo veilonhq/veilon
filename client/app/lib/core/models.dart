@@ -231,6 +231,10 @@ class AppSettings {
   AppSettings();
 
   String language = 'fa';
+
+  /// App theme (1.0.8): 'dark' (default, unchanged look), 'light' or
+  /// 'system' (follows the device). UI only: not sent to the core.
+  String theme = 'dark';
   bool killSwitch = false;
   bool autoConnect = false;
   bool autoReconnect = true;
@@ -239,7 +243,9 @@ class AppSettings {
   bool autoSelectFastest = false;
   int mtu = 9000;
   String remoteDns = 'https://1.1.1.1/dns-query';
-  String directDns = '223.5.5.5';
+  /// 1.0.8 (audit M1): new installs resolve direct domains with DNS over
+  /// HTTPS to the same resolver (no plain UDP). Saved values are kept.
+  String directDns = 'https://223.5.5.5/dns-query';
   bool disableQuic = false;
   bool bypassIran = true;
   bool bypassLan = true;
@@ -265,6 +271,8 @@ class AppSettings {
   factory AppSettings.fromJson(Map<String, dynamic> j) {
     final s = AppSettings();
     s.language = j['language'] as String? ?? s.language;
+    final th = j['theme'];
+    s.theme = th is String && const ['dark', 'light', 'system'].contains(th) ? th : 'dark';
     s.killSwitch = j['killSwitch'] as bool? ?? s.killSwitch;
     s.autoConnect = j['autoConnect'] as bool? ?? s.autoConnect;
     s.autoReconnect = j['autoReconnect'] as bool? ?? s.autoReconnect;
@@ -299,6 +307,7 @@ class AppSettings {
 
   Map<String, dynamic> toJson() => {
     'language': language,
+    'theme': theme,
     'killSwitch': killSwitch,
     'autoConnect': autoConnect,
     'autoReconnect': autoReconnect,

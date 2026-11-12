@@ -47,7 +47,7 @@ class SettingsPage extends StatelessWidget {
                 borderColor: Palette.warn.withValues(alpha: 0.4),
                 padding: const EdgeInsets.all(Gap.m),
                 child: Row(children: [
-                  const Icon(Icons.restart_alt_rounded, color: Palette.warn),
+                  Icon(Icons.restart_alt_rounded, color: Palette.warn),
                   const SizedBox(width: Gap.m),
                   Expanded(child: Text(s.t('settings.reconnectNeeded'), style: const TextStyle(fontWeight: FontWeight.w700))),
                 ]),
@@ -65,6 +65,15 @@ class SettingsPage extends StatelessWidget {
               value: st.language,
               onChanged: (v) => app.setLanguage(v),
             ),
+          ),
+          _ChoiceTile(
+            key: const ValueKey('setting-theme'),
+            icon: Icons.contrast_rounded,
+            title: s.t('settings.theme'), info: 'info.theme',
+            values: const ['dark', 'light', 'system'],
+            labels: [s.t('theme.dark'), s.t('theme.light'), s.t('theme.system')],
+            value: st.theme,
+            onChanged: (v) => app.setTheme(v),
           ),
         ]),
         SectionTitle(s.t('settings.connection')),
@@ -174,7 +183,7 @@ class SettingsPage extends StatelessWidget {
             onTap: () => _editText(context, s.t('settings.directDns'), st.directDns, (v) {
               st.directDns = v;
               save();
-            }, presets: const ['223.5.5.5', '8.8.8.8', '1.1.1.1', '78.157.42.100', '178.22.122.100', '217.218.127.127']),
+            }, presets: const ['https://223.5.5.5/dns-query', '223.5.5.5', '8.8.8.8', '1.1.1.1', '78.157.42.100', '178.22.122.100', '217.218.127.127']),
           ),
         ]),
         SectionTitle(s.t('settings.advanced')),
@@ -286,7 +295,7 @@ class SettingsPage extends StatelessWidget {
               title: s.t('settings.contact'),
               subtitle: '@${ContactLink.uri!.pathSegments.last}',
               ltrSubtitle: true,
-              trailing: const Icon(Icons.open_in_new_rounded, size: 18, color: Palette.muted),
+              trailing: Icon(Icons.open_in_new_rounded, size: 18, color: Palette.muted),
               onTap: () async {
                 if (!await ContactLink.open() && context.mounted) showToast(context, s.t('settings.contactFailed'));
               },
@@ -321,7 +330,7 @@ Future<void> _editText(BuildContext context, String title, String value, ValueCh
                 label: Text(p, textDirection: TextDirection.ltr, style: const TextStyle(fontSize: 12)),
                 onPressed: () => c.text = p,
                 backgroundColor: Palette.glass,
-                side: const BorderSide(color: Palette.line),
+                side: BorderSide(color: Palette.line),
               ),
           ]),
         ],
@@ -346,7 +355,7 @@ class _Group extends StatelessWidget {
       child: Column(children: [
         for (var i = 0; i < children.length; i++) ...[
           children[i],
-          if (i < children.length - 1) const Divider(height: 1, indent: 58, color: Palette.line),
+          if (i < children.length - 1) Divider(height: 1, indent: 58, color: Palette.line),
         ],
       ]),
     );
@@ -406,7 +415,7 @@ class _Tile extends StatelessWidget {
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                       textDirection: ltrSubtitle ? TextDirection.ltr : null,
-                      style: const TextStyle(color: Palette.muted, fontSize: 12, height: 1.4)),
+                      style: TextStyle(color: Palette.muted, fontSize: 12, height: 1.4)),
                 ),
             ]),
           ),
@@ -455,6 +464,7 @@ class _Switch extends StatelessWidget {
 /// labels and a hint on narrow screens).
 class _ChoiceTile extends StatelessWidget {
   const _ChoiceTile({
+    super.key,
     required this.icon,
     required this.title,
     this.info,
@@ -491,7 +501,7 @@ class _ChoiceTile extends StatelessWidget {
             if (subtitle != null && subtitle!.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 2),
-                child: Text(subtitle!, style: const TextStyle(color: Palette.muted, fontSize: 12, height: 1.4)),
+                child: Text(subtitle!, style: TextStyle(color: Palette.muted, fontSize: 12, height: 1.4)),
               ),
             const SizedBox(height: Gap.s),
             FittedBox(
@@ -530,7 +540,7 @@ class _Segmented extends StatelessWidget {
               curve: Curves.easeOutCubic,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: values[i] == value ? Palette.lime : Colors.transparent,
+                color: values[i] == value ? Palette.limeFill : Colors.transparent,
                 borderRadius: BorderRadius.circular(99),
               ),
               child: Text(labels[i],
@@ -614,7 +624,7 @@ Future<void> showSettingInfo(BuildContext context, String title, String text) {
             color: Palette.bg2,
             borderRadius: BorderRadius.circular(Radii.l),
             border: Border.all(color: Palette.line2),
-            boxShadow: const [BoxShadow(color: Color(0x99000000), blurRadius: 30, offset: Offset(0, 10))],
+            boxShadow: [BoxShadow(color: Palette.shadow, blurRadius: 30, offset: const Offset(0, 10))],
           ),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
@@ -622,13 +632,13 @@ Future<void> showSettingInfo(BuildContext context, String title, String text) {
                 width: 30,
                 height: 30,
                 decoration: BoxDecoration(color: Palette.violet.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.info_outline_rounded, size: 18, color: Palette.violet),
+                child: Icon(Icons.info_outline_rounded, size: 18, color: Palette.violet),
               ),
               const SizedBox(width: Gap.m),
               Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16))),
             ]),
             const SizedBox(height: Gap.m),
-            Text(text, style: const TextStyle(color: Palette.text2, fontSize: 13.5, height: 1.6)),
+            Text(text, style: TextStyle(color: Palette.text2, fontSize: 13.5, height: 1.6)),
             const SizedBox(height: Gap.m),
             Align(
               alignment: AlignmentDirectional.centerEnd,

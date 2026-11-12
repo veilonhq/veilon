@@ -56,6 +56,12 @@ class Native {
   Future<Map<String, dynamic>> parseConf(String text, String name) async =>
       _decode(await _call<String>('parseConf', {'text': text, 'name': name}));
 
+  /// 1.0.8 (H1): approved certificate pins `{"ip:port": "<sha256 hex>"}`.
+  Future<void> setSubPins(String pinsJson) => _call('setSubPins', {'pins': pinsJson});
+
+  /// 1.0.8: native window colour / starting-window theme for 'dark' | 'light' | 'system'.
+  Future<void> setTheme(String mode) => _call('setTheme', {'mode': mode});
+
   Future<Map<String, dynamic>> fetchSubscription(String url, Map<String, dynamic> device) async =>
       _decode(await _call<String>('fetchSub', {'url': url, 'device': jsonEncode(device)}));
 

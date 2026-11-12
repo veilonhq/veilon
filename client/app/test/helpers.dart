@@ -2,10 +2,21 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:veilon/core/native.dart';
+import 'package:veilon/theme/theme_host.dart';
 import 'package:veilon/ui/sheets/add_sheet.dart';
+
+/// What goldens capture: the whole screen at device resolution. Since 1.0.8
+/// the app sits in a [ThemeHost] whose RepaintBoundary is the nearest one
+/// above MaterialApp (it would capture at 1x); starting at the host walks up
+/// to the view (dpr). Tests that pump a bare MaterialApp keep using it.
+Finder goldenRoot() {
+  final host = find.byType(ThemeHost);
+  return host.evaluate().isNotEmpty ? host : find.byType(MaterialApp);
+}
 
 const coreChannel = MethodChannel('app.veilon/core');
 const eventsChannel = EventChannel('app.veilon/events');
@@ -82,6 +93,11 @@ int fakeDelay = 97;
 
 /// When set, 'fetchSub' waits for it (a hanging subscription server).
 Completer<void>? fetchSubGate;
+
+/// 1.0.8: when set, answers 'fetchSub' (args: url, device) instead of
+/// [fakeSubResult]; [lastSubPins] is the last 'setSubPins' JSON.
+Map<String, dynamic> Function(Map args)? fakeSubHandler;
+String? lastSubPins;
 List<Map<String, Object>>? fakeApps;
 
 /// Icon bytes the mock returns for every 'appIcon' call (null = no icon).
@@ -129,8 +145,12 @@ void installNativeMocks() {
         return fakeAppIcon;
       case 'installedAbis':
         return fakeAbis;
+      case 'setSubPins':
+        lastSubPins = (call.arguments as Map)['pins'] as String?;
+        return true;
       case 'fetchSub':
         if (fetchSubGate != null) await fetchSubGate!.future;
+        if (fakeSubHandler != null) return jsonEncode(fakeSubHandler!(call.arguments as Map));
         return jsonEncode(fakeSubResult ?? {'status': 200, 'profiles': []});
       default:
         return null;

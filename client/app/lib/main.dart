@@ -9,6 +9,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/app_state.dart';
 import 'l10n/strings.dart';
 import 'theme/palette.dart';
+import 'theme/theme_host.dart';
 import 'ui/shell.dart';
 
 /// 1.0.6: no Dart error may take the app down. Framework errors (build /
@@ -45,12 +46,6 @@ Future<void> _main() async {
   WidgetsFlutterBinding.ensureInitialized();
   installErrorGuards();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    systemNavigationBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light,
-    systemNavigationBarIconBrightness: Brightness.light,
-  ));
   final state = AppState();
   try {
     await state.init();
@@ -58,6 +53,11 @@ Future<void> _main() async {
     // Start with whatever loaded rather than not at all.
     _note(e, st);
   }
+  // 1.0.8: the saved theme is applied before the first frame (no dark
+  // frame for light users, and the status bar icons match from the start).
+  final palette = paletteFor(state.settings.theme, PlatformDispatcher.instance.platformBrightness);
+  Palette.use(palette);
+  SystemChrome.setSystemUIOverlayStyle(systemBarsFor(palette));
   runApp(VeilonApp(state: state));
 }
 
@@ -75,16 +75,23 @@ class VeilonApp extends StatelessWidget {
       // ThemeData; AnimatedTheme then re-ran its theme animation and every
       // Theme dependant (all four pages, each Scrollable, which also
       // replaced its ScrollPosition) rebuilt on every frame of it.
-      child: AppSelector<String>(
-        select: (a) => a.settings.language,
-        builder: (context, lang, _) {
+      child: AppSelector<(String, String)>(
+        select: (a) => (a.settings.language, a.settings.theme),
+        builder: (context, sel, _) {
+        final (lang, theme) = sel;
         final s = S(lang);
-        return SScope(
+        return ThemeHost(
+          mode: theme,
+          onPalette: (p) => state.nativeThemeChanged(theme),
+          builder: (context, palette) => SScope(
           s: s,
           child: MaterialApp(
             title: 'Veilon',
             debugShowCheckedModeBanner: false,
-            theme: appTheme,
+            theme: themeFor(palette),
+            // The theme switch is ThemeHost's cross-fade; MaterialApp must
+            // not lerp ThemeData over extra frames on top of it.
+            themeAnimationDuration: Duration.zero,
             scrollBehavior: const VeilonScrollBehavior(),
             locale: Locale(lang),
             supportedLocales: const [Locale('fa'), Locale('en')],
@@ -96,6 +103,7 @@ class VeilonApp extends StatelessWidget {
             builder: (context, child) => SScope(s: s, child: child!),
             home: const Shell(),
           ),
+        ),
         );
         },
       ),

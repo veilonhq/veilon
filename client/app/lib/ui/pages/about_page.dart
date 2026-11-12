@@ -34,12 +34,12 @@ class _AboutPageState extends State<AboutPage> {
         Center(
           child: Column(children: [
             ShaderMask(
-              shaderCallback: (r) => const LinearGradient(colors: [Palette.lime, Palette.violetFg]).createShader(r),
-              child: const Text('Veilon',
-                  style: TextStyle(fontFamily: Fonts.display, fontFamilyFallback: Fonts.fallback, fontSize: 44, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -1.5)),
+              shaderCallback: (r) => LinearGradient(colors: [Palette.lime, Palette.violetFg]).createShader(r),
+              child: Text('Veilon',
+                  style: TextStyle(fontFamily: Fonts.display, fontFamilyFallback: Fonts.fallback, fontSize: 44, fontWeight: FontWeight.w800, color: Palette.text, letterSpacing: -1.5)),
             ),
             const SizedBox(height: Gap.xs),
-            Text(s.t('about.license'), style: const TextStyle(color: Palette.muted)),
+            Text(s.t('about.license'), style: TextStyle(color: Palette.muted)),
           ]),
         ),
         const SizedBox(height: Gap.xl),
@@ -54,7 +54,7 @@ class _AboutPageState extends State<AboutPage> {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: Gap.s),
                 child: Row(children: [
-                  Text(k, style: const TextStyle(color: Palette.muted)),
+                  Text(k, style: TextStyle(color: Palette.muted)),
                   const Spacer(),
                   Text(v, textDirection: TextDirection.ltr, style: const TextStyle(fontWeight: FontWeight.w700)),
                 ]),
@@ -66,15 +66,15 @@ class _AboutPageState extends State<AboutPage> {
           onTap: () => Native.instance.openUrl('https://github.com/veilonhq/veilon'),
           child: Glass(
             child: Row(children: [
-              const Icon(Icons.code_rounded, color: Palette.lime),
+              Icon(Icons.code_rounded, color: Palette.lime),
               const SizedBox(width: Gap.m),
               Expanded(child: Text(s.t('about.source'), style: const TextStyle(fontWeight: FontWeight.w700))),
-              const Text('github.com/veilonhq/veilon', textDirection: TextDirection.ltr, style: TextStyle(color: Palette.muted, fontSize: 12)),
+              Text('github.com/veilonhq/veilon', textDirection: TextDirection.ltr, style: TextStyle(color: Palette.muted, fontSize: 12)),
             ]),
           ),
         ),
         const SizedBox(height: Gap.l),
-        const Text(
+        Text(
           'Includes sing-box (GPL-3.0), Xray-core (MPL-2.0), amneziawg-go (MIT), Vazirmatn & Sora fonts (OFL-1.1).',
           textDirection: TextDirection.ltr,
           style: TextStyle(color: Palette.muted, fontSize: 12, height: 1.6),

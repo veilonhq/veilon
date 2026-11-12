@@ -18,7 +18,7 @@ Future<void> showAddSheet(BuildContext context) async {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      barrierColor: Colors.black.withValues(alpha: 0.55),
+      barrierColor: Palette.barrier,
       builder: (_) => const AddSheet(),
     );
   } finally {
@@ -107,14 +107,14 @@ class _AddSheetState extends State<AddSheet> {
             textDirection: TextDirection.ltr,
             decoration: InputDecoration(
               hintText: s.t('add.subHint'),
-              prefixIcon: const Icon(Icons.link_rounded, color: Palette.muted),
+              prefixIcon: Icon(Icons.link_rounded, color: Palette.muted),
             ),
           ),
           const SizedBox(height: Gap.s),
           TextField(
             controller: _name,
             decoration: InputDecoration(
-                hintText: s.t('add.name'), prefixIcon: const Icon(Icons.label_outline_rounded, color: Palette.muted)),
+                hintText: s.t('add.name'), prefixIcon: Icon(Icons.label_outline_rounded, color: Palette.muted)),
           ),
           const SizedBox(height: Gap.m),
           PrimaryButton(
@@ -194,7 +194,7 @@ class _AddSheetState extends State<AddSheet> {
           ),
           const SizedBox(height: Gap.s),
           Text(s.t('add.awgHint'),
-              textAlign: TextAlign.center, style: const TextStyle(color: Palette.muted, fontSize: 11.5, height: 1.4)),
+              textAlign: TextAlign.center, style: TextStyle(color: Palette.muted, fontSize: 11.5, height: 1.4)),
         ]),
       ),
     );

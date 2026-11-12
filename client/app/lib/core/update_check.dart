@@ -245,6 +245,44 @@ class UpdateCheck {
 
 typedef Progress = void Function(int received, int total);
 
+/// 1.0.8 (audit L5): the only hosts the updater talks to, https only. The
+/// release API and every asset download (including GitHub's redirects to
+/// its asset storage) must stay on these.
+const updateHosts = {
+  'api.github.com',
+  'github.com',
+  'objects.githubusercontent.com',
+  'release-assets.githubusercontent.com',
+};
+
+/// Whether [url] is an https URL on [updateHosts].
+bool isAllowedUpdateUrl(Uri url) =>
+    url.scheme == 'https' && updateHosts.contains(url.host.toLowerCase()) && url.userInfo.isEmpty;
+
+/// Opens a GET on an allowed URL and follows redirects by hand (at most 5),
+/// each hop checked against [updateHosts] (the automatic redirect handling
+/// followed any host and scheme).
+Future<HttpClientResponse> openAllowed(HttpClient c, String url, void Function(HttpClientRequest req) headers,
+    {required Duration timeout}) async {
+  var uri = Uri.parse(url);
+  for (var hop = 0; hop <= 5; hop++) {
+    if (!isAllowedUpdateUrl(uri)) throw UpdateError('badResponse', 'host not allowed: ${uri.host}');
+    final req = await c.getUrl(uri).timeout(timeout);
+    req.followRedirects = false;
+    headers(req);
+    final res = await req.close().timeout(timeout);
+    if (res.isRedirect || const [301, 302, 303, 307, 308].contains(res.statusCode)) {
+      final loc = res.headers.value(HttpHeaders.locationHeader);
+      await res.drain<void>().catchError((_) {});
+      if (loc == null || loc.isEmpty) throw UpdateError('badResponse', 'HTTP ${res.statusCode}');
+      uri = uri.resolve(loc);
+      continue;
+    }
+    return res;
+  }
+  throw const UpdateError('badResponse', 'too many redirects');
+}
+
 /// GitHub client: the releases list (unauthenticated) and asset downloads.
 /// The app is excluded from its own VPN, so this works with the VPN on or off.
 class UpdateClient {
@@ -276,13 +314,13 @@ class UpdateClient {
   Future<String> _getText(String url, {bool json = false, required Duration timeout}) async {
     final c = _factory()..connectionTimeout = const Duration(seconds: 12);
     try {
-      final req = await c.getUrl(Uri.parse(url)).timeout(timeout);
-      req.headers.set(HttpHeaders.userAgentHeader, _ua);
-      if (json) {
-        req.headers.set(HttpHeaders.acceptHeader, 'application/vnd.github+json');
-        req.headers.set('X-GitHub-Api-Version', '2022-11-28');
-      }
-      final res = await req.close().timeout(timeout);
+      final res = await openAllowed(c, url, (req) {
+        req.headers.set(HttpHeaders.userAgentHeader, _ua);
+        if (json) {
+          req.headers.set(HttpHeaders.acceptHeader, 'application/vnd.github+json');
+          req.headers.set('X-GitHub-Api-Version', '2022-11-28');
+        }
+      }, timeout: timeout);
       final text = await res.transform(utf8.decoder).join().timeout(timeout);
       if (res.statusCode == 403 || res.statusCode == 429) throw const UpdateError('rateLimited');
       if (res.statusCode == 404 && json) throw const UpdateError('noRelease');
@@ -309,10 +347,10 @@ class UpdateClient {
     final f = File(path);
     IOSink? sink;
     try {
-      final req = await c.getUrl(Uri.parse(a.url)).timeout(const Duration(seconds: 20));
-      req.headers.set(HttpHeaders.userAgentHeader, _ua);
-      req.headers.set(HttpHeaders.acceptHeader, 'application/octet-stream');
-      final res = await req.close().timeout(const Duration(seconds: 30));
+      final res = await openAllowed(c, a.url, (req) {
+        req.headers.set(HttpHeaders.userAgentHeader, _ua);
+        req.headers.set(HttpHeaders.acceptHeader, 'application/octet-stream');
+      }, timeout: const Duration(seconds: 30));
       if (res.statusCode != 200) throw UpdateError('badResponse', 'HTTP ${res.statusCode}');
       final total = res.contentLength > 0 ? res.contentLength : a.size;
       await f.parent.create(recursive: true);

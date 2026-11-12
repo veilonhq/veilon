@@ -90,13 +90,13 @@ void main() {
       final state = await seeded(lang);
       await t.pumpWidget(VeilonApp(state: state));
       await settle(t);
-      await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/home_$lang.png'));
+      await expectLater(goldenRoot(), matchesGoldenFile('goldens/home_$lang.png'));
       final names = ['servers', 'stats', 'settings'];
       for (var i = 0; i < names.length; i++) {
         Shell.goTo(t.element(find.byType(TabRail)), i + 1);
         await t.pump(const Duration(milliseconds: 400));
         await settle(t);
-        await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/${names[i]}_$lang.png'));
+        await expectLater(goldenRoot(), matchesGoldenFile('goldens/${names[i]}_$lang.png'));
       }
       await t.pump(const Duration(seconds: 4));
       state.dispose();
@@ -112,10 +112,10 @@ void main() {
       await settle(t);
       state.handleEvent({'type': 'state', 'state': 'error', 'error': 'start: initialize cache-file: open cache.db: read-only file system'});
       await settle(t);
-      await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/home_error_$lang.png'));
+      await expectLater(goldenRoot(), matchesGoldenFile('goldens/home_error_$lang.png'));
       await t.tap(find.text(S(lang).t('err.details')));
       await settle(t);
-      await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/error_details_$lang.png'));
+      await expectLater(goldenRoot(), matchesGoldenFile('goldens/error_details_$lang.png'));
       await t.pump(const Duration(seconds: 4));
       state.dispose();
     });
@@ -132,7 +132,7 @@ void main() {
         await t.pump(const Duration(milliseconds: 300));
       }
       await settle(t);
-      await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/home_connected_$lang.png'));
+      await expectLater(goldenRoot(), matchesGoldenFile('goldens/home_connected_$lang.png'));
       await t.pump(const Duration(seconds: 4));
       state.dispose();
     });
@@ -150,12 +150,12 @@ void main() {
       // "My configs" collapsed: the subscription group with its usage bar.
       await t.tap(find.byKey(const ValueKey('group-toggle-_manual')));
       await settle(t);
-      await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/servers_groups_$lang.png'));
+      await expectLater(goldenRoot(), matchesGoldenFile('goldens/servers_groups_$lang.png'));
       await t.tap(find.byKey(const ValueKey('group-toggle-_manual')));
       await settle(t);
       showAddSheet(t.element(find.byType(ServersPage)));
       await settle(t);
-      await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/add_sheet_$lang.png'));
+      await expectLater(goldenRoot(), matchesGoldenFile('goldens/add_sheet_$lang.png'));
       await t.pump(const Duration(seconds: 4));
       state.dispose();
     });
@@ -169,7 +169,7 @@ void main() {
       await settle(t);
       Shell.goTo(t.element(find.byType(TabRail)), 1);
       await settle(t);
-      await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/servers_320_$lang.png'));
+      await expectLater(goldenRoot(), matchesGoldenFile('goldens/servers_320_$lang.png'));
       await t.pump(const Duration(seconds: 4));
       state.dispose();
     });
@@ -196,7 +196,7 @@ void main() {
           ),
         ));
         await settle(t);
-        await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/editor_${type}_$lang.png'));
+        await expectLater(goldenRoot(), matchesGoldenFile('goldens/editor_${type}_$lang.png'));
         await t.pump(const Duration(seconds: 4));
         state.dispose();
       });

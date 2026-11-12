@@ -38,6 +38,7 @@ class _PortalState extends State<Portal> with TickerProviderStateMixin {
   DateTime _lastTap = DateTime.fromMillisecondsSinceEpoch(0);
   double _t = 0;
   Duration _last = Duration.zero;
+  final _core = PortalCoreCache();
 
   @override
   void initState() {
@@ -105,6 +106,7 @@ class _PortalState extends State<Portal> with TickerProviderStateMixin {
     _shock.dispose();
     _comet.dispose();
     _error.dispose();
+    _core.dispose();
     super.dispose();
   }
 
@@ -141,6 +143,8 @@ class _PortalState extends State<Portal> with TickerProviderStateMixin {
                   comet: _comet.value,
                   error: _error.value,
                   shock: _shock.value,
+                  core: _core,
+                  pixelRatio: MediaQuery.maybeDevicePixelRatioOf(context) ?? 1,
                 ),
               ),
             ),
@@ -156,8 +160,20 @@ class _PortalState extends State<Portal> with TickerProviderStateMixin {
 /// frame jump; public for the frame-continuity tests.
 class PortalPainter extends CustomPainter {
   PortalPainter(
-      {required this.clock, required this.fill, required this.turbulence, required this.comet, required this.error, required this.shock})
+      {required this.clock,
+      required this.fill,
+      required this.turbulence,
+      required this.comet,
+      required this.error,
+      required this.shock,
+      this.core,
+      this.pixelRatio = 1})
       : super(repaint: clock);
+
+  /// Raster cache of the button (core) while it is at rest (1.0.8). Null:
+  /// always drawn live (tests that paint single frames).
+  final PortalCoreCache? core;
+  final double pixelRatio;
 
   final ValueNotifier<double> clock;
   final double fill;
@@ -249,13 +265,29 @@ class PortalPainter extends CustomPainter {
       canvas.save();
       canvas.translate(c.dx, c.dy);
       canvas.rotate(rot);
+      // 1.0.8: the soft glow around each ring was a mask blur (one
+      // offscreen blur pass per ring, every frame, 60 fps); now two wide
+      // translucent strokes of the same sweep under the sharp one. Same
+      // look, no blur pass.
+      final w0 = 2.2 - f * 0.9;
+      final sigma = 1.5 + 3 * fill;
+      for (final (extra, a) in [(sigma * 3.2, 0.10), (sigma * 1.6, 0.22)]) {
+        canvas.drawPath(
+          path,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = w0 + extra
+            ..strokeJoin = StrokeJoin.round
+            ..shader = sweep
+            ..color = Colors.white.withValues(alpha: a),
+        );
+      }
       canvas.drawPath(
         path,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.2 - f * 0.9
-          ..shader = sweep
-          ..maskFilter = MaskFilter.blur(BlurStyle.solid, 1.5 + 3 * fill),
+          ..strokeWidth = w0
+          ..shader = sweep,
       );
       canvas.restore();
     }
@@ -288,10 +320,16 @@ class PortalPainter extends CustomPainter {
               Offset.zero, [Colors.transparent, Palette.lime.withValues(alpha: comet)], [0, 1], TileMode.clamp, 0, 1.4),
       );
       canvas.restore();
-      canvas.drawCircle(Offset(c.dx + ra * cos(head), c.dy + ra * sin(head)), 4,
+      final hp = Offset(c.dx + ra * cos(head), c.dy + ra * sin(head));
+      canvas.drawCircle(
+          hp,
+          12,
           Paint()
-            ..color = Palette.lime.withValues(alpha: comet)
-            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4));
+            ..shader = ui.Gradient.radial(hp, 12, [
+              Palette.lime.withValues(alpha: comet),
+              Palette.lime.withValues(alpha: comet * 0.45),
+              Palette.lime.withValues(alpha: 0),
+            ], [0, 0.3, 1]));
     }
 
     // Orbiting sparks when protected.
@@ -305,18 +343,48 @@ class PortalPainter extends CustomPainter {
       }
     }
 
+    // Core = the button itself. 1.0.8: while it is at rest (fill and error
+    // settled) it is drawn from a cached raster - its contact shadow and
+    // glyph glow are mask blurs, and they used to be re-rendered every
+    // frame (the idle power-glyph glow: the reason the home page cost more
+    // with the VPN off). Only its breathing scale changes per frame.
+    final coreR = R * (0.44 + 0.012 * sin(t * 2));
+    final cache = core;
+    final rest = (fill == 0 || fill == 1) && (error == 0 || error == 1);
+    if (cache != null && rest) {
+      final coreR0 = R * 0.44;
+      final img = cache.image(size, pixelRatio, fill, error, Palette.current, (cv, center) {
+        _paintCore(cv, center, coreR0, R, accent);
+      });
+      if (img != null) {
+        final half = coreR0 * PortalCoreCache.extent;
+        canvas.save();
+        canvas.translate(c.dx, c.dy);
+        canvas.scale(coreR / coreR0);
+        canvas.drawImageRect(img, Offset.zero & Size(img.width.toDouble(), img.height.toDouble()),
+            Rect.fromLTRB(-half, -half, half, half), Paint()..filterQuality = FilterQuality.medium);
+        canvas.restore();
+        return;
+      }
+    }
+    _paintCore(canvas, c, coreR, R, accent);
+  }
+
+  /// The button: contact shadow, bezel, face, dial track, gloss, rim and
+  /// glyph. Depends only on [coreR], [fill], [error] and the palette.
+  void _paintCore(Canvas canvas, Offset c, double coreR, double R, Color accent) {
+    final light = Palette.isLight;
     // Core = the button itself (1.0.6 restyle; the rings, comet, sparks,
     // shock and halo above are unchanged). Everything stays inside 0.48 R
     // so the ring band of the animation is untouched. All inputs are the
     // same continuous values (fill, error), so it blends like before.
-    final coreR = R * (0.44 + 0.012 * sin(t * 2));
     final coreRect = Rect.fromCircle(center: c, radius: coreR);
     // Soft contact shadow under the button (lifts it off the background).
     canvas.drawCircle(
       c.translate(0, coreR * 0.06),
       coreR * 1.0,
       Paint()
-        ..color = Colors.black.withValues(alpha: 0.55 * (1 - fill * 0.6))
+        ..color = Colors.black.withValues(alpha: (light ? 0.22 : 0.55) * (1 - fill * 0.6))
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, coreR * 0.05),
     );
     // Bezel: a thin satin ring around the face, lit from the top-left and
@@ -333,9 +401,9 @@ class PortalPainter extends CustomPainter {
           c.translate(-bezelR, -bezelR),
           c.translate(bezelR, bezelR),
           [
-            Color.lerp(Color.lerp(const Color(0xFF4A4F66), accent, 0.35)!, const Color(0xFFF2FFC4), fill * 0.7)!,
-            Color.lerp(const Color(0xFF151824), const Color(0xFF5E8F00), fill)!,
-            Color.lerp(Color.lerp(const Color(0xFF1C1F2C), accent, 0.45)!, const Color(0xFF3F6200), fill * 0.8)!,
+            Color.lerp(Color.lerp(light ? const Color(0xFFFFFFFF) : const Color(0xFF4A4F66), accent, 0.35)!, const Color(0xFFF2FFC4), fill * 0.7)!,
+            Color.lerp(light ? const Color(0xFFD3D7E2) : const Color(0xFF151824), const Color(0xFF5E8F00), fill)!,
+            Color.lerp(Color.lerp(light ? const Color(0xFFB9BECC) : const Color(0xFF1C1F2C), accent, 0.45)!, const Color(0xFF3F6200), fill * 0.8)!,
           ],
           [0, 0.55, 1],
         ),
@@ -343,9 +411,12 @@ class PortalPainter extends CustomPainter {
     // Face.
     final faceR = coreR * 0.97;
     final idleCore = ui.Gradient.radial(c.translate(-faceR * 0.25, -faceR * 0.45), faceR * 1.55,
-        [const Color(0xFF2B2F44), const Color(0xFF161925), const Color(0xFF0B0D14)], [0, 0.55, 1]);
+        light
+            ? [const Color(0xFFFFFFFF), const Color(0xFFF1F2F7), const Color(0xFFDCDFE9)]
+            : [const Color(0xFF2B2F44), const Color(0xFF161925), const Color(0xFF0B0D14)],
+        [0, 0.55, 1]);
     final onCore = ui.Gradient.radial(c.translate(-faceR * 0.25, -faceR * 0.45), faceR * 1.45,
-        [const Color(0xFFEFFFB8), Palette.lime, const Color(0xFF6FA300)], [0, 0.5, 1]);
+        [const Color(0xFFEFFFB8), Palette.limeFill, const Color(0xFF6FA300)], [0, 0.5, 1]);
     canvas.drawCircle(c, faceR, Paint()..shader = idleCore);
     if (fill > 0) {
       // 1.0.7: drawn with the paint's alpha instead of an offscreen
@@ -442,5 +513,57 @@ class PortalPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(PortalPainter old) =>
-      old.fill != fill || old.comet != comet || old.error != error || old.shock != shock;
+      old.fill != fill || old.comet != comet || old.error != error || old.shock != shock || old.pixelRatio != pixelRatio;
+}
+
+/// Raster cache of the portal button at rest (1.0.8): one image per
+/// (size, pixel ratio, fill, error, palette); at most two kept (idle and
+/// connected, or the two themes during a switch).
+class PortalCoreCache {
+  /// Half-side of the cached square in units of the core radius (covers the
+  /// contact shadow and the bezel).
+  static const extent = 1.32;
+
+  final _entries = <String, ui.Image>{};
+  final _order = <String>[];
+
+  /// Images created so far (tests).
+  int created = 0;
+
+  ui.Image? image(Size size, double dpr, double fill, double error, PaletteData palette,
+      void Function(Canvas canvas, Offset center) paintCore) {
+    final key = '${size.width}x${size.height}@$dpr/$fill/$error/${palette.brightness.name}';
+    final hit = _entries[key];
+    if (hit != null) return hit;
+    try {
+      final coreR0 = size.width / 2 * 0.44;
+      final side = (coreR0 * extent * 2 * dpr).ceil();
+      if (side <= 0 || side > 4096) return null;
+      final rec = ui.PictureRecorder();
+      final cv = Canvas(rec);
+      cv.scale(dpr);
+      final half = coreR0 * extent;
+      paintCore(cv, Offset(half, half));
+      final pic = rec.endRecording();
+      final img = pic.toImageSync(side, side);
+      pic.dispose();
+      created++;
+      _entries[key] = img;
+      _order.add(key);
+      while (_order.length > 2) {
+        _entries.remove(_order.removeAt(0))?.dispose();
+      }
+      return img;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void dispose() {
+    for (final i in _entries.values) {
+      i.dispose();
+    }
+    _entries.clear();
+    _order.clear();
+  }
 }

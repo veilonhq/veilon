@@ -21,7 +21,9 @@ class BootReceiver : BroadcastReceiver() {
 
     private fun receive(context: Context, intent: Intent) {
         when (intent.action) {
-            Intent.ACTION_BOOT_COMPLETED, "android.intent.action.QUICKBOOT_POWERON" -> {}
+            // 1.0.8 (audit L3): BOOT_COMPLETED only. QUICKBOOT_POWERON is not a
+            // protected broadcast, so any app could trigger an auto-connect.
+            Intent.ACTION_BOOT_COMPLETED -> {}
             else -> return
         }
         val ctx = context.applicationContext

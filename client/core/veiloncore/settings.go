@@ -59,10 +59,15 @@ type Settings struct {
 	TLSFragment bool `json:"tlsFragment"`
 }
 
+// DefaultDirectDNS is the direct resolver when the app sends none (1.0.8:
+// same as the app's default for new installs, DNS over HTTPS to AliDNS by
+// IP, so bypassed lookups and server names are not sent as plain UDP).
+const DefaultDirectDNS = "https://223.5.5.5/dns-query"
+
 // DefaultSettings returns sane defaults.
 func DefaultSettings() Settings {
 	return Settings{
-		MTU: 9000, RemoteDNS: "https://1.1.1.1/dns-query", DirectDNS: "8.8.8.8",
+		MTU: 9000, RemoteDNS: "https://1.1.1.1/dns-query", DirectDNS: DefaultDirectDNS,
 		BypassLAN: true, PerAppMode: "off", LogLevel: "warn", Stack: "gvisor", Core: "auto",
 	}
 }
@@ -83,7 +88,7 @@ func parseSettings(s string) (Settings, error) {
 		st.RemoteDNS = "https://1.1.1.1/dns-query"
 	}
 	if st.DirectDNS == "" {
-		st.DirectDNS = "8.8.8.8"
+		st.DirectDNS = DefaultDirectDNS
 	}
 	// Only gVisor is supported; stored stack choices are ignored.
 	st.Stack, st.ExperimentalStack = "gvisor", false

@@ -79,9 +79,9 @@ Future<void> _flow(BuildContext context, UpdateClient client, Native native) asy
         child: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(s.f('update.current', {'v': current.isEmpty ? '?' : current}),
-                style: const TextStyle(color: Palette.muted, fontSize: 12.5)),
+                style: TextStyle(color: Palette.muted, fontSize: 12.5)),
             const SizedBox(height: Gap.m),
-            Text(notesSnippet(rel.notes, s.lang), style: const TextStyle(color: Palette.text2, fontSize: 13, height: 1.55)),
+            Text(notesSnippet(rel.notes, s.lang), style: TextStyle(color: Palette.text2, fontSize: 13, height: 1.55)),
           ]),
         ),
       ),
@@ -135,6 +135,8 @@ Future<void> _flow(BuildContext context, UpdateClient client, Native native) asy
       res = await native.installApk(path);
       if (res == 'permission') throw UpdateError('install', s.t('update.permission'));
     }
+    // 1.0.8 (L5): the APK must be signed with the installed app's key.
+    if (res == 'signature mismatch') throw const UpdateError('signature');
     if (res != 'ok') throw UpdateError('install', res);
     dl.close();
   } catch (e) {
@@ -220,7 +222,7 @@ abstract final class _ProgressDialog {
                 Text(v == null ? ' ' : '${(v * 100).round()}%',
                     textDirection: TextDirection.ltr,
                     textAlign: TextAlign.end,
-                    style: const TextStyle(color: Palette.muted, fontSize: 12)),
+                    style: TextStyle(color: Palette.muted, fontSize: 12)),
               ]),
             ),
           ]),

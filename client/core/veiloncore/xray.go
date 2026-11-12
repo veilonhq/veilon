@@ -288,7 +288,19 @@ func xrayConfig(p *Profile, port int, user, pass string, st Settings) (obj, erro
 		level = "error"
 	}
 	dnsSrv := st.DirectDNS
-	if h, _ := splitServerPort(dnsSrv); net.ParseIP(h) == nil {
+	if rest, ok := strings.CutPrefix(dnsSrv, "https://"); ok {
+		// 1.0.8: DoH direct resolver by IP (the default) → Xray's local
+		// (not proxied) DoH client.
+		host := rest
+		if j := strings.IndexByte(rest, '/'); j >= 0 {
+			host = rest[:j]
+		}
+		if h, _ := splitServerPort(host); net.ParseIP(h) != nil {
+			dnsSrv = "https+local://" + rest
+		} else {
+			dnsSrv = "8.8.8.8"
+		}
+	} else if h, _ := splitServerPort(dnsSrv); net.ParseIP(h) == nil {
 		dnsSrv = "8.8.8.8"
 	}
 	return obj{

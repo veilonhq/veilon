@@ -33,13 +33,14 @@ void main() {
     test('new install: Google delay-test URL, AliDNS direct, Cloudflare DoH remote', () {
       final s = AppSettings();
       expect(s.pingUrl, 'http://www.google.com/generate_204');
-      expect(s.directDns, '223.5.5.5');
+      // 1.0.8 (audit M1): AliDNS over HTTPS for new installs.
+      expect(s.directDns, 'https://223.5.5.5/dns-query');
       expect(s.remoteDns, 'https://1.1.1.1/dns-query');
       final j = AppSettings.fromJson(const {});
       expect(j.pingUrl, 'http://www.google.com/generate_204');
-      expect(j.directDns, '223.5.5.5');
+      expect(j.directDns, 'https://223.5.5.5/dns-query');
       expect(j.remoteDns, 'https://1.1.1.1/dns-query');
-      expect(s.toCoreJson(assetDir: '/a', appPackage: 'app.veilon')['directDns'], '223.5.5.5');
+      expect(s.toCoreJson(assetDir: '/a', appPackage: 'app.veilon')['directDns'], 'https://223.5.5.5/dns-query');
     });
 
     test('saved values of existing users are kept', () {
@@ -109,7 +110,7 @@ void main() {
         expect(sheet, findsOneWidget, reason: k);
         expect(find.descendant(of: sheet, matching: find.text(S(lang).t('info.$k'))), findsOneWidget, reason: k);
         if (k == 'killSwitch') {
-          await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/settings_info_killswitch_$lang.png'));
+          await expectLater(goldenRoot(), matchesGoldenFile('goldens/settings_info_killswitch_$lang.png'));
         }
         // The setting itself must not have changed by tapping (i).
         expect(s.settings.killSwitch, isFalse);

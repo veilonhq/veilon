@@ -14,7 +14,7 @@ import (
 )
 
 // Version of the core library.
-const Version = "1.0.6"
+const Version = "1.0.8"
 
 func decodeProfile(s string) (*Profile, error) {
 	var p Profile
@@ -70,6 +70,14 @@ func FetchSubscription(url, deviceJSON, proxyAddr string, timeoutMs int32) (out 
 		timeoutMs = 15000
 	}
 	return encodeJSON(fetchSubscription(strings.TrimSpace(url), d, proxyAddr, time.Duration(timeoutMs)*time.Millisecond))
+}
+
+// SetSubPins sets the subscription server certificates the user approved
+// (1.0.8): a JSON object {"ip:port": "<hex sha256 of the leaf cert>"}. Only
+// literal-IP https subscription hosts are ever pinned (see subtls.go).
+func SetSubPins(pinsJSON string) (err error) {
+	defer apiGuard("SetSubPins", func(m string) { err = panicErr("SetSubPins", m) })
+	return setSubPins(pinsJSON)
 }
 
 // ParseUserInfoHeader parses a subscription-userinfo header (JSON UserInfo).

@@ -43,13 +43,13 @@ class UsageCard extends StatelessWidget {
       padding: const EdgeInsets.all(Gap.l + 2),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          const Icon(Icons.data_usage_rounded, size: 18, color: Palette.text2),
+          Icon(Icons.data_usage_rounded, size: 18, color: Palette.text2),
           const SizedBox(width: Gap.s),
           Expanded(
             child: Text(title.isEmpty ? s.t('home.usage') : title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Palette.text2, fontWeight: FontWeight.w700, fontSize: 13)),
+                style: TextStyle(color: Palette.text2, fontWeight: FontWeight.w700, fontSize: 13)),
           ),
           _DaysDial(value: dial, label: daysText, warn: days != null && days <= 3),
         ]),
@@ -74,7 +74,7 @@ class UsageCard extends StatelessWidget {
               ]),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Palette.muted, fontSize: 13),
+              style: TextStyle(color: Palette.muted, fontSize: 13),
             ),
           ),
         ]),
@@ -115,7 +115,7 @@ class _SplitBar extends StatelessWidget {
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(99),
-                  gradient: const LinearGradient(colors: [Color(0xFF9CD92A), Palette.lime]),
+                  gradient: LinearGradient(colors: [Color(0xFF9CD92A), Palette.lime]),
                   boxShadow: [BoxShadow(color: Palette.lime.withValues(alpha: 0.45), blurRadius: 10)],
                 ),
               ),
@@ -128,7 +128,7 @@ class _SplitBar extends StatelessWidget {
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(99),
-                  gradient: const LinearGradient(colors: [Palette.violet, Palette.violetFg]),
+                  gradient: LinearGradient(colors: [Palette.violet, Palette.violetFg]),
                   boxShadow: [BoxShadow(color: Palette.violet.withValues(alpha: 0.45), blurRadius: 10)],
                 ),
               ),
@@ -149,7 +149,7 @@ class _Legend extends StatelessWidget {
     return Row(mainAxisSize: MainAxisSize.min, children: [
       Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
       const SizedBox(width: 6),
-      Text(label, style: const TextStyle(color: Palette.muted, fontSize: 12)),
+      Text(label, style: TextStyle(color: Palette.muted, fontSize: 12)),
       const SizedBox(width: 6),
       Text(value, textDirection: TextDirection.ltr, style: Fonts.metric(size: 12, weight: FontWeight.w700, color: Palette.text)),
     ]);

@@ -78,7 +78,7 @@ class _PerAppPageState extends State<PerAppPage> {
           padding: const EdgeInsets.fromLTRB(Gap.page, Gap.m, Gap.page, Gap.xs),
           child: TextField(
             onChanged: (v) => setState(() => _q = v),
-            decoration: InputDecoration(hintText: s.t('perapp.search'), prefixIcon: const Icon(Icons.search_rounded, color: Palette.muted)),
+            decoration: InputDecoration(hintText: s.t('perapp.search'), prefixIcon: Icon(Icons.search_rounded, color: Palette.muted)),
           ),
         ),
         SwitchListTile(
@@ -138,7 +138,7 @@ class _PerAppPageState extends State<PerAppPage> {
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       textDirection: TextDirection.ltr,
-                                      style: const TextStyle(color: Palette.muted, fontSize: 11)),
+                                      style: TextStyle(color: Palette.muted, fontSize: 11)),
                                 ]),
                               ),
                               Icon(on ? Icons.check_circle_rounded : Icons.circle_outlined, color: on ? Palette.lime : Palette.muted),
@@ -155,7 +155,7 @@ class _PerAppPageState extends State<PerAppPage> {
 }
 
 Widget _iconImage(Uint8List? bytes, int px) => bytes == null
-    ? const Icon(Icons.android_rounded, color: Palette.muted)
+    ? Icon(Icons.android_rounded, color: Palette.muted)
     : ClipRRect(
         borderRadius: BorderRadius.circular(9),
         child: Image.memory(bytes, gaplessPlayback: true, cacheWidth: px, filterQuality: FilterQuality.medium),
@@ -195,7 +195,7 @@ class _ModeBar extends StatelessWidget {
                 alignment: Alignment.center,
                 padding: const EdgeInsets.symmetric(horizontal: 6),
                 decoration: BoxDecoration(
-                  color: m == value ? Palette.lime : Colors.transparent,
+                  color: m == value ? Palette.limeFill : Colors.transparent,
                   borderRadius: BorderRadius.circular(99),
                 ),
                 child: FittedBox(

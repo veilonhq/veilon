@@ -57,13 +57,13 @@ class _StatsPageState extends State<StatsPage> {
         Glass(
           glow: on ? Palette.lime : null,
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(s.t('stats.duration'), style: const TextStyle(color: Palette.muted, fontSize: 12)),
+            Text(s.t('stats.duration'), style: TextStyle(color: Palette.muted, fontSize: 12)),
             const SizedBox(height: Gap.xs),
             Text(s.metric(fmtDuration(dur)),
                 textDirection: TextDirection.ltr,
                 style: Fonts.metric(size: 44, weight: FontWeight.w300, color: on ? Palette.text : Palette.muted, height: 1.2)
                     .copyWith(letterSpacing: 2)),
-            if (!on) Text(s.t('stats.idle'), style: const TextStyle(color: Palette.muted, fontSize: 13)),
+            if (!on) Text(s.t('stats.idle'), style: TextStyle(color: Palette.muted, fontSize: 13)),
             const SizedBox(height: Gap.l),
             RepaintBoundary(child: SpeedWave(samples: app.history, height: 150, active: on)),
           ]),
@@ -88,9 +88,9 @@ class _StatsPageState extends State<StatsPage> {
           Glass(
             child: Column(children: [
               _Row(k: s.t('home.server'), v: p.name),
-              const Divider(height: Gap.xl, color: Palette.line),
+              Divider(height: Gap.xl, color: Palette.line),
               _Row(k: s.t('stats.protocol'), v: p.label, ltr: true),
-              const Divider(height: Gap.xl, color: Palette.line),
+              Divider(height: Gap.xl, color: Palette.line),
               _Row(k: s.t('stats.core'), v: coreText, ltr: true),
             ]),
           ),
@@ -128,7 +128,7 @@ class _Metric extends StatelessWidget {
             child: Directionality(textDirection: TextDirection.ltr, child: Icon(icon, size: 14, color: color)),
           ),
           const SizedBox(width: Gap.s),
-          Expanded(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Palette.muted, fontSize: 12))),
+          Expanded(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Palette.muted, fontSize: 12))),
         ]),
         Row(
             mainAxisSize: MainAxisSize.min,
@@ -152,7 +152,7 @@ class _Row extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(children: [
-      Text(k, style: const TextStyle(color: Palette.muted, fontSize: 13)),
+      Text(k, style: TextStyle(color: Palette.muted, fontSize: 13)),
       const SizedBox(width: Gap.l),
       Expanded(
         child: Align(

@@ -82,7 +82,7 @@ class _LogsPageState extends State<LogsPage> {
         ),
       ],
       child: _lines.isEmpty
-          ? Center(child: Text(s.t('logs.empty'), style: const TextStyle(color: Palette.muted)))
+          ? Center(child: Text(s.t('logs.empty'), style: TextStyle(color: Palette.muted)))
           : NotificationListener<ScrollNotification>(
               onNotification: (n) {
                 if (n is UserScrollNotification) {
@@ -108,9 +108,9 @@ class _LogsPageState extends State<LogsPage> {
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 3),
                       child: Text.rich(TextSpan(children: [
-                        TextSpan(text: '$ts ', style: const TextStyle(color: Palette.muted)),
+                        TextSpan(text: '$ts ', style: TextStyle(color: Palette.muted)),
                         TextSpan(text: '${l['level']}'.toUpperCase().padRight(5), style: TextStyle(color: _color('${l['level']}'), fontWeight: FontWeight.w700)),
-                        TextSpan(text: ' ${l['msg']}', style: const TextStyle(color: Palette.text2)),
+                        TextSpan(text: ' ${l['msg']}', style: TextStyle(color: Palette.text2)),
                       ]), style: const TextStyle(fontSize: 11.5, height: 1.45, fontFamily: 'monospace')),
                     );
                   },

@@ -195,10 +195,11 @@ class _ServersPageState extends State<ServersPage> with AutomaticKeepAliveClient
                 height: 60,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  gradient: const LinearGradient(colors: [Color(0xFFDDFF80), Palette.lime]),
-                  boxShadow: [BoxShadow(color: Palette.lime.withValues(alpha: 0.45), blurRadius: 26, spreadRadius: -4)],
+                  gradient: LinearGradient(colors: [const Color(0xFFDDFF80), Palette.limeFill]),
+                  border: Palette.isLight ? Border.all(color: Palette.lime.withValues(alpha: 0.35)) : null,
+                  boxShadow: [BoxShadow(color: Palette.limeFill.withValues(alpha: Palette.isLight ? 0.6 : 0.45), blurRadius: 26, spreadRadius: -4)],
                 ),
-                child: const Icon(Icons.add_rounded, color: Palette.limeInk, size: 30),
+                child: Icon(Icons.add_rounded, color: Palette.limeInk, size: 30),
               ),
             ),
           ),
@@ -320,7 +321,7 @@ class GroupHeader extends StatelessWidget {
                         AnimatedRotation(
                           turns: collapsed ? (Directionality.of(context) == TextDirection.rtl ? 0.25 : -0.25) : 0,
                           duration: const Duration(milliseconds: 200),
-                          child: const Icon(Icons.expand_more_rounded, color: Palette.text2, size: 22),
+                          child: Icon(Icons.expand_more_rounded, color: Palette.text2, size: 22),
                         ),
                         const SizedBox(width: Gap.xs),
                         Icon(
@@ -344,7 +345,7 @@ class GroupHeader extends StatelessWidget {
                                 key: ValueKey('group-meta-$id'),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(color: Palette.muted, fontSize: 11.5, height: 1.35),
+                                style: TextStyle(color: Palette.muted, fontSize: 11.5, height: 1.35),
                               ),
                             ],
                           ),
@@ -359,7 +360,7 @@ class GroupHeader extends StatelessWidget {
                 PopupMenuButton<String>(
                   key: ValueKey('group-menu-$id'),
                   tooltip: s.t('sub.edit'),
-                  icon: const Icon(Icons.more_horiz_rounded, size: 20, color: Palette.text2),
+                  icon: Icon(Icons.more_horiz_rounded, size: 20, color: Palette.text2),
                   color: Palette.bg3,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(minWidth: 180),
@@ -370,7 +371,7 @@ class GroupHeader extends StatelessWidget {
                       value: 'edit',
                       child: Row(
                         children: [
-                          const Icon(Icons.edit_outlined, size: 18, color: Palette.text2),
+                          Icon(Icons.edit_outlined, size: 18, color: Palette.text2),
                           const SizedBox(width: Gap.s),
                           Text(s.t('sub.edit')),
                         ],
@@ -381,9 +382,9 @@ class GroupHeader extends StatelessWidget {
                       value: 'delete',
                       child: Row(
                         children: [
-                          const Icon(Icons.delete_outline_rounded, size: 18, color: Palette.danger),
+                          Icon(Icons.delete_outline_rounded, size: 18, color: Palette.danger),
                           const SizedBox(width: Gap.s),
-                          Text(s.t('sub.delete'), style: const TextStyle(color: Palette.danger)),
+                          Text(s.t('sub.delete'), style: TextStyle(color: Palette.danger)),
                         ],
                       ),
                     ),
@@ -420,7 +421,7 @@ class GroupHeader extends StatelessWidget {
                 err.startsWith('refused:') ? s.f('sub.refused', {'e': err.substring(8)}) : err,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Palette.danger, fontSize: 12),
+                style: TextStyle(color: Palette.danger, fontSize: 12),
               ),
             ),
           ],
@@ -439,7 +440,7 @@ class UsageBar extends StatelessWidget {
   /// Shown text, e.g. "1.5 GB / 10.0 GB" (∞ when unlimited).
   static String label(UserInfo i) => '${fmtBytes(i.used)} / ${i.total > 0 ? fmtBytes(i.total) : '∞'}';
 
-  static const _usageCaption = TextStyle(color: Palette.text2, fontSize: 11.5, fontWeight: FontWeight.w600);
+  static TextStyle get _usageCaption => TextStyle(color: Palette.text2, fontSize: 11.5, fontWeight: FontWeight.w600);
 
   static double _captionWidth(BuildContext context, String text) {
     final tp = TextPainter(
@@ -530,7 +531,7 @@ class _MiniButton extends StatelessWidget {
       width: 38,
       height: 38,
       child: busy
-          ? const Padding(
+          ? Padding(
               padding: EdgeInsets.all(11),
               child: CircularProgressIndicator(strokeWidth: 2, color: Palette.lime),
             )
@@ -571,7 +572,7 @@ Future<void> _editSub(BuildContext context, Subscription sub) async {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, 'delete'),
-            child: Text(s.t('sub.delete'), style: const TextStyle(color: Palette.danger)),
+            child: Text(s.t('sub.delete'), style: TextStyle(color: Palette.danger)),
           ),
           TextButton(onPressed: () => Navigator.pop(ctx), child: Text(s.t('common.cancel'))),
           FilledButton(onPressed: () => Navigator.pop(ctx, 'save'), child: Text(s.t('common.save'))),
@@ -622,6 +623,12 @@ class _ServerTile extends StatelessWidget {
     final app = AppScope.of(context);
     final s = S.of(context);
     final sel = app.selected?.id == profile.id;
+    // 1.0.8: on narrow phones (≤ 340 dp) a card puts its ping chip on the
+    // label line, so a long name gets the full width for its two lines. A
+    // compact row does so only when its name would not fit in two lines
+    // beside the chip (other rows stay one line).
+    final narrow = MediaQuery.sizeOf(context).width <= 340;
+    final chip = PingChip(profile: profile, ping: app.pings[profile.id], testing: app.testing.contains(profile.id));
     // 1.0.7: the staggered fade-in is for rows that appear with the list
     // (page open, group expanded). A row that scrolls into view during a
     // scroll shows at once: animating every newly exposed row (an opacity
@@ -662,18 +669,39 @@ class _ServerTile extends StatelessWidget {
             border: Border.all(color: sel ? Palette.lime.withValues(alpha: 0.6) : Palette.line),
             boxShadow: sel ? [BoxShadow(color: Palette.lime.withValues(alpha: 0.12), blurRadius: 20)] : null,
           ),
-          child: Row(
+          child: LayoutBuilder(builder: (context, box) {
+            var chipBelow = narrow && !compact;
+            if (narrow && compact) {
+              final tp = TextPainter(
+                text: TextSpan(
+                    text: profile.name,
+                    style: DefaultTextStyle.of(context)
+                        .style
+                        .merge(const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, height: 1.35))),
+                textDirection: Directionality.of(context),
+                textScaler: MediaQuery.textScalerOf(context),
+                maxLines: 2,
+              )..layout(maxWidth: math.max(0.0, box.maxWidth - 28 - Gap.s * 2 - 72));
+              chipBelow = tp.didExceedMaxLines;
+              tp.dispose();
+            }
+            return Row(
             children: [
               ProtoBadge(type: profile.type, size: compact ? 28 : 40, active: sel),
               SizedBox(width: compact ? Gap.s : Gap.m),
               Expanded(
                 child: Builder(
                   builder: (context) {
+                    // 1.0.8: long (Persian) names wrap to a second line
+                    // instead of being cut after a few characters on
+                    // narrow phones (320 dp); still never more than two.
                     final name = Text(
                       profile.name,
-                      maxLines: 1,
+                      key: ValueKey('name-${profile.id}'),
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontWeight: FontWeight.w700, color: Palette.text, fontSize: compact ? 13.5 : 14.5),
+                      softWrap: true,
+                      style: TextStyle(fontWeight: FontWeight.w700, color: Palette.text, fontSize: compact ? 13.5 : 14.5, height: 1.35),
                     );
                     // Always "protocol · transport · security" (LTR in every locale).
                     final label = Text(
@@ -685,28 +713,60 @@ class _ServerTile extends StatelessWidget {
                       style: TextStyle(color: Palette.muted, fontSize: compact ? 11 : 12),
                     );
                     if (compact) {
-                      return Row(
-                        children: [
-                          Flexible(flex: 3, child: name),
-                          const SizedBox(width: Gap.s),
-                          Flexible(
-                            flex: 2,
-                            child: Align(alignment: AlignmentDirectional.centerEnd, child: label),
-                          ),
-                        ],
-                      );
+                      // The name gets the room it needs first; the protocol
+                      // label takes what is left with an ellipsis (it is
+                      // hidden only when less than ~36 dp remain, e.g. a long
+                      // name that wraps at 320 dp).
+                      return LayoutBuilder(builder: (context, c) {
+                        final style = DefaultTextStyle.of(context).style.merge(name.style);
+                        final tp = TextPainter(
+                          text: TextSpan(text: profile.name, style: style),
+                          textDirection: Directionality.of(context),
+                          textScaler: MediaQuery.textScalerOf(context),
+                          maxLines: 1,
+                        )..layout();
+                        final nameW = tp.width;
+                        tp.dispose();
+                        final rest = c.maxWidth - nameW - Gap.s;
+                        if (chipBelow) {
+                          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            name,
+                            const SizedBox(height: 2),
+                            Row(children: [
+                              Expanded(child: label),
+                              const SizedBox(width: Gap.s),
+                              chip,
+                            ]),
+                          ]);
+                        }
+                        if (rest < 36) return name;
+                        return Row(
+                          children: [
+                            SizedBox(width: nameW.ceilToDouble() + 1, child: name),
+                            const SizedBox(width: Gap.s),
+                            Expanded(child: Align(alignment: AlignmentDirectional.centerEnd, child: label)),
+                          ],
+                        );
+                      });
                     }
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [name, const SizedBox(height: 2), label],
+                      children: [
+                        name,
+                        const SizedBox(height: 2),
+                        if (chipBelow)
+                          Row(children: [Expanded(child: label), const SizedBox(width: Gap.s), chip])
+                        else
+                          label,
+                      ],
                     );
                   },
                 ),
               ),
-              const SizedBox(width: Gap.s),
-              PingChip(profile: profile, ping: app.pings[profile.id], testing: app.testing.contains(profile.id)),
+              if (!chipBelow) ...[const SizedBox(width: Gap.s), chip],
             ],
-          ),
+          );
+          }),
         ),
       ),
     );
@@ -744,14 +804,14 @@ Future<void> _profileMenu(BuildContext context, Profile p) async {
           if (p.pingable && app.pingErrors[p.id] != null)
             ListTile(
               dense: true,
-              leading: const Icon(Icons.info_outline_rounded, color: Palette.danger),
+              leading: Icon(Icons.info_outline_rounded, color: Palette.danger),
               title: Text(
                 friendlyError(s, app.pingErrors[p.id]!),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Palette.danger, fontSize: 13),
+                style: TextStyle(color: Palette.danger, fontSize: 13),
               ),
-              subtitle: Text(s.t('err.details'), style: const TextStyle(color: Palette.muted, fontSize: 12)),
+              subtitle: Text(s.t('err.details'), style: TextStyle(color: Palette.muted, fontSize: 12)),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.s)),
               onTap: () => Navigator.pop(ctx, 'error'),
             ),
@@ -820,7 +880,7 @@ class _Empty extends StatelessWidget {
               shape: BoxShape.circle,
               gradient: RadialGradient(colors: [Palette.violet.withValues(alpha: 0.35), Colors.transparent]),
             ),
-            child: const Icon(Icons.public_rounded, size: 44, color: Palette.violetFg),
+            child: Icon(Icons.public_rounded, size: 44, color: Palette.violetFg),
           ),
           const SizedBox(height: Gap.l),
           Text(s.t('servers.empty'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
@@ -828,7 +888,7 @@ class _Empty extends StatelessWidget {
           Text(
             s.t('servers.emptyHint'),
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Palette.muted, height: 1.6),
+            style: TextStyle(color: Palette.muted, height: 1.6),
           ),
           const SizedBox(height: Gap.xl),
           SizedBox(

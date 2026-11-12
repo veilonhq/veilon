@@ -115,6 +115,8 @@ class _StatusLineState extends State<_StatusLine> {
     final failed = st == ConnState.error && app.lastError.isNotEmpty;
     if (st == ConnState.connected && app.connectedSince != null) {
       sub = s.metric(fmtDuration(DateTime.now().difference(app.connectedSince!)));
+    } else if (st == ConnState.error && app.blocking) {
+      sub = s.t('hero.blocking');
     } else if (failed) {
       sub = friendlyError(s, app.lastError);
     } else if (app.selected == null) {
@@ -135,9 +137,9 @@ class _StatusLineState extends State<_StatusLine> {
             opacity: a, child: SlideTransition(position: Tween(begin: const Offset(0, 0.25), end: Offset.zero).animate(a), child: c)),
         child: Text(title,
             key: ValueKey(st),
-            style: TextStyle(fontSize: 24, height: 1.3, fontWeight: FontWeight.w900, color: color, letterSpacing: -0.3, shadows: [
-              if (st == ConnState.connected) Shadow(color: Palette.lime.withValues(alpha: 0.4), blurRadius: 20),
-            ])),
+            // 1.0.8: no blurred text shadow (a glyph blur pass on every
+            // frame of the home page while connected).
+            style: TextStyle(fontSize: 24, height: 1.3, fontWeight: FontWeight.w900, color: color, letterSpacing: -0.3)),
       ),
       const SizedBox(height: Gap.xs),
       // Fixed height: switching between one- and two-line texts never
@@ -157,10 +159,10 @@ class _StatusLineState extends State<_StatusLine> {
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
                     Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: subStyle),
                     Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(Icons.info_outline_rounded, size: 13, color: Palette.danger),
+                      Icon(Icons.info_outline_rounded, size: 13, color: Palette.danger),
                       const SizedBox(width: Gap.xs),
                       Text(s.t('err.details'),
-                          style: const TextStyle(color: Palette.danger, fontSize: 12, fontWeight: FontWeight.w700, height: 1.4)),
+                          style: TextStyle(color: Palette.danger, fontSize: 12, fontWeight: FontWeight.w700, height: 1.4)),
                     ]),
                   ]),
                 )
@@ -187,44 +189,63 @@ class _ServerCapsule extends StatelessWidget {
     final app = AppScope.read(context);
     final core = AppScope.of(context).coreOf(profile);
     final rtl = Directionality.of(context) == TextDirection.rtl;
+    // Narrow phones (≤ 340 dp): a smaller badge and no chevron, so the name
+    // has room (1.0.8).
+    final narrow = MediaQuery.sizeOf(context).width <= 340;
     return Pressable(
       onTap: () => Shell.goTo(context, 1),
       child: Glass(
         radius: Radii.xl,
         padding: const EdgeInsetsDirectional.fromSTEB(Gap.m, Gap.m, Gap.m, Gap.m),
         child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-          ProtoBadge(type: profile.type, size: 46, active: app.state == ConnState.connected),
+          ProtoBadge(type: profile.type, size: narrow ? 38 : 46, active: app.state == ConnState.connected),
           const SizedBox(width: Gap.m),
           Expanded(
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              // 1.0.8: up to two lines (long Persian names at 320 dp).
               Text(profile.name,
-                  maxLines: 1,
+                  key: const ValueKey('home-server-name'),
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
+                  softWrap: true,
                   style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5, height: 1.3)),
               const SizedBox(height: 2),
-              LayoutBuilder(builder: (context, c) {
+              // Narrow: the ping chip sits on the label line, so the name
+              // gets the full width for its two lines.
+              if (narrow)
+                Row(children: [
+                  Expanded(child: _label(profile, core)),
+                  const SizedBox(width: Gap.s),
+                  PingChip(profile: profile, ping: ping, testing: testing),
+                ])
+              else
+                _label(profile, core),
+            ]),
+          ),
+          if (!narrow) ...[
+            const SizedBox(width: Gap.s),
+            PingChip(profile: profile, ping: ping, testing: testing),
+            const SizedBox(width: Gap.xs),
+            Icon(rtl ? Icons.chevron_left_rounded : Icons.chevron_right_rounded, color: Palette.muted, size: 22),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Widget _label(Profile profile, (String, String)? core) => LayoutBuilder(builder: (context, c) {
                 final label = Text(profile.label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textDirection: TextDirection.ltr,
-                    style: const TextStyle(color: Palette.muted, fontSize: 12, height: 1.3));
+                    style: TextStyle(color: Palette.muted, fontSize: 12, height: 1.3));
                 final hasCore = core != null && core.$1.isNotEmpty;
                 if (!hasCore) return Row(children: [Flexible(child: label)]);
                 final tag = CoreTag(core: core.$1, error: core.$2.isNotEmpty);
                 // Very narrow: the engine tag alone (it shrinks with an ellipsis).
                 if (c.maxWidth < 120) return Row(children: [Flexible(child: tag)]);
                 return Row(children: [tag, const SizedBox(width: Gap.s), Flexible(child: label)]);
-              }),
-            ]),
-          ),
-          const SizedBox(width: Gap.s),
-          PingChip(profile: profile, ping: ping, testing: testing),
-          const SizedBox(width: Gap.xs),
-          Icon(rtl ? Icons.chevron_left_rounded : Icons.chevron_right_rounded, color: Palette.muted, size: 22),
-        ]),
-      ),
-    );
-  }
+              });
 }
 
 /// Small label naming the engine ("sing-box", "Xray", "AmneziaWG"…).
@@ -276,7 +297,7 @@ class PingChip extends StatelessWidget {
     final s = S.of(context);
     final app = AppScope.read(context);
     if (profile.isMTProto) {
-      return const Pill(text: 'TG', color: Palette.info);
+      return Pill(text: 'TG', color: Palette.info);
     }
     if (!profile.pingable) {
       // AmneziaWG / WireGuard profiles are never pinged: a
@@ -301,7 +322,7 @@ class PingChip extends StatelessWidget {
     if (testing) {
       child = const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2));
     } else if (ping == null) {
-      child = const Icon(Icons.speed_rounded, size: 16, color: Palette.muted);
+      child = Icon(Icons.speed_rounded, size: 16, color: Palette.muted);
     } else if (ping! < 0) {
       child = Row(mainAxisSize: MainAxisSize.min, children: [
         Text(s.t('servers.timeout'), style: TextStyle(color: color, fontSize: 11.5, fontWeight: FontWeight.w700, height: 1.2)),
@@ -362,7 +383,7 @@ class _EmptyCapsule extends StatelessWidget {
             width: 46,
             height: 46,
             decoration: BoxDecoration(color: Palette.lime.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(15)),
-            child: const Icon(Icons.add_rounded, color: Palette.lime),
+            child: Icon(Icons.add_rounded, color: Palette.lime),
           ),
           const SizedBox(width: Gap.m),
           Expanded(child: Text(s.t('home.addFirst'), style: const TextStyle(fontWeight: FontWeight.w700))),
@@ -385,11 +406,11 @@ class _LiveCard extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         if (active && app.serverUnreachable) ...[
           Row(key: const ValueKey('server-unreachable'), children: [
-            const Icon(Icons.error_outline_rounded, color: Palette.danger, size: 18),
+            Icon(Icons.error_outline_rounded, color: Palette.danger, size: 18),
             const SizedBox(width: Gap.s),
             Expanded(
                 child: Text(s.t('home.serverUnreachable'),
-                    style: const TextStyle(color: Palette.danger, fontSize: 12.5, fontWeight: FontWeight.w700, height: 1.3))),
+                    style: TextStyle(color: Palette.danger, fontSize: 12.5, fontWeight: FontWeight.w700, height: 1.3))),
           ]),
           const SizedBox(height: Gap.m),
         ],
@@ -402,10 +423,10 @@ class _LiveCard extends StatelessWidget {
         const SizedBox(height: Gap.m),
         RepaintBoundary(child: SpeedWave(samples: app.history, height: 110, active: active)),
         const SizedBox(height: Gap.m),
-        const Divider(height: 1, color: Palette.line),
+        Divider(height: 1, color: Palette.line),
         const SizedBox(height: Gap.m),
         Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-          Text(s.t('home.session'), style: const TextStyle(color: Palette.muted, fontSize: 12, height: 1.3)),
+          Text(s.t('home.session'), style: TextStyle(color: Palette.muted, fontSize: 12, height: 1.3)),
           const Spacer(),
           _SessionValue(icon: Icons.south_rounded, color: Palette.lime, text: s.metric(fmtBytes(app.sessionDown))),
           const SizedBox(width: Gap.l),
@@ -448,7 +469,7 @@ class _Speed extends StatelessWidget {
       Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 14, color: color),
         const SizedBox(width: Gap.xs),
-        Text(label, style: const TextStyle(color: Palette.muted, fontSize: 12, height: 1.3)),
+        Text(label, style: TextStyle(color: Palette.muted, fontSize: 12, height: 1.3)),
       ]),
       const SizedBox(height: Gap.xs),
       // Number and unit always read left-to-right ("0 B/s", "12.4 MB/s").

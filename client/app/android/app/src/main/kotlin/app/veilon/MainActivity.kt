@@ -6,6 +6,10 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.graphics.drawable.ColorDrawable
+import android.view.View
+import android.view.WindowInsetsController
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.net.Uri
@@ -51,6 +55,7 @@ class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         CrashLog.install(this)
+        runCatching { applyWindowTheme(Store.themeMode(this)) }
         runCatching { io.execute { runCatching { Store.installAssets(applicationContext) } } }
     }
 
@@ -162,6 +167,8 @@ class MainActivity : FlutterActivity() {
             "versions" -> bg(result) { Veiloncore.coreVersions() }
             "parseText" -> bg(result) { Veiloncore.parseText(s("text")) }
             "parseConf" -> bg(result) { Veiloncore.parseConf(s("text"), s("name")) }
+            // 1.0.8 (H1): approved certificate pins of literal-IP sub servers.
+            "setSubPins" -> bg(result) { Veiloncore.setSubPins(s("pins")); true }
             "fetchSub" -> bg(result) { Veiloncore.fetchSubscription(s("url"), s("device"), proxyAddr(), 20000) }
             "urlTest" -> bg(result) { Veiloncore.urlTestError(s("profile"), sp(), s("url"), i("timeout", 8000)) }
             "checkProfile" -> bg(result) { Veiloncore.checkProfile(s("profile"), sp()) }
@@ -205,6 +212,7 @@ class MainActivity : FlutterActivity() {
             "canInstallApks" -> result.success(AppUpdate.canInstall(this))
             "openInstallPermission" -> result.success(AppUpdate.openInstallPermission(this))
             "installApk" -> result.success(AppUpdate.install(this, s("path")))
+            "setTheme" -> result.success(runCatching { applyWindowTheme(s("mode")) }.isSuccess)
             "openVpnSettings" -> {
                 val ok = runCatching { startActivity(Intent(Settings.ACTION_VPN_SETTINGS)) }.isSuccess ||
                     runCatching { startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS)) }.isSuccess
@@ -214,12 +222,53 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    // ------------------------------------------------------------ theme
+
+    private fun isDarkMode(mode: String): Boolean = when (mode) {
+        "light" -> false
+        "system" -> (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        else -> true
+    }
+
+    /**
+     * 1.0.8: window colour and system-bar icon brightness for the app theme
+     * ("dark" default, "light", "system"), set before Flutter draws its first
+     * frame so a light theme never starts on a dark window (and the other
+     * way round). On Android 13+ it also picks the starting-window theme the
+     * system uses for the next cold starts.
+     */
+    private fun applyWindowTheme(mode: String) {
+        val dark = isDarkMode(mode)
+        window.setBackgroundDrawable(ColorDrawable(if (dark) 0xFF07080C.toInt() else 0xFFF4F5FA.toInt()))
+        @Suppress("DEPRECATION")
+        if (Build.VERSION.SDK_INT >= 30) {
+            val c = window.insetsController
+            val mask = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+            c?.setSystemBarsAppearance(if (dark) 0 else mask, mask)
+        } else {
+            var f = window.decorView.systemUiVisibility
+            f = if (dark) f and View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv() else f or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+            if (Build.VERSION.SDK_INT >= 26) {
+                f = if (dark) f and View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR.inv() else f or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+            }
+            window.decorView.systemUiVisibility = f
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            val res = when (mode) {
+                "light" -> R.style.LaunchThemeLight
+                "system" -> R.style.LaunchThemeSystem
+                else -> R.style.LaunchTheme
+            }
+            runCatching { splashScreen.setSplashScreenTheme(res) }
+        }
+    }
+
     // ------------------------------------------------------------ device
 
     private fun deviceInfo(): Map<String, Any?> {
         @Suppress("DEPRECATION")
         val ver = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: ""
-        val hwid = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID) ?: ""
+        val hwid = Store.hwid(this, Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID) ?: "")
         return mapOf(
             "package" to packageName,
             "assetDir" to Store.assetDir(this).absolutePath,

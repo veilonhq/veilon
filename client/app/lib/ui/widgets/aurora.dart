@@ -62,10 +62,10 @@ class _AuroraBackgroundState extends State<AuroraBackground> with SingleTickerPr
   @override
   Widget build(BuildContext context) {
     final mood = switch (widget.state) {
-      ConnState.connected => const _Mood(Palette.lime, Palette.violet, Palette.info, 1.0),
-      ConnState.connecting || ConnState.disconnecting => const _Mood(Palette.violet, Palette.lime, Palette.info, 0.8),
-      ConnState.error => const _Mood(Palette.danger, Palette.violet, Palette.warn, 0.55),
-      _ => const _Mood(Palette.violet, Palette.indigoDeep, Palette.info, 0.45),
+      ConnState.connected => _Mood(Palette.lime, Palette.violet, Palette.info, 1.0),
+      ConnState.connecting || ConnState.disconnecting => _Mood(Palette.violet, Palette.lime, Palette.info, 0.8),
+      ConnState.error => _Mood(Palette.danger, Palette.violet, Palette.warn, 0.55),
+      _ => _Mood(Palette.violet, Palette.indigoDeep, Palette.info, 0.45),
     };
     // The painter sits in its own layer; content above it (if any) is a
     // separate repaint boundary so aurora frames never repaint it.
@@ -114,14 +114,20 @@ class _AuroraPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final t = time.value;
-    canvas.drawRect(Offset.zero & size, Paint()..color = Palette.bg);
+    // 1.0.8: light theme. Additive blending (plus) only works on a dark
+    // base; on a light base the blobs are tinted washes (normal blending,
+    // softer) and the vignette fades into the light background.
+    final light = Palette.isLight;
+    final bg = Palette.bg;
+    canvas.drawRect(Offset.zero & size, Paint()..color = bg);
     final w = size.width, h = size.height;
     final e = mood.energy;
+    final k = light ? 0.55 : 1.0;
     void blob(Color c, double cx, double cy, double r, double alpha) {
       final center = Offset(cx * w, cy * h);
       final paint = Paint()
-        ..shader = ui.Gradient.radial(center, r, [c.withValues(alpha: alpha), c.withValues(alpha: 0)], [0, 1])
-        ..blendMode = BlendMode.plus;
+        ..shader = ui.Gradient.radial(center, r, [c.withValues(alpha: alpha * k), c.withValues(alpha: 0)], [0, 1])
+        ..blendMode = light ? BlendMode.srcOver : BlendMode.plus;
       canvas.drawCircle(center, r, paint);
     }
 
@@ -134,7 +140,7 @@ class _AuroraPainter extends CustomPainter {
       Offset.zero & size,
       Paint()
         ..shader = ui.Gradient.radial(Offset(w / 2, h * 0.35), max(w, h) * 0.9,
-            [Colors.transparent, Palette.bg.withValues(alpha: 0.85)], [0.45, 1]),
+            [light ? bg.withValues(alpha: 0) : Colors.transparent, bg.withValues(alpha: light ? 0.7 : 0.85)], [0.45, 1]),
     );
   }
 

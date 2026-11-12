@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/widgets.dart';
@@ -52,6 +53,22 @@ class AppState extends ChangeNotifier {
   bool busyUpdating = false;
   StreamSubscription? _eventsSub;
 
+  /// 1.0.8 (audit M2): the service lost the connection with the kill switch
+  /// on and auto reconnect off, and keeps all traffic blocked (state error).
+  /// The connect button then disconnects (releases the block).
+  bool blocking = false;
+
+  /// 1.0.8 (audit H1): certificates the user approved for literal-IP
+  /// subscription servers, "ip:port" → SHA-256 of the leaf certificate.
+  final Map<String, String> subPins = {};
+
+  /// Asks the user whether to trust a subscription server's certificate
+  /// (set by the shell; null in tests that do not exercise it). [changed]:
+  /// a different certificate was approved before for this server.
+  Future<bool> Function(String server, String fingerprint, bool changed)? confirmCert;
+  int _certPrompts = 0;
+  final List<void Function()> _afterCertPrompt = [];
+
   /// Ticks once per stats event (speeds, history, session totals,
   /// serverUnreachable). 1.0.7: stats no longer go through
   /// [notifyListeners], which rebuilt the whole app (every page, the
@@ -74,7 +91,7 @@ class AppState extends ChangeNotifier {
     return null;
   }
 
-  bool get isOn => state == ConnState.connected || state == ConnState.connecting;
+  bool get isOn => state == ConnState.connected || state == ConnState.connecting || (state == ConnState.error && blocking);
   bool get needsReconnect => state == ConnState.connected && appliedFingerprint != settings.coreFingerprint();
 
   Future<void> init() async {
@@ -124,6 +141,12 @@ class AppState extends ChangeNotifier {
       }
       final st = p.getString('settings');
       if (st != null) settings = AppSettings.fromJson(jsonDecode(st) as Map<String, dynamic>);
+      final pins = p.getString('subPins');
+      if (pins != null) {
+        subPins
+          ..clear()
+          ..addAll((jsonDecode(pins) as Map).map((k, v) => MapEntry('$k', '$v')));
+      }
       // Pings are not restored: a shown delay is always measured in this
       // session, never a cached old value.
       p.remove('pings');
@@ -166,6 +189,19 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _saveSubs() async => _prefs?.setString('subs', jsonEncode(subs.map((e) => e.toJson()).toList()));
+
+  /// 1.0.8: theme setting ('dark' | 'light' | 'system'). The switch itself
+  /// is ThemeHost's cross-fade (it listens to settings.theme).
+  Future<void> setTheme(String mode) async {
+    if (!const ['dark', 'light', 'system'].contains(mode) || settings.theme == mode) return;
+    settings.theme = mode;
+    await saveSettings();
+  }
+
+  /// The palette changed: native window colour / next starting window.
+  void nativeThemeChanged(String mode) {
+    _native.setTheme(mode).catchError((_) {});
+  }
 
   Future<void> saveSettings() async {
     await _prefs?.setString('settings', jsonEncode(settings.toJson()));
@@ -236,6 +272,7 @@ class AppState extends ChangeNotifier {
     final prev = state;
     state = connStateFrom(e['state'] as String?);
     lastError = e['error'] as String? ?? '';
+    blocking = state == ConnState.error && e['blocking'] == true;
     connectedProfileId = e['profileId'] as String?;
     final since = (e['since'] as num?)?.toInt() ?? 0;
     connectedSince = since > 0 ? DateTime.fromMillisecondsSinceEpoch(since) : null;
@@ -399,7 +436,7 @@ class AppState extends ChangeNotifier {
   }
 
   /// Fetches one subscription. Returns an error message or null.
-  Future<String?> updateSubscription(Subscription sub) async {
+  Future<String?> updateSubscription(Subscription sub, {bool certRetried = false}) async {
     final dev = {
       'hwid': device['hwid'] ?? '',
       'os': 'Android',
@@ -409,6 +446,7 @@ class AppState extends ChangeNotifier {
     };
     Map<String, dynamic> r;
     try {
+      await _native.setSubPins(jsonEncode(subPins));
       r = await _native.fetchSubscription(sub.url, dev);
     } catch (e) {
       sub.lastError = '$e';
@@ -418,6 +456,10 @@ class AppState extends ChangeNotifier {
     final status = (r['status'] as num?)?.toInt() ?? 0;
     final errors = ((r['errors'] as List?) ?? const []).map((e) => '$e').toList();
     sub.refused = r['refused'] as String? ?? '';
+    if (status == 0 && !certRetried && errors.isNotEmpty) {
+      final retry = await _askCertificate(sub, errors.first);
+      if (retry != null) return retry ? updateSubscription(sub, certRetried: true) : _certRejected(sub);
+    }
     if (status == 0 || status ~/ 100 != 2) {
       sub.lastError = errors.isNotEmpty ? errors.first : 'HTTP $status';
       await _saveSubs();
@@ -470,6 +512,85 @@ class AppState extends ChangeNotifier {
     return sub.refused.isNotEmpty ? 'refused:${sub.refused}' : null;
   }
 
+  /// "ip:port" of an https subscription URL whose host is a literal IP (the
+  /// only kind whose certificate can be approved), else null. Same key as
+  /// the core's subHostKey.
+  static String? subPinKey(String url) {
+    final u = Uri.tryParse(url.trim());
+    if (u == null || u.scheme.toLowerCase() != 'https' || u.host.isEmpty) return null;
+    final ip = InternetAddress.tryParse(u.host);
+    if (ip == null) return null;
+    final port = u.hasPort ? u.port : 443;
+    return ip.type == InternetAddressType.IPv6 ? '[${ip.address}]:$port' : '${ip.address}:$port';
+  }
+
+  /// `err.subCertUntrusted:<sha256>` → ask the user (1.0.8, audit H1).
+  /// Returns true to retry with the approved pin, false when the user
+  /// declined, null when this is not a certificate question.
+  Future<bool?> _askCertificate(Subscription sub, String error) async {
+    const prefix = 'err.subCertUntrusted:';
+    if (!error.startsWith(prefix)) return null;
+    final fp = error.substring(prefix.length).trim().toLowerCase();
+    final key = subPinKey(sub.url);
+    final ask = confirmCert;
+    if (key == null || ask == null || !RegExp(r'^[0-9a-f]{64}$').hasMatch(fp)) return null;
+    final changed = subPins.containsKey(key) && subPins[key] != fp;
+    _certPrompts++;
+    bool ok = false;
+    try {
+      ok = await ask(key, fp, changed);
+    } catch (_) {
+      ok = false;
+    } finally {
+      _certPrompts--;
+      if (_certPrompts == 0) {
+        for (final f in List.of(_afterCertPrompt)) {
+          f();
+        }
+        _afterCertPrompt.clear();
+      }
+    }
+    if (!ok) return false;
+    subPins[key] = fp;
+    await _prefs?.setString('subPins', jsonEncode(subPins));
+    return true;
+  }
+
+  Future<String?> _certRejected(Subscription sub) async {
+    sub.lastError = 'err.subCertRejected';
+    await _saveSubs();
+    notifyListeners();
+    return sub.lastError;
+  }
+
+  /// [work] capped at [refreshTimeout]; the clock is paused while a
+  /// certificate question is open (the user is reading it).
+  Future<T> _capped<T>(Future<T> work, T onTimeout) {
+    final c = Completer<T>();
+    Timer? timer;
+    void arm() {
+      timer?.cancel();
+      timer = Timer(refreshTimeout, () {
+        if (c.isCompleted) return;
+        if (_certPrompts > 0) {
+          _afterCertPrompt.add(arm);
+          return;
+        }
+        c.complete(onTimeout);
+      });
+    }
+
+    arm();
+    work.then((v) {
+      timer?.cancel();
+      if (!c.isCompleted) c.complete(v);
+    }, onError: (Object e, StackTrace st) {
+      timer?.cancel();
+      if (!c.isCompleted) c.completeError(e, st);
+    });
+    return c.future;
+  }
+
   /// Longest a manual refresh keeps its spinner. After that the result so far
   /// is reported; a fetch still in flight may finish later but is never retried.
   static Duration refreshTimeout = const Duration(seconds: 10);
@@ -489,7 +610,7 @@ class AppState extends ChangeNotifier {
       }
     }();
     try {
-      await work.timeout(refreshTimeout, onTimeout: () {});
+      await _capped<void>(work, null);
     } finally {
       busyUpdating = false;
       notifyListeners();
@@ -504,7 +625,7 @@ class AppState extends ChangeNotifier {
     busyUpdating = true;
     notifyListeners();
     try {
-      return await updateSubscription(sub).timeout(refreshTimeout, onTimeout: () => 'timeout');
+      return await _capped<String?>(updateSubscription(sub), 'timeout');
     } finally {
       busyUpdating = false;
       notifyListeners();
