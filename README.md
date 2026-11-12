@@ -30,7 +30,7 @@
 
 پنل مدیریت پروکسی رایگان؛ یک فایل اجرایی، نصب با یک دستور
 
-📱 [دانلود کلاینت اندروید Veilon](https://github.com/veilonhq/veilon/releases/tag/client-latest)
+📱 [کلاینت اندروید Veilon](https://github.com/veilonhq/veilon/tree/feat/client/client)
 
 </div>
 
@@ -341,7 +341,7 @@ veilon cert list
 
 | برنامه | سیستم عامل | روش |
 | --- | --- | --- |
-| **[Veilon Client](https://github.com/veilonhq/veilon/releases/tag/client-latest)** | اندروید | کلاینت رسمی Veilon: لینک اشتراک را با دکمه + وارد کنید یا QR را اسکن کنید |
+| **[Veilon Client](https://github.com/veilonhq/veilon/tree/feat/client/client)** | اندروید | کلاینت رسمی Veilon: لینک اشتراک را با دکمه + وارد کنید یا QR را اسکن کنید |
 | **v2rayNG** | اندروید | لینک اشتراک را کپی کنید ← دکمه + ← Import from clipboard؛ یا کد QR را اسکن کنید |
 | **Hiddify** | اندروید، iOS، ویندوز، macOS، لینوکس | New Profile ← لینک اشتراک را وارد کنید |
 | **Streisand** | iOS و macOS | دکمه + ← لینک اشتراک یا اسکن QR |
@@ -525,7 +525,7 @@ UQCr7FXmeLsKLplHAgb1HIT0rxmQJpvAh4w2pST-DBGicbi2
 
 Free proxy panel. One binary, one-line install.
 
-📱 [Download the Veilon Android client](https://github.com/veilonhq/veilon/releases/tag/client-latest)
+📱 [Veilon Android client](https://github.com/veilonhq/veilon/tree/feat/client/client)
 
 </div>
 
@@ -748,7 +748,7 @@ veilon cert issue --ip auto --panel
 
 | App | Platforms | How |
 | --- | --- | --- |
-| **[Veilon Client](https://github.com/veilonhq/veilon/releases/tag/client-latest)** | Android | The official Veilon client: add the subscription link with + or scan the QR code |
+| **[Veilon Client](https://github.com/veilonhq/veilon/tree/feat/client/client)** | Android | The official Veilon client: add the subscription link with + or scan the QR code |
 | **v2rayNG** | Android | Import the subscription link or scan the QR code |
 | **Hiddify** | All platforms | Import the subscription link or scan the QR code |
 | **Streisand** | iOS, macOS | Import the subscription link or scan the QR code |
