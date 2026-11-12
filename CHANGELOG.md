@@ -2,6 +2,26 @@
 
 Each release's notes, Persian first. Older releases: https://github.com/veilonhq/veilon/releases
 
+## Unreleased
+
+### فارسی
+
+- ورودی های AmneziaWG و MTProto (پروکسی تلگرام) حالا مثل ورودی های Xray روی نودها اجرا می شوند: در فرم ورودی «محل اجرا» را روی نودها بگذارید (گزینه «روی سرور اصلی هم اجرا شود» هم مثل قبل). نود همان موتورهای سرور اصلی را اجرا می کند (سرور داخلی AmneziaWG و mtg-multi که بار اول روی نود دانلود می شود)
+- لینک ها، QR و فایل `.conf` کاربران برای این ورودی ها آدرس نود را دارند؛ ترافیک هر کاربر روی نود مثل Xray در مصرف کاربر و ترافیک نود حساب می شود؛ وضعیت آنلاین این دو با قاعده ترافیک است (فهرست اتصال باز ندارند)
+- محدودیت IP روی نود برای این دو هم کار می کند: IP کاربر (endpoint های AmneziaWG که ترافیک دارند و IP های زنده MTProto) در «اتصال ها» دیده می شود و در محدودیت IP همه سرورها حساب می شود، و IP اضافه با همان قانون nftables روی پورت های نود مسدود می شود
+- این قابلیت برنامه نود همین نسخه را می خواهد. نودهای v0.3.7 و قدیمی تر در فرم ورودی با «نیاز به بروزرسانی» نشان داده می شوند و برای این دو پروتکل انتخاب نمی شوند (API: خطای ۴۰۹ `node_agent_old`)؛ ورودی ای که از قبل روی چنین نودی باشد تا بروزرسانی نود روی آن اجرا نمی شود و فرم نود همین را می گوید. ورودی های Xray روی نودهای قدیمی مثل قبل کار می کنند
+- بررسی پورت تکراری برای هر سرور شامل این ورودی ها هم هست
+- ورودی ها و کاربران موجود سرور اصلی تغییری نمی کنند و پایگاه داده مهاجرت تازه ای ندارد (schema همان 9)
+
+### English
+
+- AmneziaWG and MTProto (Telegram proxy) inbounds can now run on nodes like Xray inbounds: set "Runs on" to nodes in the inbound form ("Also run on the main server" works as before). The node runs the same engines as the main server (the built-in AmneziaWG server and mtg-multi, downloaded on the node on first use)
+- Users' links, QR codes and `.conf` files for these inbounds point at the node; each user's traffic on the node counts towards their usage and the node's traffic like Xray's; their online status uses the traffic rule (these engines have no open-connection list)
+- IP limits work on nodes for these two as well: the user's IPs (AmneziaWG endpoints that send traffic, MTProto's live client addresses) show in "Connections" and count in the IP limit across all servers, and an extra IP is dropped on the node's ports with the same nftables rule
+- This needs this release's node agent. Nodes on v0.3.7 or older are marked "needs update" in the inbound form and cannot be picked for these two protocols (API: `409 node_agent_old`); an inbound already placed on such a node is skipped there until the node is updated, and the node's form says so. Xray inbounds on older nodes keep working as before
+- The per-server port check covers these inbounds too
+- Existing inbounds and users on the main server are unchanged, and there is no new database migration (schema stays 9)
+
 ## v0.3.7 (2026-11-11)
 
 ### فارسی
