@@ -23,6 +23,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/cores"
 	"github.com/veilonhq/veilon/panel/internal/guard"
 	"github.com/veilonhq/veilon/panel/internal/nodes"
+	"github.com/veilonhq/veilon/panel/internal/porthop"
 	"github.com/veilonhq/veilon/panel/internal/version"
 	"github.com/veilonhq/veilon/panel/internal/xray"
 )
@@ -152,8 +153,10 @@ func nodeServe(dir, token, listen string) error {
 		AWGPeers: shaper.SetAWGPeers}
 	go shaper.RunAWGLoop(ctx)
 	a := &nodes.Agent{Enrollment: e, Dir: dir, Core: core, APIPort: apiPort, Version: version.Version,
-		IPs: ips, Firewall: &guard.NodeFirewall{}, Shaper: shaper, Updater: nodeUpdater(dir), Engines: engines}
+		IPs: ips, Firewall: &guard.NodeFirewall{}, Shaper: shaper, Updater: nodeUpdater(dir), Engines: engines,
+		Hop: &porthop.Applier{}}
 	defer shaper.ClearShapes()
+	defer func() { _ = a.Hop.Clear() }()
 	a.Updater.Resume()
 	a.Restore(ctx)
 	return a.Serve(ctx, listen)

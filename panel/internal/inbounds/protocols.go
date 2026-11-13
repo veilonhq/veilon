@@ -31,6 +31,9 @@ const (
 	TUN         = "tun"
 	MTProto     = "mtproto"
 	Masque      = "masque"
+	ShadowTLS   = "shadowtls" // ShadowTLS v3 with an inner Shadowsocks 2022 (sing-box)
+	AnyTLS      = "anytls"    // sing-box
+	Naive       = "naive"     // NaiveProxy (HTTPS / HTTP2 CONNECT, sing-box)
 )
 
 // Engines that run inbounds.
@@ -44,7 +47,7 @@ const (
 // Engine returns the process that serves a protocol.
 func Engine(protocol string) string {
 	switch protocol {
-	case TUIC:
+	case TUIC, ShadowTLS, AnyTLS, Naive:
 		return EngineSingbox
 	case MTProto:
 		return EngineMTG
@@ -102,9 +105,32 @@ func IsV2(protocol string) bool {
 	return protocol == VLESS || protocol == VMess || protocol == Trojan || protocol == Shadowsocks
 }
 
-// TLSRequired reports whether the protocol always runs over TLS (QUIC based).
+// TLSRequired reports whether the protocol always runs over TLS with a panel
+// certificate (the QUIC based ones, AnyTLS and NaiveProxy). ShadowTLS borrows
+// another server's handshake instead and has no certificate.
 func TLSRequired(protocol string) bool {
-	return protocol == Hysteria || protocol == TUIC || protocol == Masque
+	return protocol == Hysteria || protocol == TUIC || protocol == Masque || protocol == AnyTLS || protocol == Naive
+}
+
+// IsSingbox reports whether sing-box serves the protocol (main server only).
+func IsSingbox(protocol string) bool { return Engine(protocol) == EngineSingbox }
+
+// ShadowTLSMethods are the inner Shadowsocks 2022 ciphers of a ShadowTLS
+// inbound (multi-user, so each user has an own key under the server key).
+var ShadowTLSMethods = []string{"2022-blake3-aes-128-gcm", "2022-blake3-aes-256-gcm"}
+
+// AnyTLSDefaultPadding is sing-box's default AnyTLS padding scheme (shown
+// as the starting point; an empty scheme means this default).
+var AnyTLSDefaultPadding = []string{
+	"stop=8",
+	"0=30-30",
+	"1=100-400",
+	"2=400-500,c,500-1000,c,500-1000,c,500-1000,c,500-1000",
+	"3=9-9,500-1000",
+	"4=500-1000",
+	"5=500-1000",
+	"6=500-1000",
+	"7=500-1000",
 }
 
 // IsWG reports whether the protocol is WireGuard based (per-user peers).
@@ -130,6 +156,18 @@ type Settings struct {
 	ObfsPassword string `json:"obfs_password"`
 	UpMbps       int    `json:"up_mbps"`
 	DownMbps     int    `json:"down_mbps"`
+	// HopPorts: Hysteria 2 port hopping. Extra UDP port ranges
+	// ("20000-30000" or "20000-30000,40000-40100") the server redirects to
+	// the listen port; clients hop between them ("" = off).
+	HopPorts string `json:"hop_ports"`
+	// HopInterval: seconds between client hops (0 = client default, 30 s).
+	HopInterval int `json:"hop_interval"`
+	// ShadowTLS v3: the real TLS 1.3 server whose handshake is shown to
+	// observers (clients use its name as SNI).
+	HandshakeServer string `json:"handshake_server"`
+	HandshakePort   int    `json:"handshake_port"`
+	// AnyTLS padding scheme, one rule per line (empty = sing-box default).
+	PaddingScheme []string `json:"padding_scheme"`
 	// TUIC congestion control: bbr, cubic or new_reno.
 	Congestion string `json:"congestion"`
 	// WireGuard / AmneziaWG server interface.
@@ -167,6 +205,8 @@ const MasqueDefaultPath = "/.well-known/masque/ip/{target}/{ipproto}/"
 var (
 	ifaceRe = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]{0,14}$`)
 	hostRe  = regexp.MustCompile(`^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$`)
+	// paddingRe: one AnyTLS padding rule: "stop=N" or "N=a-b[,c|,a-b]...".
+	paddingRe = regexp.MustCompile(`^(stop=\d{1,3}|\d{1,3}=(\d{1,5}-\d{1,5}|c)(,(\d{1,5}-\d{1,5}|c))*)$`)
 )
 
 func randInt(min, max int) int {
@@ -254,6 +294,8 @@ func Transports(v *View) (tcp, udp bool) {
 		}
 	case Hysteria, TUIC, WireGuard, AmneziaWG:
 		udp = true
+	case ShadowTLS, AnyTLS, Naive:
+		tcp = true
 	case Masque:
 		alpn := []string{"h3"}
 		if v.TLS != nil && len(v.TLS.ALPN) > 0 {
@@ -329,6 +371,7 @@ func normalizeWGAddress(a string) (string, error) {
 func normalizeProtocol(v *View) error {
 	src := v.Settings
 	s := Settings{}
+	ssMethod, ssKey := v.SSMethod, v.SSServerKey
 	v.Flow, v.SSMethod, v.SSServerKey, v.Reality = "", "", "", nil
 	v.Transport = Transport{}
 	switch v.Protocol {
@@ -338,6 +381,63 @@ func normalizeProtocol(v *View) error {
 		if s.UpMbps < 0 || s.DownMbps < 0 || s.UpMbps > 100000 || s.DownMbps > 100000 {
 			return verr("settings.up_mbps/down_mbps must be 0-100000")
 		}
+		ranges, err := ParseHopPorts(src.HopPorts)
+		if err != nil {
+			return err
+		}
+		s.HopPorts = FormatHopPorts(ranges)
+		if s.HopPorts != "" {
+			s.HopInterval = src.HopInterval
+			if s.HopInterval != 0 && (s.HopInterval < 5 || s.HopInterval > 3600) {
+				return verr("settings.hop_interval must be 0 (default) or 5-3600 seconds")
+			}
+		}
+	case ShadowTLS:
+		s.HandshakeServer = strings.ToLower(strings.TrimSpace(src.HandshakeServer))
+		if s.HandshakeServer == "" {
+			s.HandshakeServer = "www.microsoft.com"
+		}
+		if !hostRe.MatchString(s.HandshakeServer) && net.ParseIP(s.HandshakeServer) == nil {
+			return verr("settings.handshake_server must be a host name (a TLS 1.3 site), e.g. www.microsoft.com")
+		}
+		s.HandshakePort = src.HandshakePort
+		if s.HandshakePort == 0 {
+			s.HandshakePort = 443
+		}
+		if s.HandshakePort < 1 || s.HandshakePort > 65535 {
+			return verr("settings.handshake_port must be 1-65535")
+		}
+		v.SSMethod = ssMethod
+		if v.SSMethod == "" {
+			v.SSMethod = ShadowTLSMethods[0]
+		}
+		if !in(v.SSMethod, ShadowTLSMethods) {
+			return verr("ss_method of a ShadowTLS inbound must be one of %s", strings.Join(ShadowTLSMethods, ", "))
+		}
+		v.SSServerKey = ssKey
+		if b, err := base64.StdEncoding.DecodeString(v.SSServerKey); err != nil || len(b) != SS2022KeyLen(v.SSMethod) {
+			k := make([]byte, SS2022KeyLen(v.SSMethod))
+			_, _ = rand.Read(k)
+			v.SSServerKey = base64.StdEncoding.EncodeToString(k)
+		}
+	case AnyTLS:
+		for _, l := range src.PaddingScheme {
+			l = strings.TrimSpace(l)
+			if l == "" {
+				continue
+			}
+			if len(l) > 256 || !paddingRe.MatchString(l) {
+				return verr("settings.padding_scheme: %q is not a padding rule (e.g. stop=8 or 1=100-400)", l)
+			}
+			s.PaddingScheme = append(s.PaddingScheme, l)
+		}
+		if len(s.PaddingScheme) > 64 {
+			return verr("settings.padding_scheme: at most 64 lines")
+		}
+		if len(s.PaddingScheme) > 0 && !strings.HasPrefix(s.PaddingScheme[0], "stop=") {
+			return verr("settings.padding_scheme must start with a stop=N line")
+		}
+	case Naive:
 	case TUIC:
 		s.Congestion = src.Congestion
 		if s.Congestion == "" {
@@ -543,6 +643,10 @@ func normalizeProtocol(v *View) error {
 		switch v.Protocol {
 		case Hysteria, TUIC:
 			v.TLS.ALPN = []string{"h3"}
+		case AnyTLS:
+			v.TLS.ALPN = []string{}
+		case Naive:
+			v.TLS.ALPN = []string{"h2", "http/1.1"}
 		case Masque:
 			var a []string
 			for _, x := range v.TLS.ALPN {

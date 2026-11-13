@@ -22,6 +22,7 @@ import (
 
 	"github.com/veilonhq/veilon/panel/internal/cores"
 	"github.com/veilonhq/veilon/panel/internal/guard"
+	"github.com/veilonhq/veilon/panel/internal/porthop"
 	"github.com/veilonhq/veilon/panel/internal/userkey"
 	"github.com/veilonhq/veilon/panel/internal/util"
 	"github.com/veilonhq/veilon/panel/internal/xray"
@@ -78,6 +79,9 @@ type Agent struct {
 	// Engines runs the AmneziaWG and MTProto inbounds (nil = the agent
 	// does not announce CapAWG / CapMTProto).
 	Engines *cores.NodeEngines
+	// Hop redirects the Hysteria 2 port-hopping ranges of the engines spec
+	// (nil = the agent does not announce CapPortHop; needs Engines).
+	Hop *porthop.Applier
 	// XrayDownload fetches an Xray-core release binary into a directory
 	// (nil = xray.DownloadBinary; tests replace it).
 	XrayDownload func(ctx context.Context, dir, version string) error
@@ -159,11 +163,22 @@ func (a *Agent) restoreEngines() {
 		return
 	}
 	a.Engines.Set(spec)
+	a.applyHop(spec.Hop)
 	a.mu.Lock()
 	a.enginesHash = Hash(b)
 	a.enginePorts = spec.Ports()
 	a.mu.Unlock()
 	a.applyPorts()
+}
+
+// applyHop redirects the spec's port-hopping ranges (nil Hop: ignored).
+func (a *Agent) applyHop(rules []porthop.Rule) {
+	if a.Hop == nil {
+		return
+	}
+	if err := a.Hop.Apply(rules); err != nil {
+		slog.Warn("node port hopping not applied", "err", err)
+	}
 }
 
 func (a *Agent) enginesFile() string { return filepath.Join(a.Dir, "engines.json") }
@@ -493,8 +508,16 @@ func (a *Agent) info() Info {
 		if _, ok := a.Shaper.(AWGShaper); ok {
 			in.Caps = append(in.Caps, CapAWGShape)
 		}
+		if a.Hop != nil {
+			in.Caps = append(in.Caps, CapPortHop)
+		}
 		in.EnginesHash = ehash
 		in.EngineErrors = a.Engines.Errors()
+		if a.Hop != nil {
+			if e := a.Hop.Err(); e != "" {
+				in.EngineErrors = append(in.EngineErrors, "port hopping: "+e)
+			}
+		}
 	}
 	in.Load1, in.MemUsed = hostLoad()
 	return in
@@ -598,6 +621,7 @@ func (a *Agent) putEngines(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	a.Engines.Set(spec)
+	a.applyHop(spec.Hop)
 	a.mu.Lock()
 	a.enginesHash = p.Hash
 	a.enginePorts = spec.Ports()

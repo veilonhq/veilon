@@ -42,7 +42,8 @@ type Options struct {
 
 type obj = map[string]any
 
-// SingboxConfig renders the sing-box server config for the TUIC inbounds.
+// SingboxConfig renders the sing-box server config for the TUIC, ShadowTLS,
+// AnyTLS and NaiveProxy inbounds.
 // Authenticated traffic is handed to Xray's loopback bridge inbound
 // (bridgePort) with the user's identity, so Xray applies the same routing
 // rules and records exact per-user traffic. It returns nil when there is
@@ -56,23 +57,35 @@ func SingboxConfig(in *xray.Input, bridgePort int) ([]byte, error) {
 		if inbounds.Engine(ib.Protocol) != inbounds.EngineSingbox {
 			continue
 		}
-		if ib.TLS == nil || ib.TLS.CertID == nil {
-			slog.Warn("skipping inbound without certificate", "inbound", ib.Remark)
-			continue
-		}
-		cf, kf := certs.Paths(in.DataDir, *ib.TLS.CertID)
-		if _, err := os.Stat(cf); err != nil {
-			slog.Warn("skipping inbound: certificate files missing", "inbound", ib.Remark)
-			continue
+		if inbounds.TLSRequired(ib.Protocol) {
+			if ib.TLS == nil || ib.TLS.CertID == nil {
+				slog.Warn("skipping inbound without certificate", "inbound", ib.Remark)
+				continue
+			}
+			cf, _ := certs.Paths(in.DataDir, *ib.TLS.CertID)
+			if _, err := os.Stat(cf); err != nil {
+				slog.Warn("skipping inbound: certificate files missing", "inbound", ib.Remark)
+				continue
+			}
 		}
 		listen := ib.Listen
 		if listen == "" {
 			listen = "::"
 		}
-		users := []any{}
+		var users, ssUsers []any
 		for _, u := range in.Users[ib.ID] {
 			name := xray.Email(&u)
-			users = append(users, obj{"name": name, "uuid": u.UUID, "password": u.Password})
+			switch ib.Protocol {
+			case inbounds.TUIC:
+				users = append(users, obj{"name": name, "uuid": u.UUID, "password": u.Password})
+			case inbounds.Naive:
+				users = append(users, obj{"username": name, "password": u.Password})
+			case inbounds.ShadowTLS:
+				users = append(users, obj{"name": name, "password": u.Password})
+				ssUsers = append(ssUsers, obj{"name": name, "password": inbounds.SS2022UserKey(ib.SSMethod, u.Password)})
+			default:
+				users = append(users, obj{"name": name, "password": u.Password})
+			}
 			if !seenUser[u.ID] {
 				seenUser[u.ID] = true
 				tag := fmt.Sprintf("u-%d", u.ID)
@@ -84,23 +97,10 @@ func SingboxConfig(in *xray.Input, bridgePort int) ([]byte, error) {
 				rules = append(rules, obj{"auth_user": []string{name}, "outbound": tag})
 			}
 		}
-		tls := obj{"enabled": true, "alpn": []string{"h3"}, "certificate_path": cf, "key_path": kf}
-		if ib.TLS.SNI != "" {
-			tls["server_name"] = ib.TLS.SNI
+		if users == nil {
+			users = []any{}
 		}
-		t := obj{
-			"type": "tuic", "tag": ib.Tag(), "listen": listen, "listen_port": ib.Port,
-			"users": users, "congestion_control": ib.Settings.Congestion, "tls": tls,
-		}
-		if a := ib.Advanced; a != nil && a.TUIC != nil {
-			if a.TUIC.ZeroRTT {
-				t["zero_rtt_handshake"] = true
-			}
-			if a.TUIC.Heartbeat > 0 {
-				t["heartbeat"] = fmt.Sprintf("%ds", a.TUIC.Heartbeat)
-			}
-		}
-		ibs = append(ibs, t)
+		ibs = append(ibs, singboxInbound(ib, in.DataDir, listen, users, ssUsers)...)
 	}
 	if len(ibs) == 0 {
 		return nil, nil
@@ -112,6 +112,62 @@ func SingboxConfig(in *xray.Input, bridgePort int) ([]byte, error) {
 		"route":     obj{"rules": rules, "final": "block"},
 	}
 	return json.MarshalIndent(cfg, "", "  ")
+}
+
+// singboxInbound renders one inbound (ShadowTLS: the ShadowTLS listener
+// plus its inner loopback Shadowsocks 2022 inbound, which identifies the
+// user again: sing-box does not carry the ShadowTLS user through the
+// detour). The certificate was checked by the caller.
+func singboxInbound(ib *inbounds.View, dataDir, listen string, users, ssUsers []any) []any {
+	tlsObj := func(alpn []string) obj {
+		cf, kf := certs.Paths(dataDir, *ib.TLS.CertID)
+		t := obj{"enabled": true, "certificate_path": cf, "key_path": kf}
+		if len(alpn) > 0 {
+			t["alpn"] = alpn
+		}
+		if ib.TLS.SNI != "" {
+			t["server_name"] = ib.TLS.SNI
+		}
+		return t
+	}
+	base := obj{"tag": ib.Tag(), "listen": listen, "listen_port": ib.Port, "users": users}
+	switch ib.Protocol {
+	case inbounds.TUIC:
+		base["type"] = "tuic"
+		base["congestion_control"] = ib.Settings.Congestion
+		base["tls"] = tlsObj([]string{"h3"})
+		if a := ib.Advanced; a != nil && a.TUIC != nil {
+			if a.TUIC.ZeroRTT {
+				base["zero_rtt_handshake"] = true
+			}
+			if a.TUIC.Heartbeat > 0 {
+				base["heartbeat"] = fmt.Sprintf("%ds", a.TUIC.Heartbeat)
+			}
+		}
+	case inbounds.AnyTLS:
+		base["type"] = "anytls"
+		if len(ib.Settings.PaddingScheme) > 0 {
+			base["padding_scheme"] = ib.Settings.PaddingScheme
+		}
+		base["tls"] = tlsObj(nil)
+	case inbounds.Naive:
+		base["type"] = "naive"
+		base["network"] = "tcp"
+		base["tls"] = tlsObj(ib.TLS.ALPN)
+	case inbounds.ShadowTLS:
+		inner := ib.Tag() + "-ss"
+		if ssUsers == nil {
+			ssUsers = []any{}
+		}
+		base["type"] = "shadowtls"
+		base["version"] = 3
+		base["strict_mode"] = true
+		base["handshake"] = obj{"server": ib.Settings.HandshakeServer, "server_port": ib.Settings.HandshakePort}
+		base["detour"] = inner
+		return []any{base, obj{"type": "shadowsocks", "tag": inner, "listen": "127.0.0.1", "network": "tcp",
+			"method": ib.SSMethod, "password": ib.SSServerKey, "users": ssUsers}}
+	}
+	return []any{base}
 }
 
 // blockedCIDRs turns blocked client IPs into host prefixes; invalid
@@ -160,7 +216,7 @@ func NewSingbox(opt Options) *Singbox {
 	e.Supervisor = NewSupervisor(Spec{
 		DB:         opt.DB,
 		Name:       "sing-box",
-		Protocols:  []string{inbounds.TUIC},
+		Protocols:  []string{inbounds.TUIC, inbounds.ShadowTLS, inbounds.AnyTLS, inbounds.Naive},
 		Bin:        func() string { return opt.BinPath },
 		Ensure:     e.ensure,
 		Version:    func() string { return binVersion(opt.BinPath, "version", 2) },

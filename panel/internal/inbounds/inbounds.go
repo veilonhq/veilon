@@ -121,7 +121,7 @@ func (v *View) Tag() string { return fmt.Sprintf("inbound-%d", v.ID) }
 
 // Allowed values.
 var (
-	Protocols  = []string{VLESS, VMess, Trojan, Shadowsocks, Hysteria, TUIC, WireGuard, AmneziaWG, HTTP, Mixed, Socks, Tunnel, TUN, MTProto, Masque}
+	Protocols  = []string{VLESS, VMess, Trojan, Shadowsocks, Hysteria, TUIC, WireGuard, AmneziaWG, HTTP, Mixed, Socks, Tunnel, TUN, MTProto, Masque, ShadowTLS, AnyTLS, Naive}
 	Networks   = []string{"tcp", "ws", "grpc", "httpupgrade", "xhttp", "kcp"}
 	Securities = []string{"none", "tls", "reality"}
 	SSMethods  = []string{"aes-128-gcm", "aes-256-gcm", "chacha20-ietf-poly1305", "2022-blake3-aes-128-gcm", "2022-blake3-aes-256-gcm"}
@@ -286,6 +286,9 @@ func fixNil(s *Settings) {
 	}
 	if s.Pool == nil {
 		s.Pool = []string{}
+	}
+	if s.PaddingScheme == nil {
+		s.PaddingScheme = []string{}
 	}
 }
 
@@ -626,7 +629,14 @@ func (s *Service) checkUnique(v *View, prev *db.Inbound) error {
 	return s.checkPort(v.ID, v.Port, want)
 }
 
+// naiveCertMsg: NaiveProxy clients (Chromium's network stack) trust no
+// self-signed certificate and take no pin.
+const naiveCertMsg = "NaiveProxy needs a certificate from a real CA (Let's Encrypt for a domain or the server IP, or an uploaded one); NaiveProxy clients do not accept self-signed certificates"
+
 func (s *Service) checkCross(v *View) error {
+	if err := s.checkHop(v); err != nil {
+		return err
+	}
 	tcp, udp := Transports(v)
 	if v.Protocol != TUN {
 		var rows []db.Inbound
@@ -660,6 +670,9 @@ func (s *Service) checkCross(v *View) error {
 			}
 		}
 	}
+	if v.Protocol == Naive && (v.TLS == nil || v.TLS.CertID == nil) {
+		return verr(naiveCertMsg)
+	}
 	if v.Security == "tls" && TLSRequired(v.Protocol) && v.TLS.CertID == nil {
 		if s.SelfSigned == nil {
 			return verr("tls.cert_id is required")
@@ -690,6 +703,9 @@ func (s *Service) checkCross(v *View) error {
 		}
 		if v.TLS.SNI == "" {
 			v.TLS.SNI = c.Domain
+		}
+		if c.Source == "self" && v.Protocol == Naive {
+			return verr(naiveCertMsg)
 		}
 		if c.Source == "self" {
 			// Clients can only connect to a self-signed certificate with

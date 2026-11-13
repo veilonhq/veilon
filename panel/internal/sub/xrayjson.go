@@ -11,8 +11,8 @@ import (
 // XraySupported reports whether an Xray client config can express the proxy.
 func XraySupported(p *Proxy) bool {
 	switch p.Protocol {
-	case inbounds.TUIC, inbounds.AmneziaWG, inbounds.MTProto:
-		return false
+	case inbounds.TUIC, inbounds.AmneziaWG, inbounds.MTProto, inbounds.ShadowTLS, inbounds.AnyTLS, inbounds.Naive:
+		return false // sing-box protocols Xray has no client for
 	}
 	return true
 }
@@ -36,8 +36,21 @@ func xrayExtraOutbound(p *Proxy) obj {
 		o["settings"] = obj{"version": 2, "address": p.Server, "port": p.Port}
 		ss := obj{"network": "hysteria", "hysteriaSettings": obj{"version": 2, "auth": p.Password},
 			"security": "tls", "tlsSettings": xrayClientTLS(p, []string{"h3"})}
+		var masks []any
 		if p.ObfsPassword != "" {
-			ss["finalmask"] = obj{"udp": []any{obj{"type": "salamander", "settings": obj{"password": p.ObfsPassword}}}}
+			masks = append(masks, obj{"type": "salamander", "settings": obj{"password": p.ObfsPassword}})
+		}
+		if p.HopPorts != "" {
+			// Port hopping (Xray-core 26.10.21+): change the remote port
+			// every interval (default 30 s).
+			h := obj{"mode": "intervalRemote", "remotePorts": p.HopPorts}
+			if p.HopInterval > 0 {
+				h["interval"] = p.HopInterval
+			}
+			masks = append(masks, obj{"type": "udphop", "settings": h})
+		}
+		if len(masks) > 0 {
+			ss["finalmask"] = obj{"udp": masks}
 		}
 		o["streamSettings"] = ss
 	case inbounds.Masque:

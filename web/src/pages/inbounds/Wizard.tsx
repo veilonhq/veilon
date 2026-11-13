@@ -27,8 +27,12 @@ import {
   engineOf,
   hasPort,
   hasUsers,
-  isQuic,
+  isSingbox,
+  isTcpTls,
   isV2,
+  tlsRequired,
+  ANYTLS_PADDING,
+  STLS_METHODS,
   isWG,
   needsNetAdmin,
   protoName,
@@ -60,7 +64,7 @@ const STEP_LABEL: Record<StepId, MessageKey> = {
   review: 'inb.step.review',
 };
 function stepsFor(p: Protocol): StepId[] {
-  if (isV2(p) || isQuic(p) || p === 'http') return ['protocol', 'connection', 'security', 'review'];
+  if (isV2(p) || tlsRequired(p) || p === 'http') return ['protocol', 'connection', 'security', 'review'];
   if (isWG(p)) return ['protocol', 'connection', 'keys', 'review'];
   return ['protocol', 'connection', 'review'];
 }
@@ -92,8 +96,8 @@ function toBody(d0: InboundInput): InboundInput {
     const r = d.reality && !REALITY_FPS.includes(d.reality.fingerprint) ? { ...d.reality, fingerprint: 'chrome' } : d.reality;
     return { ...d, reality: r, settings: emptySettings(), vless_encryption: p === 'vless' ? d.vless_encryption ?? null : null, advanced: cleanAdvanced(d) };
   }
-  const b: InboundInput = { ...d, network: 'tcp', transport: { path: '', host: '', service_name: '', mode: '' }, flow: '', ss_method: '', reality: null, vless_encryption: null };
-  if (isQuic(p)) b.security = 'tls';
+  const b: InboundInput = { ...d, network: 'tcp', transport: { path: '', host: '', service_name: '', mode: '' }, flow: '', ss_method: p === 'shadowtls' ? d.ss_method : '', reality: null, vless_encryption: null };
+  if (tlsRequired(p)) b.security = 'tls';
   else if (p === 'http') {
     if (b.security !== 'tls') b.tls = null;
     if (b.security === 'reality') b.security = 'none';
@@ -124,6 +128,28 @@ function cidr(x: string): { v4: boolean; bits: number } | null {
   return null;
 }
 const between = (n: number, min: number, max: number) => Number.isFinite(n) && n >= min && n <= max;
+const PADDING = /^(stop=\d{1,3}|\d{1,3}=(\d{1,5}-\d{1,5}|c)(,(\d{1,5}-\d{1,5}|c))*)$/;
+const toLatin = (x: string) => x.replace(/[۰-۹]/g, (c) => String(c.charCodeAt(0) - 0x6f0)).replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 0x660));
+/** Port hopping ranges (mirrors inbounds.ParseHopPorts): the message key of the first problem, or null. */
+function hopError(raw: string, port: number): MessageKey | null {
+  const v = toLatin(raw).replace(/،/g, ',').replace(/\s/g, '').replace(/:/g, '-');
+  if (!v) return null;
+  const parts = v.split(',').filter(Boolean);
+  if (parts.length > 4) return 'inb.hopTooMany';
+  const rs: [number, number][] = [];
+  for (const x of parts) {
+    const m = /^(\d{1,5})(?:-(\d{1,5}))?$/.exec(x);
+    if (!m) return 'inb.hopInvalid';
+    const a = Number(m[1]);
+    const b = m[2] ? Number(m[2]) : a;
+    if (a < 1024 || b > 65535 || a > b) return 'inb.hopInvalid';
+    rs.push([a, b]);
+  }
+  rs.sort((x, y) => x[0] - y[0]);
+  for (let i = 1; i < rs.length; i++) if (rs[i][0] <= rs[i - 1][1]) return 'inb.hopOverlap';
+  void port;
+  return null;
+}
 
 /** Comma separated list field that keeps what the user is typing. */
 function CsvInput({ value, onChange, placeholder, invalid }: { value: string[]; onChange: (v: string[]) => void; placeholder?: string; invalid?: boolean }) {
@@ -210,7 +236,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
   const patch = (x: Partial<InboundInput>) => setD((v) => ({ ...v, ...x }));
   const patchS = (x: Partial<InboundSettings>) => setD((v) => ({ ...v, settings: { ...v.settings, ...x } }));
   const patchT = (x: Partial<InboundInput['transport']>) => setD((v) => ({ ...v, transport: { ...v.transport, ...x } }));
-  const patchTls = (x: Partial<NonNullable<InboundInput['tls']>>) => setD((v) => ({ ...v, tls: { ...(v.tls ?? (isQuic(v.protocol) ? quicTls() : emptyTls())), ...x } }));
+  const patchTls = (x: Partial<NonNullable<InboundInput['tls']>>) => setD((v) => ({ ...v, tls: { ...(v.tls ?? (tlsRequired(v.protocol) ? quicTls() : emptyTls())), ...x } }));
   const patchReality = (x: Partial<NonNullable<InboundInput['reality']>>) => setD((v) => ({ ...v, reality: { ...(v.reality ?? emptyReality()), ...x } }));
   const setAdv = (fn: (a: InboundAdvanced) => InboundAdvanced) => setD((v) => ({ ...v, advanced: fn(v.advanced ?? {}) }));
   const patchAwg = (x: Partial<AwgParams>) => setD((v) => ({ ...v, settings: { ...v.settings, awg: { ...(v.settings.awg ?? { jc: 4, jmin: 40, jmax: 70, s1: 0, s2: 0, h1: 1, h2: 2, h3: 3, h4: 4 }), ...x } } }));
@@ -333,6 +359,19 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
       if (p === 'hysteria') {
         if (!between(st.up_mbps, 0, 100000)) e.up = range(0, 100000);
         if (!between(st.down_mbps, 0, 100000)) e.down = range(0, 100000);
+        const hop = hopError(st.hop_ports, d.port);
+        if (hop) e.hop = t(hop);
+        if (st.hop_ports.trim() && st.hop_interval !== 0 && !between(st.hop_interval, 5, 3600)) e.hopInterval = range(5, 3600);
+      }
+      if (p === 'shadowtls') {
+        const h = st.handshake_server.trim();
+        if (!h) e.handshake = t('form.required');
+        else if (!HOST.test(h) && !isIP(h)) e.handshake = t('inb.invalidHost');
+        if (!between(st.handshake_port, 1, 65535)) e.handshakePort = t('inb.portInvalid');
+      }
+      if (p === 'anytls' && st.padding_scheme.length) {
+        const lines = st.padding_scheme.map((x) => x.trim()).filter(Boolean);
+        if (lines.length && (!/^stop=\d{1,3}$/.test(lines[0]) || lines.some((x) => !PADDING.test(x)))) e.padding = t('inb.paddingInvalid');
       }
       if (isWG(p)) {
         if (st.address.trim()) {
@@ -374,6 +413,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
           if (!d.reality?.server_names.length) e.serverNames = t('form.required');
         }
         if (p === 'masque' && !d.tls?.alpn.length) e.alpn = t('form.required');
+        if (p === 'naive' && (!d.tls?.cert_id || certs.data?.find((c) => c.id === d.tls?.cert_id)?.source === 'self')) e.cert = t('inb.naiveCert');
         const ve = d.vless_encryption;
         if (p === 'vless' && ve?.enabled && ve.rtt === '0rtt' && !between(ve.ticket_seconds, 1, 86400)) e.ticket = range(1, 86400);
         Object.assign(e, advErrors(d, 'security', t));
@@ -434,6 +474,8 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
           const x = e instanceof ApiError ? e.details : undefined;
           if (x?.field === 'port' && (x.server === 'main' || x.server === 'node')) {
             setServerErr(portMsg(x.server === 'main' ? { server: 'main' } : { server: 'node', nodeId: Number(x.node_id), name: String(x.node_name ?? '') }));
+          } else if (x?.field === 'hop_ports') {
+            setServerErr(t('inb.hopConflict', { inbound: String(x.inbound ?? '') }));
           } else if (e instanceof ApiError && e.code === 'node_agent_old') {
             setServerErr(t('inb.nodeOldErr', { node: String(x?.node_name ?? '') }));
           } else setServerErr((e as Error).message);
@@ -530,7 +572,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
       if (d.flow) reviewRows.push([t('inb.flow'), d.flow]);
       if (d.ss_method) reviewRows.push([t('inb.ssMethod'), d.ss_method]);
     }
-    if (isQuic(p) || p === 'http') {
+    if (tlsRequired(p) || p === 'http') {
       const c = certs.data?.find((x) => x.id === d.tls?.cert_id);
       reviewRows.push([t('inb.step.security'), p === 'http' && d.security !== 'tls' ? 'none' : `TLS · ${c ? c.domain : t('inb.selfSignedAuto')}${d.tls?.sni ? ` · ${d.tls.sni}` : ''}`]);
     }
@@ -539,7 +581,13 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
       if (st.obfs_password) reviewRows.push([t('inb.obfsPassword'), 'salamander']);
       if (st.up_mbps || st.down_mbps) reviewRows.push(['Mbps', `↑ ${st.up_mbps || '—'} · ↓ ${st.down_mbps || '—'}`]);
     }
+    if (p === 'hysteria') reviewRows.push([t('inb.hopPorts'), st.hop_ports.trim() ? <span className="ltr mono">{st.hop_ports}</span> : t('inb.hopOff')]);
     if (p === 'tuic') reviewRows.push([t('inb.congestion'), st.congestion || 'bbr']);
+    if (p === 'shadowtls') {
+      reviewRows.push([t('inb.handshake'), <span key="hs" className="ltr mono">{`${st.handshake_server}:${st.handshake_port || 443}`}</span>]);
+      reviewRows.push([t('inb.stlsInner'), <span key="ss" className="ltr mono">{d.ss_method}</span>]);
+    }
+    if (p === 'anytls') reviewRows.push([t('inb.padding'), st.padding_scheme.filter((x) => x.trim()).length ? t('inb.paddingCustom') : t('inb.paddingDefault')]);
     if (p === 'masque') reviewRows.push([t('inb.pool'), st.pool.join(', ')]);
     if (isWG(p)) {
       reviewRows.push([t('inb.wgAddress'), st.address || t('common.auto')]);
@@ -565,7 +613,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
   const flowNodes = [
     protoName(p),
     isV2(p) ? d.network : transportLabel(tr) || 'tun',
-    isV2(p) ? d.security : isQuic(p) || (p === 'http' && d.security === 'tls') ? 'tls' : engineName(engineOf(p)),
+    isV2(p) ? d.security : tlsRequired(p) || (p === 'http' && d.security === 'tls') ? 'tls' : p === 'shadowtls' ? 'shadowtls' : engineName(engineOf(p)),
   ];
 
   return (
@@ -829,6 +877,81 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
                   </Field>
                 </>
               )}
+              {p === 'hysteria' && (
+                <>
+                  <div className={s.span2}>
+                    <Field label={t('inb.hopPorts')} hint={t('inb.hopHint')} error={err('hop')} optional>
+                      <input
+                        className="input ltr mono"
+                        value={d.settings.hop_ports}
+                        onChange={(e) => patchS({ hop_ports: e.target.value })}
+                        placeholder="20000-30000"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        spellCheck={false}
+                        aria-invalid={!!err('hop')}
+                        data-field="hop_ports"
+                      />
+                    </Field>
+                  </div>
+                  {!!d.settings.hop_ports.trim() && (
+                    <>
+                      <Field label={t('inb.hopInterval')} hint={t('inb.hopIntervalHint')} error={err('hopInterval')}>
+                        <NumInput value={d.settings.hop_interval} onChange={(v) => patchS({ hop_interval: v })} min={0} max={3600} invalid={!!err('hopInterval')} />
+                      </Field>
+                      <p className={`${s.span2} ${s.infoNote}`}>{t('inb.hopNote')}</p>
+                    </>
+                  )}
+                </>
+              )}
+              {p === 'shadowtls' && (
+                <>
+                  <div className={s.span2}>
+                    <Field label={t('inb.handshake')} hint={t('inb.handshakeHint')} error={err('handshake')}>
+                      <input
+                        className="input ltr"
+                        value={d.settings.handshake_server}
+                        onChange={(e) => patchS({ handshake_server: e.target.value })}
+                        placeholder="www.microsoft.com"
+                        autoComplete="off"
+                        spellCheck={false}
+                        aria-invalid={!!err('handshake')}
+                      />
+                    </Field>
+                  </div>
+                  <Field label={t('inb.handshakePort')} error={err('handshakePort')}>
+                    <NumInput value={d.settings.handshake_port} onChange={(v) => patchS({ handshake_port: v })} min={1} max={65535} invalid={!!err('handshakePort')} />
+                  </Field>
+                  <Field label={t('inb.stlsInner')}>
+                    <Select<string> ltr mono value={d.ss_method || STLS_METHODS[0]} onChange={(v) => patch({ ss_method: v })} ariaLabel={t('inb.stlsInner')} options={STLS_METHODS.map((m) => ({ value: m, label: m }))} />
+                  </Field>
+                  <p className={`${s.span2} ${s.infoNote}`}>{t('inb.stlsNote')}</p>
+                </>
+              )}
+              {p === 'anytls' && (
+                <div className={s.span2}>
+                  <Field label={t('inb.padding')} hint={t('inb.paddingHint')} error={err('padding')} optional>
+                    <textarea
+                      className="input ltr mono"
+                      rows={4}
+                      value={d.settings.padding_scheme.join('\n')}
+                      onChange={(e) => patchS({ padding_scheme: e.target.value.split('\n') })}
+                      placeholder={ANYTLS_PADDING.slice(0, 3).join('\n')}
+                      spellCheck={false}
+                      aria-invalid={!!err('padding')}
+                    />
+                  </Field>
+                  <div className={s.chipRow}>
+                    <button type="button" className="pill" onClick={() => patchS({ padding_scheme: [...ANYTLS_PADDING] })}>
+                      {t('inb.paddingFill')}
+                    </button>
+                    <button type="button" className="pill" onClick={() => patchS({ padding_scheme: [] })}>
+                      {t('inb.paddingDefault')}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {isSingbox(p) && nodes.length > 0 && <p className={`${s.span2} ${s.infoNote}`}>{t('inb.singboxMainOnly')}</p>}
               {p === 'tuic' && (
                 <Field label={t('inb.congestion')}>
                   <Select<string>
@@ -1211,14 +1334,14 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
             </div>
           )}
 
-          {stepId === 'security' && isQuic(p) && (
+          {stepId === 'security' && tlsRequired(p) && (
             <div className={s.formGrid}>
               <p className={`${s.span2} ${s.infoNote}`}>
                 <ShieldCheck size={16} aria-hidden="true" />
-                <span>{t('inb.quicTlsNote')}</span>
+                <span>{t(p === 'naive' ? 'inb.naiveTlsNote' : p === 'anytls' ? 'inb.anytlsTlsNote' : 'inb.quicTlsNote')}</span>
               </p>
               <div className={s.span2}>
-                <Field label={t('inb.quicCert')} hint={t('inb.quicCertHint')}>
+                <Field label={t('inb.quicCert')} hint={p === 'naive' ? t('inb.naiveCertHint') : t('inb.quicCertHint')} error={err('cert')}>
                   <Select<number>
                     value={d.tls?.cert_id ?? 0}
                     onChange={(v) => {
@@ -1227,18 +1350,33 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
                     }}
                     ariaLabel={t('inb.quicCert')}
                     options={[
-                      { value: 0, label: t('inb.selfSignedAuto') },
-                      ...(certs.data ?? []).map((c) => ({ value: c.id, label: <span className="ltr">{c.domain}</span>, text: c.domain, hint: t(`certs.source.${c.source}` as MessageKey) })),
+                      ...(p === 'naive' ? [] : [{ value: 0, label: t('inb.selfSignedAuto') }]),
+                      ...(certs.data ?? [])
+                        .filter((c) => p !== 'naive' || c.source !== 'self')
+                        .map((c) => ({ value: c.id, label: <span className="ltr">{c.domain}</span>, text: c.domain, hint: t(`certs.source.${c.source}` as MessageKey) })),
                     ]}
                   />
                 </Field>
               </div>
-              <Field label={t('inb.sni')} hint={d.tls?.cert_id ? undefined : t('inb.sniDefault')} optional>
-                <input className="input ltr" value={d.tls?.sni ?? ''} onChange={(e) => patchTls({ sni: e.target.value })} placeholder={d.tls?.cert_id ? '' : 'www.bing.com'} />
+              <Field label={t('inb.sni')} hint={d.tls?.cert_id || p === 'naive' ? undefined : t('inb.sniDefault')} optional>
+                <input className="input ltr" value={d.tls?.sni ?? ''} onChange={(e) => patchTls({ sni: e.target.value })} placeholder={d.tls?.cert_id || p === 'naive' ? '' : 'www.bing.com'} />
               </Field>
-              <Field label={t('inb.fingerprint')}>
-                <Select<string> ltr mono value={d.tls?.fingerprint || 'chrome'} onChange={(v) => patchTls({ fingerprint: v })} ariaLabel={t('inb.fingerprint')} options={FPS.map((f) => ({ value: f, label: f }))} />
-              </Field>
+              {!isTcpTls(p) && (
+                <Field label={t('inb.fingerprint')}>
+                  <Select<string> ltr mono value={d.tls?.fingerprint || 'chrome'} onChange={(v) => patchTls({ fingerprint: v })} ariaLabel={t('inb.fingerprint')} options={FPS.map((f) => ({ value: f, label: f }))} />
+                </Field>
+              )}
+              {p === 'naive' && !(certs.data ?? []).some((c) => c.source !== 'self') && (
+                <p className={`${s.span2} ${s.infoNote}`}>
+                  <AlertTriangle size={16} aria-hidden="true" />
+                  <span>
+                    {t('inb.naiveNoCert')}{' '}
+                    <Link to="/certs" onClick={onClose}>
+                      {t('inb.naiveGoCerts')}
+                    </Link>
+                  </span>
+                </p>
+              )}
               {p === 'masque' && (
                 <div className={s.span2}>
                   <span className="field__label">{t('inb.alpn')}</span>
@@ -1256,7 +1394,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
                   {err('alpn') ? <span className="field__error">{err('alpn')}</span> : <span className="field__hint">{t('inb.masqueAlpn')}</span>}
                 </div>
               )}
-              {!!d.tls?.cert_id && (
+              {!!d.tls?.cert_id && p !== 'naive' && (
                 <div className={`${s.span2} ${s.switchLine}`}>
                   <span>{t('inb.allowInsecure')}</span>
                   <Switch checked={!!d.tls?.allow_insecure} onChange={(v) => patchTls({ allow_insecure: v })} label={t('inb.allowInsecure')} />

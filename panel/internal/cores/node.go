@@ -18,6 +18,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/awgd"
 	"github.com/veilonhq/veilon/panel/internal/guard"
 	"github.com/veilonhq/veilon/panel/internal/inbounds"
+	"github.com/veilonhq/veilon/panel/internal/porthop"
 	"github.com/veilonhq/veilon/panel/internal/util"
 	"github.com/veilonhq/veilon/panel/internal/xray"
 )
@@ -36,6 +37,9 @@ import (
 type NodeSpec struct {
 	AWG []NodeAWG `json:"awg,omitempty"`
 	MTG []NodeMTG `json:"mtg,omitempty"`
+	// Hop are the Hysteria 2 port-hopping redirects of the node's Xray
+	// inbounds (agents with CapPortHop only).
+	Hop []porthop.Rule `json:"hop,omitempty"`
 }
 
 // NodeAWG is one AmneziaWG inbound on a node.
@@ -58,7 +62,9 @@ type NodeMTG struct {
 }
 
 // Empty reports whether the spec runs nothing.
-func (s *NodeSpec) Empty() bool { return s == nil || (len(s.AWG) == 0 && len(s.MTG) == 0) }
+func (s *NodeSpec) Empty() bool {
+	return s == nil || (len(s.AWG) == 0 && len(s.MTG) == 0 && len(s.Hop) == 0)
+}
 
 // Ports lists the ports the spec's inbounds listen on.
 func (s *NodeSpec) Ports() []int {
@@ -109,10 +115,11 @@ func (s *NodeSpec) Validate() error {
 		}
 		seen[m.Port] = true
 	}
-	return nil
+	return porthop.Validate(s.Hop)
 }
 
-// BuildNodeSpec renders the AmneziaWG and MTProto inbounds among
+// BuildNodeSpec renders the AmneziaWG and MTProto inbounds (and the port
+// hopping of the Hysteria 2 ones) among
 // inboundIDs (enabled ones, with their served users) for a node. Other
 // inbounds are left out (Xray's config carries them). An MTProto inbound
 // without users is left out too: mtg refuses to start without a secret.
@@ -141,6 +148,10 @@ func BuildNodeSpec(gdb *gorm.DB, dataDir string, inboundIDs []int64) (*NodeSpec,
 			}
 			it, owners := awgIface(ib, in)
 			spec.AWG = append(spec.AWG, NodeAWG{InboundID: ib.ID, Remark: ib.Remark, Iface: it, Owners: owners})
+		case inbounds.Hysteria:
+			if r := porthop.FromViews([]inbounds.View{*ib}); len(r) > 0 {
+				spec.Hop = append(spec.Hop, r...)
+			}
 		case inbounds.MTProto:
 			sec := mtgSecrets(ib, in)
 			if len(sec) == 0 {

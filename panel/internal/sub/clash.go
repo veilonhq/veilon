@@ -19,10 +19,11 @@ func ClashSupported(p *Proxy) bool {
 	case "shadowsocks":
 		// mihomo's ss has no Xray transports (only its own plugins).
 		return (p.Network == "tcp" || p.Network == "") && p.Security == "none" && p.TCPHeader == nil
-	case inbounds.Hysteria, inbounds.TUIC, inbounds.HTTP, inbounds.Mixed, inbounds.Socks, inbounds.WireGuard, inbounds.AmneziaWG:
+	case inbounds.Hysteria, inbounds.TUIC, inbounds.HTTP, inbounds.Mixed, inbounds.Socks, inbounds.WireGuard, inbounds.AmneziaWG,
+		inbounds.ShadowTLS, inbounds.AnyTLS:
 		return true
 	}
-	return false // mtproto, masque (Clash Meta's masque is WARP-only)
+	return false // mtproto, masque (Clash Meta's masque is WARP-only), naive (no mihomo client)
 }
 
 type clashProxy struct {
@@ -66,6 +67,10 @@ type clashProxy struct {
 	ECHOpts              map[string]any `yaml:"ech-opts,omitempty"`
 	ReduceRTT            bool           `yaml:"reduce-rtt,omitempty"`
 	HeartbeatInterval    int            `yaml:"heartbeat-interval,omitempty"`
+	Ports                string         `yaml:"ports,omitempty"`
+	HopInterval          int            `yaml:"hop-interval,omitempty"`
+	Plugin               string         `yaml:"plugin,omitempty"`
+	PluginOpts           map[string]any `yaml:"plugin-opts,omitempty"`
 }
 
 type clashGroup struct {
@@ -107,7 +112,20 @@ func clashExtra(p *Proxy) clashProxy {
 		if p.DownMbps > 0 {
 			c.Down = fmt.Sprintf("%d Mbps", p.DownMbps)
 		}
+		if p.HopPorts != "" {
+			c.Ports, c.HopInterval = p.HopPorts, p.HopInterval
+		}
 		tls([]string{"h3"})
+	case inbounds.ShadowTLS:
+		// Shadowsocks 2022 inside mihomo's shadow-tls plugin (v3).
+		c.Type, c.Cipher, c.Password, c.UDP = "ss", p.Method, p.Password, false
+		c.Plugin = "shadow-tls"
+		c.PluginOpts = map[string]any{"host": p.SNI, "password": p.ShadowTLSPassword, "version": 3}
+		c.ClientFingerprint = p.Fingerprint
+	case inbounds.AnyTLS:
+		c.Type, c.Password = "anytls", p.Password
+		tls(nil)
+		c.ALPN = nil
 	case inbounds.TUIC:
 		c.Type, c.UUID, c.Password = "tuic", p.UUID, p.Password
 		c.CongestionController, c.UDPRelayMode = p.Congestion, "native"

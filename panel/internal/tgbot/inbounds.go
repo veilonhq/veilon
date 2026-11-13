@@ -39,6 +39,17 @@ type inbound struct {
 		Version string     `json:"version"`
 		Needs   []xrayNeed `json:"needs"`
 	} `json:"xray_too_old"`
+	Settings struct {
+		HopPorts        string `json:"hop_ports"`
+		HopInterval     int    `json:"hop_interval"`
+		HandshakeServer string `json:"handshake_server"`
+		HandshakePort   int    `json:"handshake_port"`
+	} `json:"settings"`
+}
+
+// singboxProto: sing-box serves these protocols, on the main server only.
+func singboxProto(p string) bool {
+	return p == "tuic" || p == "shadowtls" || p == "anytls" || p == "naive"
 }
 
 // xrayNeed is a feature that needs a minimum Xray-core version.
@@ -61,7 +72,7 @@ var protoNames = []struct{ key, label string }{
 	{"vless", "VLESS"}, {"vmess", "VMess"}, {"trojan", "Trojan"}, {"shadowsocks", "Shadowsocks"},
 	{"hysteria", "Hysteria2"}, {"tuic", "TUIC"}, {"wireguard", "WireGuard"}, {"amneziawg", "AmneziaWG"},
 	{"mtproto", "MTProto"}, {"masque", "MASQUE"}, {"http", "HTTP"}, {"mixed", "Mixed"}, {"socks", "SOCKS"},
-	{"tunnel", "Tunnel"}, {"tun", "TUN"},
+	{"tunnel", "Tunnel"}, {"tun", "TUN"}, {"shadowtls", "ShadowTLS"}, {"anytls", "AnyTLS"}, {"naive", "NaiveProxy"},
 }
 
 func protoLabel(p string) string {
@@ -146,6 +157,8 @@ func init() {
 			"remark": {T("نام ورودی"), T("نام تازه را بفرستید:")},
 			"port":   {T("پورت"), T("پورت تازه را بفرستید (۱ تا ۶۵۵۳۵):")},
 			"addr":   {T("آدرس در لینک ها"), T("آدرس یا دامنه ای که در لینک ها نوشته شود را بفرستید (- برای آدرس پیش فرض سرور):")},
+			"hop":    {T("پرش پورت"), T("بازه پورت های UDP را بفرستید (مثلا 20000-30000 یا 20000-30000,40000-40100). کلاینت ها هر چند ثانیه بین این پورت ها جابجا می شوند. برای خاموش کردن - بفرستید:")},
+			"hs":     {T("سرور دست دهی"), T("دامنه یک سایت با TLS 1.3 را بفرستید (مثلا www.microsoft.com یا www.microsoft.com:443):")},
 		}[f]
 		r.ask("ifield", a, p[0], p[1], cbd("iv", id))
 	})
@@ -167,6 +180,23 @@ func init() {
 				text = ""
 			}
 			body["address_override"] = text
+		case "hop":
+			text = strings.TrimSpace(text)
+			if text == "-" {
+				text = ""
+			}
+			body["settings"] = map[string]any{"hop_ports": text}
+		case "hs":
+			host, port := strings.TrimSpace(text), 443
+			if h, ps, ok := strings.Cut(host, ":"); ok {
+				n, ok := parseInt(ps)
+				if !ok {
+					r.ask("ifield", a, T("سرور دست دهی"), T("⚠️ پورت درست نیست. دوباره بفرستید:"), cbd("iv", id))
+					return
+				}
+				host, port = h, int(n)
+			}
+			body["settings"] = map[string]any{"handshake_server": host, "handshake_port": port}
 		}
 		inboundPatch(r, id, body)
 	})
@@ -236,6 +266,10 @@ func init() {
 		r.st.draft["extra"] = ""
 		inboundAskPlace(r, nil)
 	})
+	on("inxc", func(r *req, a []string) {
+		r.st.draft["extra"], r.st.draft["cert"] = "", argStr(a, 0)
+		inboundAskPlace(r, nil)
+	})
 	on("inpl", inboundAskPlace)
 	on("inok", inboundCreate)
 }
@@ -287,6 +321,19 @@ func inboundView(r *req, a []string) {
 	if ib.Protocol == "vless" {
 		t += T("🔐 رمزگذاری VLESS: ") + encSummary(ib.VLESSEnc) + "\n"
 	}
+	if ib.Protocol == "shadowtls" {
+		t += T("سرور دست دهی: ") + code(fmt.Sprintf("%s:%d", ib.Settings.HandshakeServer, ib.Settings.HandshakePort)) + "\n"
+	}
+	if ib.Protocol == "hysteria" {
+		if ib.Settings.HopPorts != "" {
+			t += T("🔀 پرش پورت: ") + code(ib.Settings.HopPorts) + "\n"
+		} else {
+			t += T("🔀 پرش پورت: خاموش") + "\n"
+		}
+	}
+	if singboxProto(ib.Protocol) {
+		t += T("ℹ️ با sing-box و فقط روی سرور اصلی اجرا می شود.") + "\n"
+	}
 	if sum := advSummary(ib.Advanced); sum != "" {
 		t += T("⚙️ پیشرفته: ") + sum + "\n"
 	}
@@ -314,10 +361,16 @@ func inboundView(r *req, a []string) {
 	if ib.Protocol == "vless" {
 		kb = append(kb, []Button{btn(T("🔐 رمزگذاری VLESS"), "ve", id)})
 	}
+	if ib.Protocol == "hysteria" {
+		kb = append(kb, []Button{btn(T("🔀 پرش پورت"), "ie", id, "hop")})
+	}
+	if ib.Protocol == "shadowtls" {
+		kb = append(kb, []Button{btn(T("🤝 سرور دست دهی"), "ie", id, "hs")})
+	}
 	if advApplies(&ib) {
 		kb = append(kb, []Button{btn(T("⚙️ تنظیمات پیشرفته"), "xv", id)})
 	}
-	if len(ns) > 0 {
+	if len(ns) > 0 && !singboxProto(ib.Protocol) {
 		kb = append(kb, []Button{btn(T("🖥 محل اجرا"), "ip", id)})
 	}
 	kb = append(kb, []Button{btn(T("🗑 حذف"), "id", id), btn(T("🔄 تازه سازی"), "iv", id)}, nav("il"))
@@ -480,6 +533,14 @@ func inboundAskExtra(r *req) {
 	case "trojan", "hysteria", "tuic", "masque":
 		r.ask("inextra", nil, title, T("SNI یا دامنه را بفرستید. بدون دامنه، یک گواهی خودامضا ساخته می شود."), "in",
 			[]Button{btn(T("بدون دامنه (خودامضا)"), "inx")})
+	case "anytls":
+		r.ask("inextra", nil, title, T("SNI یا دامنه را بفرستید. بدون دامنه، یک گواهی خودامضا ساخته می شود."), "in",
+			[]Button{btn(T("بدون دامنه (خودامضا)"), "inx")})
+	case "shadowtls":
+		r.ask("inextra", nil, title, T("سرور دست دهی را بفرستید: دامنه یک سایت واقعی با TLS 1.3 که ناظر ها می بینند (مثلا www.microsoft.com):"), "in",
+			[]Button{btn(T("پیش فرض: www.microsoft.com"), "inx")})
+	case "naive":
+		inboundAskCert(r)
 	case "tunnel":
 		r.ask("inextra", nil, title, T("مقصد تونل را به شکل address:port بفرستید (مثلا 1.1.1.1:53):"), "in")
 	case "mtproto":
@@ -490,8 +551,38 @@ func inboundAskExtra(r *req) {
 	}
 }
 
+// inboundAskCert lets the admin pick the certificate of a NaiveProxy
+// inbound: its clients accept only a certificate from a real CA.
+func inboundAskCert(r *req) {
+	var list []struct {
+		ID     int64  `json:"id"`
+		Domain string `json:"domain"`
+		Source string `json:"source"`
+	}
+	if err := r.call("GET", "/certs", nil, &list); err != nil {
+		r.fail(err, "in")
+		return
+	}
+	var kb Keyboard
+	for _, c := range list {
+		if c.Source != "self" {
+			kb = append(kb, []Button{btn("🔒 "+cut(c.Domain, 32), "inxc", c.ID)})
+		}
+	}
+	title := header("🔒", T("ورودی جدید · NaiveProxy"))
+	if len(kb) == 0 {
+		r.show(view{text: title + T("کلاینت های NaiveProxy گواهی خودامضا را نمی پذیرند. اول در پنل وب، بخش گواهی ها، یک گواهی Let's Encrypt (برای دامنه یا IP سرور) بگیرید."), kb: Keyboard{nav("in")}})
+		return
+	}
+	kb = append(kb, []Button{btn(T("✖️ انصراف"), "in")})
+	r.show(view{text: title + T("گواهی را انتخاب کنید (کلاینت های NaiveProxy گواهی خودامضا را نمی پذیرند):"), kb: kb})
+}
+
 func inboundAskPlace(r *req, a []string) {
 	ns := r.nodes()
+	if singboxProto(r.st.draft["proto"]) {
+		ns = nil // sing-box protocols run on the main server only
+	}
 	if len(ns) == 0 {
 		r.st.draft["place"] = "0"
 		inboundCreate(r, nil)
@@ -547,6 +638,29 @@ func inboundBody(d map[string]string) (map[string]any, error) {
 	case "tuic":
 		b["security"], b["tls"] = "tls", tls([]string{"h3"})
 		settings["congestion"] = "bbr"
+	case "anytls":
+		b["security"], b["tls"] = "tls", tls([]string{})
+	case "naive":
+		cid, err := strconv.ParseInt(d["cert"], 10, 64)
+		if err != nil || cid <= 0 {
+			return nil, fmt.Errorf("NaiveProxy needs a certificate")
+		}
+		t := tls([]string{"h2", "http/1.1"})
+		t["cert_id"] = cid
+		b["security"], b["tls"] = "tls", t
+	case "shadowtls":
+		hs := extra
+		if hs == "" {
+			hs = "www.microsoft.com"
+		}
+		hp := 443
+		if h, ps, ok := strings.Cut(hs, ":"); ok {
+			if n, err := strconv.Atoi(ps); err == nil {
+				hs, hp = h, n
+			}
+		}
+		settings["handshake_server"], settings["handshake_port"] = hs, hp
+		b["ss_method"] = "2022-blake3-aes-128-gcm"
 	case "masque":
 		b["security"], b["tls"] = "tls", tls([]string{"h3"})
 		settings["pool"], settings["mtu"], settings["path"] = []string{"10.14.0.1/24", "fd14::1/64"}, 1280, "/.well-known/masque/ip/{target}/{ipproto}/"

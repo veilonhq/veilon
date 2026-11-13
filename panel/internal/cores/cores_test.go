@@ -95,6 +95,63 @@ func TestSingboxConfig(t *testing.T) {
 	}
 }
 
+func TestSingboxNewProtocols(t *testing.T) {
+	in := input(t)
+	one := int64(1)
+	add := func(v inbounds.View) {
+		if err := inbounds.Normalize(&v); err != nil {
+			t.Fatal(err)
+		}
+		if v.TLS != nil {
+			v.TLS.CertID = &one
+		}
+		in.Inbounds = append(in.Inbounds, v)
+		in.Users[v.ID] = in.Users[1]
+	}
+	add(inbounds.View{ID: 11, Remark: "stls", Protocol: inbounds.ShadowTLS, Port: 31011})
+	add(inbounds.View{ID: 12, Remark: "any", Protocol: inbounds.AnyTLS, Port: 31012, Settings: inbounds.Settings{PaddingScheme: []string{"stop=2", "0=10-20"}}})
+	add(inbounds.View{ID: 13, Remark: "naive", Protocol: inbounds.Naive, Port: 31013})
+	b, err := SingboxConfig(in, 30555)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cfg struct {
+		Inbounds []map[string]any `json:"inbounds"`
+	}
+	_ = json.Unmarshal(b, &cfg)
+	by := map[string]map[string]any{}
+	for _, ib := range cfg.Inbounds {
+		by[ib["tag"].(string)] = ib
+	}
+	st, ss := by["inbound-11"], by["inbound-11-ss"]
+	if st["type"] != "shadowtls" || st["detour"] != "inbound-11-ss" || st["version"].(float64) != 3 || st["strict_mode"] != true {
+		t.Fatalf("shadowtls %v", st)
+	}
+	if ss["type"] != "shadowsocks" || ss["listen"] != "127.0.0.1" || ss["listen_port"] != nil || ss["network"] != "tcp" || len(ss["users"].([]any)) != 2 {
+		t.Fatalf("inner shadowsocks %v", ss)
+	}
+	u := ss["users"].([]any)[0].(map[string]any)
+	if u["name"] != "7.alice" || u["password"] != inbounds.SS2022UserKey(inbounds.ShadowTLSMethods[0], "pw7") {
+		t.Fatalf("inner user %v", u)
+	}
+	if a := by["inbound-12"]; a["type"] != "anytls" || len(a["padding_scheme"].([]any)) != 2 || a["tls"] == nil {
+		t.Fatalf("anytls %v", a)
+	}
+	n := by["inbound-13"]
+	nu := n["users"].([]any)[0].(map[string]any)
+	if n["type"] != "naive" || nu["username"] != "7.alice" || nu["password"] != "pw7" {
+		t.Fatalf("naive %v", n)
+	}
+	if bin := os.Getenv("VEILON_TEST_SINGBOX"); bin != "" {
+		f := filepath.Join(t.TempDir(), "sb.json")
+		_ = os.WriteFile(f, b, 0o600)
+		if out, err := exec.Command(bin, "check", "-c", f).CombinedOutput(); err != nil {
+			t.Fatalf("sing-box check: %v\n%s", err, out)
+		}
+		t.Log("sing-box check: OK")
+	}
+}
+
 func TestMTGConfig(t *testing.T) {
 	in := input(t)
 	ib := &in.Inbounds[1]

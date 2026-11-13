@@ -22,6 +22,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/veilonhq/veilon/panel/internal/db"
+	"github.com/veilonhq/veilon/panel/internal/inbounds"
 	"github.com/veilonhq/veilon/panel/internal/presence"
 	"github.com/veilonhq/veilon/panel/internal/usage"
 	"github.com/veilonhq/veilon/panel/internal/users"
@@ -68,6 +69,10 @@ type Options struct {
 	// OnLine receives every output line (the access log feeds the
 	// connection guard).
 	OnLine func(line string)
+	// Hop receives the Hysteria 2 port-hopping inbounds Xray serves after
+	// each config apply (nil = none, also when Xray is switched off or the
+	// manager stops), for the nftables redirect (package porthop).
+	Hop func(ibs []inbounds.View)
 }
 
 // Manager supervises the Xray process.
@@ -82,6 +87,7 @@ type Manager struct {
 	version    string
 	lastErr    string
 	warnings   []string
+	hop        []inbounds.View // port-hopping inbounds of the last config
 	lastConfig []byte
 
 	reloadCh chan bool // true = force restart
@@ -136,7 +142,15 @@ func (m *Manager) GenerateConfig() ([]byte, error) {
 		in.XrayVersion = detectVersion(m.opt.BinPath)
 	}
 	b, err := Build(in)
+	var hop []inbounds.View
+	for i := range in.Inbounds {
+		ib := &in.Inbounds[i]
+		if len(ib.HopRanges()) > 0 && len(inbounds.XrayMissing(ib, in.XrayVersion)) == 0 {
+			hop = append(hop, *ib)
+		}
+	}
 	m.mu.Lock()
+	m.hop = hop
 	m.warnings = in.Skipped
 	m.mu.Unlock()
 	return b, err
@@ -223,6 +237,7 @@ func (m *Manager) Run(ctx context.Context) {
 				m.collect(context.Background())
 			}
 			m.stop()
+			m.setHop(false)
 			return
 		case f := <-m.reloadCh:
 			force = force || f
@@ -315,8 +330,10 @@ func (m *Manager) apply(force bool) {
 		m.lastConfig = nil
 		m.lastErr = ""
 		m.mu.Unlock()
+		m.setHop(false)
 		return
 	}
+	m.setHop(true)
 	if same && !force {
 		return
 	}
@@ -342,6 +359,21 @@ func (m *Manager) apply(force bool) {
 		m.setErr(err.Error())
 		slog.Error("xray start failed", "err", err)
 	}
+}
+
+// setHop hands the port-hopping inbounds of the last config to Options.Hop
+// (on = false: none).
+func (m *Manager) setHop(on bool) {
+	if m.opt.Hop == nil {
+		return
+	}
+	var hop []inbounds.View
+	if on {
+		m.mu.Lock()
+		hop = m.hop
+		m.mu.Unlock()
+	}
+	util.Safe("port hopping", func() { m.opt.Hop(hop) })
 }
 
 func (m *Manager) start() error {

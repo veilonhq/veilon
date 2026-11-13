@@ -83,7 +83,8 @@ function LinkCard({ link: l, protocol }: { link: UserLink; protocol?: string }) 
         {l.uri && <code className={`${s.linkUri} mono ltr`}>{l.uri}</code>}
         {!l.uri && protocol === 'masque' && <p className={s.linkNote}>{t('user.masqueNote')}</p>}
         {!l.uri && protocol === 'amneziawg' && <p className={s.linkNote}>{t('user.awgNoUri')}</p>}
-        {!l.uri && !l.conf && protocol !== 'masque' && protocol !== 'amneziawg' && <p className={s.linkNote}>{t('user.masqueNote')}</p>}
+        {!l.uri && protocol === 'shadowtls' && <p className={s.linkNote}>{t('user.stlsNote')}</p>}
+        {!l.uri && !l.conf && protocol !== 'masque' && protocol !== 'amneziawg' && protocol !== 'shadowtls' && <p className={s.linkNote}>{t('user.masqueNote')}</p>}
         <div className={s.linkBtns}>
           {l.uri && <CopyButton text={l.uri} />}
           {hasConf && (

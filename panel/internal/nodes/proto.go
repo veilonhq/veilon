@@ -78,6 +78,11 @@ const (
 // AmneziaWG at all; the master sends Limits only to agents with it.
 const CapAWGShape = "awgshape"
 
+// CapPortHop: the agent redirects the port-hopping ranges of its Hysteria 2
+// inbounds (NodeSpec.Hop). The master leaves the ranges out for agents
+// without it, and their subscription links carry no hop ports.
+const CapPortHop = inbounds.CapPortHop
+
 // EnginesPush is the body of PUT /v1/engines: the node's AmneziaWG and
 // MTProto inbounds (a cores.NodeSpec) and the hash of exactly these bytes.
 type EnginesPush struct {

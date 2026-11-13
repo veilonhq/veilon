@@ -598,6 +598,9 @@ func (m *Manager) syncEngines(ctx context.Context, hc *http.Client, n *db.Node, 
 	if !canAWG && !canMTG {
 		return "" // an older agent: it runs Xray only
 	}
+	if !info.HasCap(CapPortHop) {
+		spec.Hop = nil // links to this node carry no hop ports either
+	}
 	raw := []byte("{}") // nothing to run (clears what an earlier push started)
 	if !spec.Empty() {
 		if raw, err = json.Marshal(spec); err != nil {
@@ -631,7 +634,7 @@ func (m *Manager) syncEngines(ctx context.Context, hc *http.Client, n *db.Node, 
 	m.mu.Lock()
 	delete(m.engRejected, n.ID)
 	m.mu.Unlock()
-	slog.Info("node engines pushed", "node", n.Name, "amneziawg", len(spec.AWG), "mtproto", len(spec.MTG))
+	slog.Info("node engines pushed", "node", n.Name, "amneziawg", len(spec.AWG), "mtproto", len(spec.MTG), "hop", len(spec.Hop))
 	return ""
 }
 

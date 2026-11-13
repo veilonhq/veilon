@@ -10,7 +10,18 @@ type NodeTarget struct {
 	ID      int64
 	Name    string
 	Address string
+	// NoHop: the node's agent is known to lack port hopping (CapPortHop),
+	// so its links carry no hop ports.
+	NoHop bool
 }
+
+// NodeLacksCap reports whether a node's agent is known to lack a
+// capability (set by the panel from the node manager; nil = unknown,
+// treated as present).
+var NodeLacksCap func(nodeID int64, capability string) bool
+
+// CapPortHop is the node agent capability for Hysteria 2 port hopping.
+const CapPortHop = "porthop"
 
 // NodeTargets returns the enabled nodes of each inbound (by node id order).
 func NodeTargets(gdb *gorm.DB, inboundIDs []int64) map[int64][]NodeTarget {
@@ -33,7 +44,11 @@ func NodeTargets(gdb *gorm.DB, inboundIDs []int64) map[int64][]NodeTarget {
 		return out
 	}
 	for _, r := range rows {
-		out[r.InboundID] = append(out[r.InboundID], NodeTarget{ID: r.ID, Name: r.Name, Address: r.Address})
+		t := NodeTarget{ID: r.ID, Name: r.Name, Address: r.Address}
+		if NodeLacksCap != nil {
+			t.NoHop = NodeLacksCap(r.ID, CapPortHop)
+		}
+		out[r.InboundID] = append(out[r.InboundID], t)
 	}
 	return out
 }

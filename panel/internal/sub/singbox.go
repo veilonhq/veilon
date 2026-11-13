@@ -23,7 +23,8 @@ func SingboxSupported(p *Proxy) bool {
 			return false // sing-box's shadowsocks has no Xray transports
 		}
 		return p.Network != "xhttp" && p.Security != "reality" && p.Encryption == ""
-	case inbounds.Hysteria, inbounds.TUIC, inbounds.HTTP, inbounds.Mixed, inbounds.Socks, inbounds.WireGuard:
+	case inbounds.Hysteria, inbounds.TUIC, inbounds.HTTP, inbounds.Mixed, inbounds.Socks, inbounds.WireGuard,
+		inbounds.ShadowTLS, inbounds.AnyTLS, inbounds.Naive:
 		return true
 	}
 	return false // amneziawg, mtproto, masque: not in sing-box stable
@@ -65,7 +66,35 @@ func singboxExtra(p *Proxy) (o obj, isEndpoint bool) {
 		if p.DownMbps > 0 {
 			o["down_mbps"] = p.DownMbps
 		}
+		if rs, err := inbounds.ParseHopPorts(p.HopPorts); err == nil && len(rs) > 0 {
+			// sing-box ranges are "from:to"; server_ports replaces server_port.
+			ports := make([]string, len(rs))
+			for i, r := range rs {
+				ports[i] = fmt.Sprintf("%d:%d", r.From, r.To)
+			}
+			delete(o, "server_port")
+			o["server_ports"] = ports
+			if p.HopInterval > 0 {
+				o["hop_interval"] = fmt.Sprintf("%ds", p.HopInterval)
+			}
+		}
 		o["tls"] = singboxTLS(p, []string{"h3"})
+	case inbounds.ShadowTLS:
+		// Shadowsocks 2022 over the ShadowTLS outbound (singboxDetour).
+		o["type"] = "shadowsocks"
+		o["method"] = p.Method
+		o["password"] = p.Password
+		o["detour"] = p.Name + " · shadowtls"
+	case inbounds.AnyTLS:
+		o["type"] = "anytls"
+		o["password"] = p.Password
+		o["tls"] = singboxTLS(p, nil)
+	case inbounds.Naive:
+		// Needs a sing-box build with NaiveProxy (with_naive_outbound).
+		o["type"] = "naive"
+		o["username"] = p.Username
+		o["password"] = p.Password
+		o["tls"] = singboxTLS(p, nil)
 	case inbounds.TUIC:
 		o["type"] = "tuic"
 		o["uuid"] = p.UUID
@@ -119,6 +148,17 @@ func singboxExtra(p *Proxy) (o obj, isEndpoint bool) {
 			"mtu": w.MTU, "peers": []any{peer}}, true
 	}
 	return o, false
+}
+
+// singboxDetour is the extra outbound a proxy's main outbound dials
+// through (ShadowTLS), or nil.
+func singboxDetour(p *Proxy) obj {
+	if p.Protocol != inbounds.ShadowTLS {
+		return nil
+	}
+	return obj{"type": "shadowtls", "tag": p.Name + " · shadowtls", "server": p.Server, "server_port": p.Port,
+		"version": 3, "password": p.ShadowTLSPassword,
+		"tls": obj{"enabled": true, "server_name": p.SNI, "utls": obj{"enabled": true, "fingerprint": p.Fingerprint}}}
 }
 
 func singboxOutbound(p *Proxy) obj {
@@ -235,6 +275,9 @@ func Singbox(ps []Proxy) ([]byte, error) {
 			eps = append(eps, ep)
 		} else {
 			outs = append(outs, singboxOutbound(&ps[i]))
+			if d := singboxDetour(&ps[i]); d != nil {
+				outs = append(outs, d)
+			}
 		}
 		tags = append(tags, ps[i].Name)
 	}

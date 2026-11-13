@@ -12,7 +12,7 @@ import (
 
 // extraURI returns share links for the protocols added after the v2 family.
 // It returns "" for protocols without a share-link standard (AmneziaWG,
-// MASQUE), which are delivered as config files / JSON instead.
+// MASQUE, ShadowTLS), which are delivered as config files / JSON instead.
 func extraURI(p *Proxy) string {
 	frag := "#" + fragment(p.Name)
 	switch p.Protocol {
@@ -31,7 +31,31 @@ func extraURI(p *Proxy) string {
 			q.Set("obfs", "salamander")
 			q.Set("obfs-password", p.ObfsPassword)
 		}
+		if p.HopPorts != "" {
+			// Port hopping: the common "mport" parameter (the link's own
+			// port stays the listen port for clients without hopping).
+			q.Set("mport", p.HopPorts)
+		}
 		return "hysteria2://" + url.PathEscape(p.Password) + "@" + hostPort(p.Server, p.Port) + "/?" + q.Encode() + frag
+	case inbounds.AnyTLS:
+		// anytls://password@host:port/?sni=...&insecure=1 (the AnyTLS URI
+		// scheme).
+		q := url.Values{}
+		if p.SNI != "" {
+			q.Set("sni", p.SNI)
+		}
+		if p.Insecure {
+			q.Set("insecure", "1")
+		}
+		return "anytls://" + url.PathEscape(p.Password) + "@" + hostPort(p.Server, p.Port) + "/?" + q.Encode() + frag
+	case inbounds.Naive:
+		// naive+https://user:pass@host:port (NaiveProxy clients verify the
+		// certificate: a self-signed one needs the sing-box JSON instead).
+		q := ""
+		if p.SNI != "" && p.SNI != strings.Trim(p.Server, "[]") {
+			q = "?sni=" + url.QueryEscape(p.SNI)
+		}
+		return "naive+https://" + url.UserPassword(p.Username, p.Password).String() + "@" + hostPort(p.Server, p.Port) + q + frag
 	case inbounds.TUIC:
 		q := url.Values{}
 		q.Set("congestion_control", p.Congestion)

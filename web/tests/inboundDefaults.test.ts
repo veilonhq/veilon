@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { ALL_PROTOCOLS, inboundDefaults, portHint } from '../src/lib/protocols.ts';
 
 test('no protocol pre-fills the port of a new inbound', () => {
-  assert.equal(ALL_PROTOCOLS.length, 15);
+  assert.equal(ALL_PROTOCOLS.length, 18);
   for (const p of ALL_PROTOCOLS) {
     assert.equal(inboundDefaults(p).port, 0, `${p} must start with an empty port`);
   }

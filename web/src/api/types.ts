@@ -283,7 +283,10 @@ export type Protocol =
   | 'mixed'
   | 'socks'
   | 'tunnel'
-  | 'mtproto';
+  | 'mtproto'
+  | 'shadowtls'
+  | 'anytls'
+  | 'naive';
 export type Network = 'tcp' | 'ws' | 'grpc' | 'httpupgrade' | 'xhttp' | 'kcp';
 /** informational network of non-v2 protocols */
 export type InfoNetwork = Network | 'udp' | 'quic' | 'h2' | 'tun' | 'tcp,udp';
@@ -325,6 +328,15 @@ export interface InboundSettings {
   faketls_domain: string;
   pool: string[];
   path: string;
+  /** hysteria: port hopping ranges ("20000-30000,40000"; "" = off) */
+  hop_ports: string;
+  /** hysteria: seconds between client hops (0 = client default) */
+  hop_interval: number;
+  /** shadowtls: the TLS 1.3 site whose handshake is borrowed */
+  handshake_server: string;
+  handshake_port: number;
+  /** anytls: padding scheme lines ([] = sing-box default) */
+  padding_scheme: string[];
 }
 export type Security = 'none' | 'tls' | 'reality';
 

@@ -278,3 +278,50 @@ func TestSingboxParserPorts(t *testing.T) {
 		}
 	}
 }
+
+func TestSingboxParserNaive(t *testing.T) {
+	p := NewSingboxParser()
+	u, ip, port, ok := p.LineConn("INFO[0129] [3445973830 0ms] inbound/naive[inbound-3]: [7.alice] inbound connection from 10.0.0.9:39998")
+	if !ok || u != "7.alice" || ip != "10.0.0.9" || port != 39998 {
+		t.Fatalf("naive from-line: %q %q %d %v", u, ip, port, ok)
+	}
+	if _, _, _, ok := p.LineConn("INFO[0129] [3445973830 0ms] inbound/naive[inbound-3]: [7.alice] inbound connection to example.com:80"); ok {
+		t.Fatal("the to-line of a naive connection must not count twice")
+	}
+}
+
+func TestSingboxParserShadowTLS(t *testing.T) {
+	p := NewSingboxParser()
+	now := time.Unix(1_800_000_000, 0)
+	p.now = func() time.Time { return now }
+	line := func(s string) (string, string, bool) {
+		u, ip, _, ok := p.LineConn(s)
+		return u, ip, ok
+	}
+	// The ShadowTLS user line has a new id: the oldest queued source pairs.
+	line("INFO[0001] [657807017 0ms] inbound/shadowtls[inbound-1]: inbound connection from 10.0.0.1:55150")
+	line("INFO[0001] [657807018 0ms] inbound/shadowtls[inbound-1]: inbound connection from 10.0.0.2:55151")
+	if u, ip, ok := line("INFO[0001] [3403315555 51ms] inbound/shadowtls[inbound-1]: [7.alice] inbound connection to :0"); !ok || u != "7.alice" || ip != "10.0.0.1" {
+		t.Fatalf("first pair: %q %q %v", u, ip, ok)
+	}
+	// The inner Shadowsocks line of the same connection does not count again.
+	if _, _, ok := line("INFO[0001] [3403315555 51ms] inbound/shadowsocks[inbound-1-ss]: [7.alice] inbound connection to example.com:80"); ok {
+		t.Fatal("inner line counted")
+	}
+	// A failed handshake (its id shows up again) leaves the queue.
+	line("ERROR[0002] [657807018 3ms] inbound/shadowtls[inbound-1]: process connection from 10.0.0.2:55151: hmac mismatch")
+	if _, _, ok := line("INFO[0002] [999 1ms] inbound/shadowtls[inbound-1]: [8.bob] inbound connection to :0"); ok {
+		t.Fatal("a failed handshake's source was paired")
+	}
+	// Sources older than the pairing age are dropped; other inbounds have their own queue.
+	line("INFO[0003] [1000 0ms] inbound/shadowtls[inbound-1]: inbound connection from 10.0.0.3:1")
+	line("INFO[0003] [1001 0ms] inbound/shadowtls[inbound-2]: inbound connection from 10.0.0.4:1")
+	now = now.Add(shadowTLSPairAge + time.Second)
+	if _, _, ok := line("INFO[0020] [1002 1ms] inbound/shadowtls[inbound-1]: [8.bob] inbound connection to :0"); ok {
+		t.Fatal("stale source paired")
+	}
+	line("INFO[0020] [1003 0ms] inbound/shadowtls[inbound-2]: inbound connection from 10.0.0.5:1")
+	if u, ip, ok := line("INFO[0020] [1004 1ms] inbound/shadowtls[inbound-2]: [8.bob] inbound connection to :0"); !ok || u != "8.bob" || ip != "10.0.0.5" {
+		t.Fatalf("second inbound: %q %q %v", u, ip, ok)
+	}
+}

@@ -1,8 +1,9 @@
 import type { EngineName, InboundInput, InboundSettings, Protocol, VlessEnc } from '@/api/types';
 
 /** Protocol groups shown in the inbound wizard (order matters). */
-export const PROTOCOL_GROUPS: { id: 'proxy' | 'quic' | 'vpn' | 'utility'; protocols: Protocol[] }[] = [
+export const PROTOCOL_GROUPS: { id: 'proxy' | 'stealth' | 'quic' | 'vpn' | 'utility'; protocols: Protocol[] }[] = [
   { id: 'proxy', protocols: ['vless', 'vmess', 'trojan', 'shadowsocks'] },
+  { id: 'stealth', protocols: ['shadowtls', 'anytls', 'naive'] },
   { id: 'quic', protocols: ['hysteria', 'tuic', 'masque'] },
   { id: 'vpn', protocols: ['wireguard', 'amneziawg', 'tun'] },
   { id: 'utility', protocols: ['http', 'mixed', 'socks', 'tunnel', 'mtproto'] },
@@ -26,17 +27,20 @@ export const PROTO_NAME: Record<Protocol, string> = {
   socks: 'SOCKS',
   tunnel: 'Tunnel',
   mtproto: 'MTProto',
+  shadowtls: 'ShadowTLS',
+  anytls: 'AnyTLS',
+  naive: 'NaiveProxy',
 };
 
 export const protoName = (p: string) => PROTO_NAME[p as Protocol] ?? p;
 
 /** Short protocol tag for compact cards. */
-const PROTO_SHORT: Partial<Record<Protocol, string>> = { shadowsocks: 'SS', hysteria: 'HY2', wireguard: 'WG', amneziawg: 'AWG', mtproto: 'MTP' };
+const PROTO_SHORT: Partial<Record<Protocol, string>> = { shadowsocks: 'SS', hysteria: 'HY2', wireguard: 'WG', amneziawg: 'AWG', mtproto: 'MTP', shadowtls: 'STLS', anytls: 'ANY', naive: 'NAIVE' };
 export const protoShort = (p: string) => PROTO_SHORT[p as Protocol] ?? p.toUpperCase();
 
 /** The process that serves a protocol; mirrors inbounds.Engine on the server. */
 export function engineOf(p: Protocol): EngineName {
-  if (p === 'tuic') return 'sing-box';
+  if (p === 'tuic' || p === 'shadowtls' || p === 'anytls' || p === 'naive') return 'sing-box';
   if (p === 'mtproto') return 'mtg';
   if (p === 'amneziawg') return 'amneziawg';
   return 'xray';
@@ -58,6 +62,16 @@ export const VISIBLE_ENGINES: EngineName[] = ['xray'];
 
 export const isV2 = (p: Protocol) => p === 'vless' || p === 'vmess' || p === 'trojan' || p === 'shadowsocks';
 export const isQuic = (p: Protocol) => p === 'hysteria' || p === 'tuic' || p === 'masque';
+/** TLS with a panel certificate but over TCP (sing-box): AnyTLS, NaiveProxy. */
+export const isTcpTls = (p: Protocol) => p === 'anytls' || p === 'naive';
+/** Always TLS with a panel certificate (mirrors the server's TLSRequired). */
+export const tlsRequired = (p: Protocol) => isQuic(p) || isTcpTls(p);
+/** sing-box protocols run on the main server only. */
+export const isSingbox = (p: Protocol) => engineOf(p) === 'sing-box';
+/** ShadowTLS inner Shadowsocks 2022 ciphers (multi-user). */
+export const STLS_METHODS = ['2022-blake3-aes-128-gcm', '2022-blake3-aes-256-gcm'];
+/** sing-box's default AnyTLS padding scheme (what an empty scheme means). */
+export const ANYTLS_PADDING = ['stop=8', '0=30-30', '1=100-400', '2=400-500,c,500-1000,c,500-1000,c,500-1000,c,500-1000', '3=9-9,500-1000', '4=500-1000', '5=500-1000', '6=500-1000', '7=500-1000'];
 export const isWG = (p: Protocol) => p === 'wireguard' || p === 'amneziawg';
 export const hasUsers = (p: Protocol) => p !== 'tunnel' && p !== 'tun';
 /** Users sign in with a proxy username/password (custom per user when set). */
@@ -101,6 +115,10 @@ export function transportsOf(d: Pick<InboundInput, 'protocol' | 'network' | 'tls
     case 'mixed':
     case 'socks':
       return { tcp: true, udp: !!s?.udp };
+    case 'shadowtls':
+    case 'anytls':
+    case 'naive':
+      return { tcp: true, udp: false };
     case 'tunnel': {
       const n = s?.tunnel_network || 'tcp';
       return { tcp: n.includes('tcp'), udp: n.includes('udp') };
@@ -142,13 +160,18 @@ export const emptySettings = (): InboundSettings => ({
   faketls_domain: '',
   pool: [],
   path: '',
+  hop_ports: '',
+  hop_interval: 0,
+  handshake_server: '',
+  handshake_port: 0,
+  padding_scheme: [],
 });
 
 /** Fill settings fields an older server (or a partial object) may lack. */
 export const withSettings = (s: Partial<InboundSettings> | null | undefined): InboundSettings => {
   const base = emptySettings();
   const out = { ...base, ...(s ?? {}) } as InboundSettings;
-  for (const k of ['dns', 'gateway', 'routes', 'pool'] as const) if (!Array.isArray(out[k])) out[k] = [];
+  for (const k of ['dns', 'gateway', 'routes', 'pool', 'padding_scheme'] as const) if (!Array.isArray(out[k])) out[k] = [];
   return out;
 };
 
@@ -163,6 +186,9 @@ export function portHint(p: Protocol): string {
     case 'hysteria':
     case 'tuic':
     case 'masque':
+    case 'shadowtls':
+    case 'anytls':
+    case 'naive':
       return '443';
     case 'wireguard':
       return '51820';
@@ -241,6 +267,12 @@ export function inboundDefaults(p: Protocol): InboundInput {
       return { ...base, settings: st({ tunnel_network: 'tcp', target_port: 0 }) };
     case 'mtproto':
       return { ...base, settings: st({ faketls_domain: 'www.cloudflare.com' }) };
+    case 'shadowtls':
+      return { ...base, ss_method: STLS_METHODS[0], settings: st({ handshake_server: 'www.microsoft.com', handshake_port: 443 }) };
+    case 'anytls':
+      return { ...base, security: 'tls', tls: quicTls([]) };
+    case 'naive':
+      return { ...base, security: 'tls', tls: quicTls(['h2', 'http/1.1']) };
     default:
       return base;
   }

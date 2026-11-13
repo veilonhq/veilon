@@ -154,7 +154,7 @@ export function usageTone(d: Pick<SubData, 'status' | 'used' | 'limit' | 'expire
 export function linkChips(l: SubLink): string[] {
   const names: Record<string, string> = {
     vless: 'VLESS', vmess: 'VMess', trojan: 'Trojan', shadowsocks: 'Shadowsocks', hysteria: 'Hysteria2', hysteria2: 'Hysteria2',
-    tuic: 'TUIC', mixed: 'Mixed', mtproto: 'MTProto', masque: 'MASQUE', wireguard: 'WireGuard', amneziawg: 'AmneziaWG', socks: 'SOCKS', http: 'HTTP',
+    tuic: 'TUIC', shadowtls: 'ShadowTLS', anytls: 'AnyTLS', naive: 'NaiveProxy', mixed: 'Mixed', mtproto: 'MTProto', masque: 'MASQUE', wireguard: 'WireGuard', amneziawg: 'AmneziaWG', socks: 'SOCKS', http: 'HTTP',
   };
   const out = [names[l.protocol] ?? l.protocol.toUpperCase()];
   if (l.network && l.network !== 'tcp' && l.network !== 'udp') out.push(l.network.toUpperCase() === 'XHTTP' ? 'XHTTP' : l.network);

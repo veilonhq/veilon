@@ -58,6 +58,14 @@ type Proxy struct {
 	ObfsPassword string
 	UpMbps       int
 	DownMbps     int
+	// HopPorts are the Hysteria 2 port-hopping ranges ("20000-30000,40000";
+	// "" = no hopping) and HopInterval the seconds between hops (0 = client
+	// default).
+	HopPorts    string
+	HopInterval int
+	// ShadowTLS: the user's ShadowTLS password (the inner Shadowsocks 2022
+	// uses Method and Password; SNI is the handshake server).
+	ShadowTLSPassword string
 	// TUIC.
 	Congestion string
 	// WireGuard / AmneziaWG client side.
@@ -180,6 +188,16 @@ func BuildProxiesX(u *db.User, ibs []inbounds.View, s db.Settings, reqHost strin
 		switch ib.Protocol {
 		case inbounds.Hysteria:
 			p.Password, p.ObfsPassword, p.UpMbps, p.DownMbps = u.Password, st.ObfsPassword, st.UpMbps, st.DownMbps
+			p.HopPorts, p.HopInterval = st.HopPorts, st.HopInterval
+		case inbounds.ShadowTLS:
+			p.Method = ib.SSMethod
+			p.Password = ib.SSServerKey + ":" + inbounds.SS2022UserKey(ib.SSMethod, u.Password)
+			p.ShadowTLSPassword = u.Password
+			p.SNI, p.Fingerprint = st.HandshakeServer, "chrome"
+		case inbounds.AnyTLS:
+			p.Password = u.Password
+		case inbounds.Naive:
+			p.Username, p.Password = xrayEmail(u), u.Password
 		case inbounds.TUIC:
 			p.UUID, p.Password, p.Congestion = u.UUID, u.Password, st.Congestion
 		case inbounds.HTTP, inbounds.Mixed, inbounds.Socks:
@@ -264,6 +282,9 @@ func withNodes(p Proxy, ib *inbounds.View, nodes []inbounds.NodeTarget, hosts []
 	for _, n := range nodes {
 		np := p
 		np.Server = n.Address
+		if n.NoHop {
+			np.HopPorts, np.HopInterval = "", 0 // the node's agent does not redirect the ranges
+		}
 		for _, v := range withHosts(np, ib, hosts) {
 			v.Name = v.Name + " · " + n.Name
 			k := fmt.Sprintf("%s|%d|%s|%s|%s|%s|%s", v.Server, v.Port, v.SNI, v.Host, v.Path, v.Fingerprint, strings.Join(v.ALPN, ","))

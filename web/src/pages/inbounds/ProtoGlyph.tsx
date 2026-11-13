@@ -17,6 +17,9 @@ const META: Record<Protocol, { code: string; a: string; b: string; shape: Shape 
   socks: { code: 'S5', a: 'var(--info)', b: 'var(--warn)', shape: 'grid' },
   tunnel: { code: 'FW', a: 'var(--warn)', b: 'var(--info)', shape: 'grid' },
   mtproto: { code: 'TG', a: 'var(--info)', b: 'var(--info)', shape: 'grid' },
+  shadowtls: { code: 'ST', a: 'var(--violet)', b: 'var(--accent)', shape: 'orbit' },
+  anytls: { code: 'AT', a: 'var(--accent)', b: 'var(--danger)', shape: 'orbit' },
+  naive: { code: 'NV', a: 'var(--warn)', b: 'var(--violet)', shape: 'orbit' },
 };
 
 export const protoColor = (p: string) => META[p as Protocol]?.a ?? 'var(--accent)';

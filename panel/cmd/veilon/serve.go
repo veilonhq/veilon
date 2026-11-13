@@ -29,6 +29,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/jobs"
 	"github.com/veilonhq/veilon/panel/internal/logbuf"
 	"github.com/veilonhq/veilon/panel/internal/nodes"
+	"github.com/veilonhq/veilon/panel/internal/porthop"
 	"github.com/veilonhq/veilon/panel/internal/presence"
 	"github.com/veilonhq/veilon/panel/internal/selfupdate"
 	"github.com/veilonhq/veilon/panel/internal/stats"
@@ -89,9 +90,13 @@ func cmdServe(args []string) error {
 		_ = db.SetSetting(gdb, db.KeySingboxAPIPort, strconv.Itoa(sbPort))
 	}
 	connGuard := guard.New(gdb, filepath.Join(filepath.Dir(cfg.XrayBin), "geoip.dat"))
+	// Hysteria 2 port hopping: the ranges of the inbounds Xray serves here
+	// are redirected to their ports (nftables), removed when Xray stops.
+	hopper := &porthop.Applier{}
 	xcore := xray.NewManager(xray.Options{
 		DB: gdb, DataDir: cfg.DataDir, BinPath: cfg.XrayBin, APIPort: apiPort, BridgePort: sbPort,
 		AutoDownload: cfg.XrayAutoDownload, Version: cfg.XrayVersion, OnLine: connGuard.ObserveLine,
+		Hop: func(ibs []inbounds.View) { _ = hopper.Apply(porthop.FromViews(ibs)) },
 	})
 	self, _ := os.Executable()
 	core := &cores.Set{Engines: []cores.Engine{
@@ -106,6 +111,18 @@ func cmdServe(args []string) error {
 	nodeMgr := &nodes.Manager{DB: gdb, DataDir: cfg.DataDir, PKI: &nodes.PKI{Dir: filepath.Join(cfg.DataDir, "nodes")},
 		OnIPs: connGuard.ObserveRemote, Bans: connGuard.Bans, Shapes: connGuard.Shapes, Limits: connGuard.SpeedLimits, Version: version.Version}
 	reloadAll := func() { core.RequestReload(); nodeMgr.Kick() }
+	inbounds.NodeLacksCap = func(id int64, c string) bool {
+		caps, known := nodeMgr.Caps(id)
+		if !known {
+			return false
+		}
+		for _, x := range caps {
+			if x == c {
+				return false
+			}
+		}
+		return true
+	}
 	certSvc := &certs.Service{DB: gdb, DataDir: cfg.DataDir, ACMEDirectory: cfg.ACMEDirectory, OnChange: reloadAll,
 		AllowNonPublicIPs: cfg.ACMEAllowPrivateIPs}
 	if cfg.ACMECAFile != "" {
@@ -200,6 +217,7 @@ func cmdServe(args []string) error {
 	go util.Supervise(ctx, "system stats", func(ctx context.Context) { sampler.Run(ctx, 3*time.Second) })
 	go util.Supervise(ctx, "update check", updates.Checker.Run)
 	go util.Supervise(ctx, "nodes", nodeMgr.Run)
+	go util.Supervise(ctx, "port hopping", func(ctx context.Context) { hopper.Keep(ctx, time.Minute) })
 	tgBot.API = srv
 	go util.Supervise(ctx, "telegram", tgBot.Run)
 	// Online status lives in memory; last_online_at is stored on changes
