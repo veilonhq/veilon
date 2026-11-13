@@ -63,6 +63,20 @@ Agents older than v0.3.5 cannot update themselves. Their card says **Needs one m
 
 IP limits and speed limits on nodes need the node agent of v0.3.2 or newer. Older nodes keep serving users, but they do not report IPs or take bans and speed limits.
 
+## Node Xray version
+
+Each node's Xray-core version can be changed from its card and its edit form, like the Xray card on the main server's dashboard: tap the version to see the five newest stable official Xray-core releases plus the installed one (marked **current**). Choose one and confirm:
+
+1. **Download**: the node downloads the official release for its own CPU from the Xray-core releases and checks its SHA-256 against that release's `.dgst` file. Without a matching checksum nothing changes.
+2. **Verify**: the node checks that the file runs and reports that version, and tests its current configuration with it (`xray run -test`). If it is rejected, nothing changes.
+3. **Restart**: the current Xray is kept as a backup (`/var/lib/veilon-node/xray/xray.bak`), the new file is swapped in and the node's Xray restarts for a few seconds. If the new Xray does not stay up, the previous version is put back and started again automatically; the card shows the failure and the rollback.
+
+After a successful install the node reports the new version, and inbounds that were left out because the node's Xray was too old come back on their own. The geo files and the node's configuration are not touched. One install runs per node at a time, and a node can be asked again 10 seconds after the last request. Every request and its outcome are in the audit log (`node.xray.requested`, `node.xray.ok`, `node.xray.failed`). In the Telegram bot the node screen's **🧩 Xray version** button does the same, with a confirmation and the steps.
+
+This needs this release's node agent or newer. For a node with an older agent the card says **Update the node first to change it** next to the Xray version.
+
+For servers that cannot reach GitHub you can set `VEILON_XRAY_RELEASE_BASE` in the node service's environment to a mirror of the official releases (`<base>/<tag>/<asset>` and its `.dgst`); the checksum is still required.
+
 ## Deleting a node or taking an inbound off it
 
 An inbound that runs only on nodes goes back to the main server when its last node is deleted or drops it. If its port is already used on the main server (by another inbound, or reserved for the panel), the delete is refused with a message naming the inbound and the port, and a link to edit that inbound: change its port or run it on another node first, then delete the node.

@@ -2,6 +2,16 @@
 
 Each release's notes, Persian first. Older releases: https://github.com/veilonhq/veilon/releases
 
+## Unreleased
+
+### فارسی
+
+- تغییر نسخه Xray-core نودها از پنل: روی نسخه Xray در کارت نود یا فرم ویرایش آن بزنید تا مثل کارت Xray داشبورد، پنج نسخه پایدار آخر رسمی و نسخه فعلی را ببینید. نود فایل رسمی را دانلود و با checksum انتشار بررسی می کند، تنظیمات فعلی را با آن آزمایش می کند، از نسخه فعلی پشتیبان می گیرد و Xray را دوباره راه اندازی می کند؛ اگر بالا نیاید نسخه قبلی خودکار برمی گردد. مراحل و نتیجه در کارت نشان داده می شوند و ورودی هایی که به خاطر Xray قدیمی کنار گذاشته شده بودند بعد از نصب برمی گردند. در ربات تلگرام دکمه **🧩 نسخه Xray** در صفحه نود و در API `POST /nodes/{id}/xray` هم هست. به برنامه نود همین نسخه نیاز دارد (برای نود قدیمی تر نوشته می شود اول نود را بروزرسانی کنید). [راهنما](docs/fa/nodes.md)
+
+### English
+
+- Change a node's Xray-core version from the panel: tap the Xray version on the node card or in its edit form to see, like the dashboard's Xray card, the five newest stable official releases plus the current one. The node downloads the official release and checks it against the release checksum, tests its current config with it, keeps a backup and restarts Xray; if it does not stay up, the previous version is restored automatically. The steps and the outcome show on the card, and inbounds that were left out for an old Xray come back after the install. Also in the Telegram bot (**🧩 Xray version** on the node screen) and the API (`POST /nodes/{id}/xray`). Needs this release's node agent (older nodes are told to update the node first). [Guide](docs/en/nodes.md)
+
 ## v0.3.11 (2026-11-13)
 
 ### فارسی

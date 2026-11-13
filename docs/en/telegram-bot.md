@@ -36,7 +36,7 @@ The first time you press `/start`, the bot asks whether it should speak Persian 
 
 - **👥 Users:** list with search and filters, create, edit, renew (days and data), reset usage, enable and disable, group and inbounds, connections, subscription link and QR, new subscription link, and delete with confirmation.
 - **📥 Inbounds:** list, create, rename and change port, link address, where it runs (main server or nodes), full JSON edit, turn on and off, and delete with confirmation.
-- **🌐 Nodes:** list with status, details, add a node and its install command, a new install command, agent update with progress, enable and disable, and delete with confirmation.
+- **🌐 Nodes:** list with status, details, add a node and its install command, a new install command, agent update with progress, the node's Xray version (five newest stable releases) with confirmation and steps, enable and disable, and delete with confirmation.
 - **📊 Server status:** CPU, memory, disk, uptime, traffic, online users, core versions, logs (long logs as a file) and core restart with confirmation.
 - **⬆️ Update:** check for a new release, release notes, and install with confirmation and progress.
 - **💾 Backup:** download a database backup as a file, and restore it (see below).
