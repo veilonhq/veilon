@@ -33,6 +33,8 @@
 📱 [کلاینت اندروید Veilon](https://github.com/veilonhq/veilon/tree/feat/client/client)
 &nbsp;·&nbsp;
 🔍 [اسکنر DNS و IP (ScanON)](https://github.com/skylarsob/ScanON)
+&nbsp;·&nbsp;
+📢 [کانال تلگرام](https://t.me/veilon2)
 
 </div>
 
@@ -540,6 +542,8 @@ Free proxy panel. One binary, one-line install.
 📱 [Veilon Android client](https://github.com/veilonhq/veilon/tree/feat/client/client)
 &nbsp;·&nbsp;
 🔍 [DNS & IP scanner (ScanON)](https://github.com/skylarsob/ScanON)
+&nbsp;·&nbsp;
+📢 [Telegram channel](https://t.me/veilon2)
 
 </div>
 
