@@ -394,7 +394,9 @@ func (m *Manager) SyncNode(parent context.Context, n *db.Node) {
 		return
 	}
 	m.trackUpdate(n, &info)
-	m.trackXray(n, &info)
+	// The Xray install outcome is taken in after this round has stored the
+	// node's state, so "done" never shows next to the old Xray version.
+	defer m.trackXray(n, &info)
 	st := &State{Version: info.Version, XrayVersion: info.XrayVersion, XrayRunning: info.XrayRunning, Load1: info.Load1,
 		MemUsed: info.MemUsed, CPUs: info.CPUs, LatencyMS: time.Since(t0).Milliseconds(), Arch: info.Arch, CanUpdate: info.HasCap(CapUpdate),
 		liveOnline: info.HasCap(CapOnline), Caps: info.Caps, CanUpdateXray: info.HasCap(CapXrayInstall)}

@@ -153,9 +153,12 @@ func (m *Manager) followXray(n *db.Node) {
 			m.trackXray(n, nil)
 			continue
 		}
-		if rep != nil && rep.Final() && m.syncNow(n) {
-			// The round saw the outcome together with the node's new
-			// version, so the panel never shows "done" next to the old one.
+		if rep != nil && rep.Final() {
+			// The outcome is taken in only by a round, together with the
+			// node's new version, so the panel never shows "done" next to
+			// the old one. A round already running for the node is left to
+			// finish; the next pass (or the regular round) picks it up.
+			m.syncNow(n)
 			continue
 		}
 		m.trackXray(n, &Info{XrayUpdate: rep})
