@@ -85,7 +85,7 @@ func (v *View) Tag() string { return fmt.Sprintf("inbound-%d", v.ID) }
 
 // Allowed values.
 var (
-	Protocols  = []string{VLESS, VMess, Trojan, Shadowsocks, Hysteria, TUIC, WireGuard, AmneziaWG, HTTP, Mixed, Tunnel, TUN, MTProto, Masque}
+	Protocols  = []string{VLESS, VMess, Trojan, Shadowsocks, Hysteria, TUIC, WireGuard, AmneziaWG, HTTP, Mixed, Socks, Tunnel, TUN, MTProto, Masque}
 	Networks   = []string{"tcp", "ws", "grpc", "httpupgrade", "xhttp"}
 	Securities = []string{"none", "tls", "reality"}
 	SSMethods  = []string{"aes-128-gcm", "aes-256-gcm", "chacha20-ietf-poly1305", "2022-blake3-aes-128-gcm", "2022-blake3-aes-256-gcm"}

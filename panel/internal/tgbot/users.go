@@ -538,6 +538,8 @@ var userFields = map[string]struct{ label, prompt string }{
 	"mul":  {T("ضریب مصرف"), T("ضریب مصرف را بفرستید (۱ یعنی عادی، مثلا ۱.۵):")},
 	"dly":  {T("سقف روزانه"), T("سقف مصرف روزانه به گیگابایت (۰ یعنی ندارد):")},
 	"win":  {T("بازه ساعت مجاز"), T("بازه را به شکل 08:00-23:00 بفرستید (- برای همیشه مجاز):")},
+	"pxu":  {T("نام کاربری پراکسی"), T("نام کاربری پراکسی برای ورودی های HTTP، Mixed و SOCKS را بفرستید (۳ تا ۳۲ حرف انگلیسی، رقم، . _ -؛ - برای خودکار):")},
+	"pxp":  {T("رمز پراکسی"), T("رمز پراکسی برای ورودی های HTTP، Mixed و SOCKS را بفرستید (۸ تا ۶۴ نویسه؛ - برای خودکار):")},
 }
 
 func userEditMenu(r *req, a []string) {
@@ -571,6 +573,7 @@ func userEditMenu(r *req, a []string) {
 		{f("win"), btn(T("📅 روز های مجاز"), "uef", id, "days")},
 		{btn(T("📥 ورودی ها"), "uef", id, "inb"), btn(T("🏷 گروه"), "uef", id, "grp")},
 		{btn(T("🔁 ریست دوره ای"), "uef", id, "rst"), f("note")},
+		{f("pxu"), f("pxp")},
 		{btn(onOff(u.RequireHWID)+" HWID", "uht", id), btn(onOff(u.BlockTorrent)+T(" تورنت"), "utt", id)},
 		{btn(T("🔑 تعویض لینک اشتراک"), "urv", id)},
 		nav(cbd("uv", id)),
@@ -639,6 +642,12 @@ func userFieldInput(r *req, a []string, text string, _ *Document) {
 			text = ""
 		}
 		body["note"] = text
+	case "pxu", "pxp":
+		t := strings.TrimSpace(text)
+		if t == "-" {
+			t = ""
+		}
+		body[map[string]string{"pxu": "proxy_username", "pxp": "proxy_password"}[k]] = t
 	case "lim":
 		n, ok := num()
 		if !ok {

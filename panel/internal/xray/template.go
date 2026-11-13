@@ -268,7 +268,7 @@ func cleanCopy(m map[string]any) map[string]any {
 // renderTemplate merges the template into a config that already holds the
 // panel's inbounds and rules. users maps usernames to Xray emails, so rules
 // may name users by username.
-func renderTemplate(cfg obj, t *Template, panelRules []any, users map[string]string) {
+func renderTemplate(cfg obj, t *Template, panelRules []any, users map[string]string, aliases map[string]string) {
 	lg := obj{"loglevel": t.Log.Level}
 	if t.Log.DNSLog {
 		lg["dnsLog"] = true
@@ -333,7 +333,7 @@ func renderTemplate(cfg obj, t *Template, panelRules []any, users map[string]str
 			if len(mapped) == 0 {
 				continue // an empty user list would match everyone
 			}
-			c["user"] = mapped
+			c["user"] = withAliases(mapped, aliases)
 		}
 		c["type"] = "field"
 		rules = append(rules, c)

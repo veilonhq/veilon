@@ -17,6 +17,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/certs"
 	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/inbounds"
+	"github.com/veilonhq/veilon/panel/internal/userkey"
 	"github.com/veilonhq/veilon/panel/internal/users"
 )
 
@@ -25,15 +26,9 @@ type obj = map[string]any
 // Email returns the identifier used for a user inside Xray (and its stats).
 func Email(u *db.User) string { return fmt.Sprintf("%d.%s", u.ID, u.Username) }
 
-// ParseEmail extracts the user id from an Xray email.
-func ParseEmail(e string) (int64, bool) {
-	idStr, _, ok := strings.Cut(e, ".")
-	if !ok {
-		return 0, false
-	}
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	return id, err == nil
-}
+// ParseEmail extracts the user id from an Xray email ("<id>.<username>")
+// or from a custom proxy username (see package userkey).
+func ParseEmail(e string) (int64, bool) { return userkey.ID(e) }
 
 // Input is everything needed to render a config.
 type Input struct {
@@ -61,6 +56,10 @@ type Input struct {
 	// Usernames maps every username to its Xray email, so template rules
 	// can name users by username.
 	Usernames map[string]string
+	// ProxyAliases maps the Xray email of every user with a custom proxy
+	// username to that name: on HTTP, Mixed and SOCKS inbounds Xray knows
+	// the user by it, so routing rules that name the user list both.
+	ProxyAliases map[string]string
 }
 
 // AdsGeosite is the geosite category blocked by ad blocking.
@@ -79,8 +78,9 @@ type Policy struct {
 }
 
 // policyRules renders the policy as routing rules (before the defaults).
-func policyRules(p Policy, geosite bool) ([]any, []string) {
+func policyRules(p Policy, geosite bool, aliases map[string]string) ([]any, []string) {
 	var rules []any
+	users := func(emails ...string) []string { return withAliases(emails, aliases) }
 	var warn []string
 	emails := make([]string, 0, len(p.BlockedIPs))
 	for e := range p.BlockedIPs {
@@ -88,12 +88,12 @@ func policyRules(p Policy, geosite bool) ([]any, []string) {
 	}
 	sort.Strings(emails)
 	for _, e := range emails {
-		rules = append(rules, obj{"type": "field", "user": []string{e}, "source": p.BlockedIPs[e], "outboundTag": "blocked"})
+		rules = append(rules, obj{"type": "field", "user": users(e), "source": p.BlockedIPs[e], "outboundTag": "blocked"})
 	}
 	if p.TorrentAll {
 		rules = append(rules, obj{"type": "field", "protocol": []string{"bittorrent"}, "outboundTag": "blocked"})
 	} else if len(p.TorrentUsers) > 0 {
-		rules = append(rules, obj{"type": "field", "user": p.TorrentUsers, "protocol": []string{"bittorrent"}, "outboundTag": "blocked"})
+		rules = append(rules, obj{"type": "field", "user": users(p.TorrentUsers...), "protocol": []string{"bittorrent"}, "outboundTag": "blocked"})
 	}
 	if p.AdBlockAll || len(p.AdBlockUsers) > 0 {
 		if !geosite {
@@ -101,10 +101,23 @@ func policyRules(p Policy, geosite bool) ([]any, []string) {
 		} else if p.AdBlockAll {
 			rules = append(rules, obj{"type": "field", "domain": []string{AdsGeosite}, "outboundTag": "blocked"})
 		} else {
-			rules = append(rules, obj{"type": "field", "user": p.AdBlockUsers, "domain": []string{AdsGeosite}, "outboundTag": "blocked"})
+			rules = append(rules, obj{"type": "field", "user": users(p.AdBlockUsers...), "domain": []string{AdsGeosite}, "outboundTag": "blocked"})
 		}
 	}
 	return rules, warn
+}
+
+// withAliases adds the custom proxy username of every listed email that
+// has one, right after it.
+func withAliases(emails []string, aliases map[string]string) []string {
+	out := make([]string, 0, len(emails))
+	for _, e := range emails {
+		out = append(out, e)
+		if a, ok := aliases[e]; ok {
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
 // TunAvailable reports whether TUN interfaces can be created (CAP_NET_ADMIN
@@ -153,11 +166,20 @@ func LoadInput(gdb *gorm.DB, dataDir string, apiPort int) (*Input, error) {
 	}
 	in.Policy = loadPolicy(gdb, byID)
 	in.Usernames = map[string]string{}
+	in.ProxyAliases = map[string]string{}
 	var names []db.User
-	gdb.Select("id", "username").Find(&names)
+	gdb.Select("id", "username", "proxy_username").Find(&names)
+	keys := map[string]int64{}
 	for i := range names {
 		in.Usernames[names[i].Username] = Email(&names[i])
+		if pu := names[i].ProxyUsername; pu != "" {
+			in.ProxyAliases[Email(&names[i])] = pu
+			keys[pu] = names[i].ID
+		}
 	}
+	// Statistics, the online list and the access log name these users by
+	// their custom proxy username.
+	userkey.Set(keys)
 	if raw := db.GetSetting(gdb, KeyTemplate); raw != "" {
 		t, err := ParseTemplate([]byte(raw))
 		if err != nil {
@@ -277,7 +299,7 @@ func Build(in *Input) ([]byte, error) {
 	rules := []any{
 		obj{"type": "field", "inboundTag": []string{"api"}, "outboundTag": "api"},
 	}
-	pr, warn := policyRules(in.Policy, fileExists(filepath.Join(in.AssetDir, "geosite.dat")))
+	pr, warn := policyRules(in.Policy, fileExists(filepath.Join(in.AssetDir, "geosite.dat")), in.ProxyAliases)
 	rules = append(rules, pr...)
 	in.Skipped = append(in.Skipped, warn...)
 	t := in.Template
@@ -299,7 +321,7 @@ func Build(in *Input) ([]byte, error) {
 		},
 		"inbounds": ibs,
 	}
-	renderTemplate(cfg, t, rules, in.Usernames)
+	renderTemplate(cfg, t, rules, in.Usernames, in.ProxyAliases)
 	return json.MarshalIndent(cfg, "", "  ")
 }
 
@@ -453,8 +475,11 @@ func buildExtraInbound(ib *inbounds.View, us []db.User, peers map[int64]db.WGPee
 	accounts := func() []any {
 		out := []any{}
 		for i := range us {
-			// Xray reports the authenticated user name as the stats email.
-			out = append(out, obj{"user": Email(&us[i]), "pass": us[i].Password})
+			// Xray reports the authenticated user name as the stats email:
+			// "<id>.<username>", or the user's custom proxy username, which
+			// userkey maps back to the user.
+			user, pass := users.ProxyLogin(&us[i])
+			out = append(out, obj{"user": user, "pass": pass})
 		}
 		return out
 	}
@@ -509,6 +534,15 @@ func buildExtraInbound(ib *inbounds.View, us []db.User, peers map[int64]db.WGPee
 				return nil, err
 			}
 			x["streamSettings"] = ss
+		}
+	case inbounds.Socks:
+		x["protocol"] = "socks"
+		if st.NoAuth {
+			// No accounts: anyone who reaches the port may use it, and
+			// Xray cannot attribute the traffic to a user.
+			x["settings"] = obj{"auth": "noauth", "udp": st.UDP}
+		} else {
+			x["settings"] = obj{"auth": "password", "accounts": accounts(), "udp": st.UDP}
 		}
 	case inbounds.Tunnel:
 		x["protocol"] = "tunnel"

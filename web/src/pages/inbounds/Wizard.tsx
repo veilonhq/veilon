@@ -483,7 +483,8 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
       reviewRows.push([t('inb.gateway'), st.gateway.join(', ')]);
       reviewRows.push([t('inb.routes'), st.routes.join(', ') || '—']);
     }
-    if (p === 'mixed') reviewRows.push([t('inb.mixedUdp'), st.udp ? t('common.yes') : t('common.no')]);
+    if (p === 'mixed' || p === 'socks') reviewRows.push([t('inb.mixedUdp'), st.udp ? t('common.yes') : t('common.no')]);
+    if (p === 'socks') reviewRows.push([t('inb.socksAuth'), st.no_auth ? t('inb.socksNoAuth') : t('inb.socksPassword')]);
     if (p === 'tunnel') reviewRows.push([t('inb.forwardTo'), `${st.target_address}:${st.target_port} · ${st.tunnel_network || 'tcp'}`]);
     if (p === 'mtproto') reviewRows.push([t('inb.fakeTls'), st.faketls_domain || 'www.cloudflare.com']);
     if (sniffingApplies(p)) reviewRows.push([t('inb.sniffing'), d.sniffing ? t('common.yes') : t('common.no')]);
@@ -818,11 +819,27 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
                   </div>
                 </>
               )}
-              {p === 'mixed' && (
+              {(p === 'mixed' || p === 'socks') && (
                 <div className={`${s.span2} ${s.switchLine}`}>
                   <span>{t('inb.mixedUdp')}</span>
                   <Switch checked={d.settings.udp} onChange={(v) => patchS({ udp: v })} label={t('inb.mixedUdp')} />
                 </div>
+              )}
+              {p === 'socks' && (
+                <>
+                  <div className={`${s.span2} ${s.switchLine}`}>
+                    <span>{t('inb.socksAuthOn')}</span>
+                    <Switch checked={!d.settings.no_auth} onChange={(v) => patchS({ no_auth: !v })} label={t('inb.socksAuthOn')} />
+                  </div>
+                  {d.settings.no_auth ? (
+                    <p className={`${s.span2} ${s.warnNote}`}>
+                      <AlertTriangle size={16} aria-hidden="true" />
+                      <span>{t('inb.socksNoAuthWarn')}</span>
+                    </p>
+                  ) : (
+                    <p className={`${s.span2} ${s.note}`}>{t('inb.socksAuthHint')}</p>
+                  )}
+                </>
               )}
               {p === 'tunnel' && (
                 <>

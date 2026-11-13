@@ -100,7 +100,7 @@ type Manager struct {
 }
 
 // XrayProtocols are the inbound protocols served by Xray-core.
-var XrayProtocols = []string{"vless", "vmess", "trojan", "shadowsocks", "hysteria", "wireguard", "http", "mixed", "tunnel", "tun", "masque"}
+var XrayProtocols = []string{"vless", "vmess", "trojan", "shadowsocks", "hysteria", "wireguard", "http", "mixed", "socks", "tunnel", "tun", "masque"}
 
 // Name returns the engine name.
 func (m *Manager) Name() string { return "xray" }

@@ -265,6 +265,15 @@ var migrations = []migration{
 	{11, "admin disable", []string{
 		`ALTER TABLE admins ADD COLUMN disabled BOOLEAN NOT NULL DEFAULT FALSE`,
 	}},
+	// Optional custom login for HTTP, Mixed and SOCKS inbounds. Additive:
+	// every existing user keeps '' (the automatic login). A custom username
+	// identifies the user in Xray's statistics, so it is unique among the
+	// users that set one.
+	{12, "custom proxy login", []string{
+		`ALTER TABLE users ADD COLUMN proxy_username VARCHAR(64) NOT NULL DEFAULT ''`,
+		`ALTER TABLE users ADD COLUMN proxy_password VARCHAR(128) NOT NULL DEFAULT ''`,
+		`CREATE UNIQUE INDEX idx_users_proxy_username ON users(proxy_username) WHERE proxy_username <> ''`,
+	}},
 }
 
 type schemaMigration struct {

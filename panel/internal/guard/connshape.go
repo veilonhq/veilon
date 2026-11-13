@@ -1,6 +1,8 @@
 package guard
 
 import (
+	"github.com/veilonhq/veilon/panel/internal/userkey"
+
 	"log/slog"
 	"net"
 	"strconv"
@@ -72,10 +74,11 @@ func srcPort(src string) int {
 	return n
 }
 
+// userID maps an Xray email ("<id>.<username>" or a custom proxy
+// username) to the user id (0 = unknown).
 func userID(email string) int64 {
-	idStr, _, _ := strings.Cut(email, ".")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil || id <= 0 {
+	id, ok := userkey.ID(email)
+	if !ok || id <= 0 {
 		return 0
 	}
 	return id

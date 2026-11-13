@@ -86,7 +86,9 @@ export default function InboundsPage() {
                     ? st.address
                     : ib.protocol === 'mtproto'
                       ? st.faketls_domain
-                      : '';
+                      : ib.protocol === 'socks' && st.no_auth
+                        ? t('inb.socksNoAuth')
+                        : '';
             const badges = (
               <>
                 {isV2(ib.protocol) ? (

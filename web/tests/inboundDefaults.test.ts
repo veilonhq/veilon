@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { ALL_PROTOCOLS, inboundDefaults, portHint } from '../src/lib/protocols.ts';
 
 test('no protocol pre-fills the port of a new inbound', () => {
-  assert.equal(ALL_PROTOCOLS.length, 14);
+  assert.equal(ALL_PROTOCOLS.length, 15);
   for (const p of ALL_PROTOCOLS) {
     assert.equal(inboundDefaults(p).port, 0, `${p} must start with an empty port`);
   }
@@ -13,4 +13,12 @@ test('port hints are placeholders only', () => {
   assert.equal(portHint('vless'), '443');
   assert.equal(portHint('tun'), '');
   for (const p of ALL_PROTOCOLS) assert.equal(typeof portHint(p), 'string');
+});
+
+test('socks: password auth and UDP by default, SOCKS port hint', () => {
+  const d = inboundDefaults('socks');
+  assert.equal(d.settings.udp, true);
+  assert.equal(!!d.settings.no_auth, false);
+  assert.equal(d.security, 'none');
+  assert.equal(portHint('socks'), '1080');
 });

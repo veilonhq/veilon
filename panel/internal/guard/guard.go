@@ -100,11 +100,11 @@ func (g *Guard) now() time.Time {
 	return time.Now().UTC()
 }
 
-// ObserveEmail records an access log hit for an Xray email ("ID.name").
+// ObserveEmail records an access log hit for an Xray email ("ID.name" or a
+// custom proxy username).
 func (g *Guard) ObserveEmail(email, ip string) {
-	idStr, _, _ := strings.Cut(email, ".")
-	var id int64
-	if _, err := fmt.Sscan(idStr, &id); err != nil || id <= 0 {
+	id := userID(email)
+	if id <= 0 {
 		return
 	}
 	g.Tracker.Observe(id, ip, g.now())

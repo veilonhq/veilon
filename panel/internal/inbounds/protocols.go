@@ -26,6 +26,7 @@ const (
 	AmneziaWG   = "amneziawg"
 	HTTP        = "http"
 	Mixed       = "mixed" // SOCKS5 + HTTP on one port
+	Socks       = "socks" // SOCKS5 only (password or no authentication)
 	Tunnel      = "tunnel"
 	TUN         = "tun"
 	MTProto     = "mtproto"
@@ -88,6 +89,13 @@ func NodeCap(protocol string) string {
 // HasUsers reports whether the protocol authenticates individual users.
 func HasUsers(protocol string) bool { return protocol != Tunnel && protocol != TUN }
 
+// IsProxyLogin reports whether users sign in to the protocol with a proxy
+// username and password (HTTP, Mixed, SOCKS): these use the users' custom
+// proxy login when set.
+func IsProxyLogin(protocol string) bool {
+	return protocol == HTTP || protocol == Mixed || protocol == Socks
+}
+
 // IsV2 reports whether the protocol uses the shared stream settings
 // (network/security/transport).
 func IsV2(protocol string) bool {
@@ -133,8 +141,11 @@ type Settings struct {
 	AWG        *AWG     `json:"awg"`
 	// MTU for wireguard, amneziawg, masque and tun.
 	MTU int `json:"mtu"`
-	// Mixed: allow SOCKS5 UDP ASSOCIATE.
+	// Mixed, Socks: allow SOCKS5 UDP ASSOCIATE.
 	UDP bool `json:"udp"`
+	// Socks: no authentication. Anyone who reaches the port can use it and
+	// its traffic cannot be told apart per user.
+	NoAuth bool `json:"no_auth"`
 	// Tunnel (port forward).
 	TargetAddress string `json:"target_address"`
 	TargetPort    int    `json:"target_port"`
@@ -240,7 +251,7 @@ func Transports(v *View) (tcp, udp bool) {
 		tcp, udp = containsStr(alpn, "h2"), containsStr(alpn, "h3")
 	case HTTP, MTProto:
 		tcp = true
-	case Mixed:
+	case Mixed, Socks:
 		tcp, udp = true, v.Settings.UDP
 	case Tunnel:
 		n := v.Settings.TunnelNetwork
@@ -397,6 +408,11 @@ func normalizeProtocol(v *View) error {
 			return verr("mixed inbounds support security none only")
 		}
 		s.UDP = src.UDP
+	case Socks:
+		if v.Security != "none" {
+			return verr("socks inbounds support security none only")
+		}
+		s.UDP, s.NoAuth = src.UDP, src.NoAuth
 	case Tunnel:
 		s.TargetAddress = strings.TrimSpace(src.TargetAddress)
 		if s.TargetAddress == "" {

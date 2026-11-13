@@ -65,15 +65,7 @@ func (c *IPCollector) ObserveLine(line string) {
 	if !ok {
 		return
 	}
-	idStr, _, _ := strings.Cut(email, ".")
-	var id int64
-	for _, ch := range idStr {
-		if ch < '0' || ch > '9' {
-			return
-		}
-		id = id*10 + int64(ch-'0')
-	}
-	c.Observe(id, ip)
+	c.Observe(userID(email), ip)
 }
 
 // Observe records one hit of a client IP for a user (engines that report

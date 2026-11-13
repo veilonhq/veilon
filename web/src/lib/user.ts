@@ -48,4 +48,21 @@ export function barcode(token: string, bars = 34): number[] {
 }
 
 export const USERNAME_RE = /^[a-zA-Z0-9_-]{3,32}$/;
+
+/** Custom proxy login for HTTP, Mixed and SOCKS (mirrors users.ValidateProxyLogin). */
+export const PROXY_USER_RE = /^[A-Za-z0-9._-]{3,32}$/;
+export const PROXY_PASS_RE = /^[A-Za-z0-9._~!@#$%^&*+=-]{8,64}$/;
+
+/** '' when valid (empty = automatic), else the problem: 'chars' | 'auto' | 'short'. */
+export function proxyUserProblem(v: string): '' | 'chars' | 'auto' {
+  if (!v) return '';
+  if (!PROXY_USER_RE.test(v)) return 'chars';
+  if (/^[0-9]+\./.test(v)) return 'auto';
+  return '';
+}
+export function proxyPassProblem(v: string): '' | 'chars' | 'short' {
+  if (!v) return '';
+  if (v.length < 8 || v.length > 64) return 'short';
+  return PROXY_PASS_RE.test(v) ? '' : 'chars';
+}
 export const GB = 1024 ** 3;

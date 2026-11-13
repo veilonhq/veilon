@@ -65,9 +65,13 @@ func xrayExtraOutbound(p *Proxy) obj {
 		if p.Security == "tls" {
 			o["streamSettings"] = obj{"security": "tls", "tlsSettings": xrayClientTLS(p, nil)}
 		}
-	case inbounds.Mixed:
+	case inbounds.Mixed, inbounds.Socks:
+		srv := obj{"address": p.Server, "port": p.Port}
+		if !p.NoAuth {
+			srv["users"] = []any{obj{"user": p.Username, "pass": p.Password}}
+		}
 		o["protocol"] = "socks"
-		o["settings"] = obj{"servers": []any{obj{"address": p.Server, "port": p.Port, "users": []any{obj{"user": p.Username, "pass": p.Password}}}}}
+		o["settings"] = obj{"servers": []any{srv}}
 	}
 	return o
 }

@@ -195,8 +195,11 @@ func writeServiceErr(w http.ResponseWriter, err error) {
 		cv *certs.ValidationError
 		ic *inbounds.ConflictError
 		na *inbounds.NodeAgentError
+		pt *users.ProxyTakenError
 	)
 	switch {
+	case errors.As(err, &pt):
+		writeJSON(w, http.StatusConflict, map[string]any{"error": map[string]any{"code": "conflict", "message": pt.Error(), "field": "proxy_username"}})
 	case errors.As(err, &na):
 		writeJSON(w, http.StatusConflict, map[string]any{"error": map[string]any{"code": "node_agent_old", "message": na.Msg,
 			"field": "nodes", "node_id": na.NodeID, "node_name": na.NodeName, "protocol": na.Protocol}})

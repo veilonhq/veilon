@@ -374,7 +374,7 @@ func cmdPorts(args []string) error {
 			continue
 		}
 		out = append(out, portUse{ib.Port, "tcp", what})
-		if ib.Protocol == "shadowsocks" || ib.Protocol == "mixed" || ib.Network == "kcp" || ib.Network == "quic" {
+		if ib.Protocol == "shadowsocks" || ib.Protocol == "mixed" || ib.Protocol == "socks" || ib.Network == "kcp" || ib.Network == "quic" {
 			out = append(out, portUse{ib.Port, "udp", what})
 		}
 	}

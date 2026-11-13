@@ -35,7 +35,7 @@ type inbound struct {
 var protoNames = []struct{ key, label string }{
 	{"vless", "VLESS"}, {"vmess", "VMess"}, {"trojan", "Trojan"}, {"shadowsocks", "Shadowsocks"},
 	{"hysteria", "Hysteria2"}, {"tuic", "TUIC"}, {"wireguard", "WireGuard"}, {"amneziawg", "AmneziaWG"},
-	{"mtproto", "MTProto"}, {"masque", "MASQUE"}, {"http", "HTTP"}, {"mixed", "Mixed"},
+	{"mtproto", "MTProto"}, {"masque", "MASQUE"}, {"http", "HTTP"}, {"mixed", "Mixed"}, {"socks", "SOCKS"},
 	{"tunnel", "Tunnel"}, {"tun", "TUN"},
 }
 
@@ -488,7 +488,7 @@ func inboundBody(d map[string]string) (map[string]any, error) {
 		settings["dns"], settings["mtu"], settings["keepalive"] = []string{"1.1.1.1", "8.8.8.8"}, 1420, 25
 	case "tun":
 		settings["tun_name"], settings["gateway"], settings["mtu"] = "veilon-tun", []string{"10.77.0.1/24"}, 1500
-	case "mixed":
+	case "mixed", "socks":
 		settings["udp"] = true
 	case "tunnel":
 		host, ps, ok := strings.Cut(extra, ":")
@@ -505,7 +505,7 @@ func inboundBody(d map[string]string) (map[string]any, error) {
 		settings["faketls_domain"] = dom
 	}
 	switch p {
-	case "vless", "vmess", "trojan", "shadowsocks", "http", "mixed", "tunnel":
+	case "vless", "vmess", "trojan", "shadowsocks", "http", "mixed", "socks", "tunnel":
 	default:
 		b["sniffing"] = false
 	}

@@ -132,6 +132,9 @@ export interface User {
   inbound_ids: number[];
   uuid: string;
   password: string;
+  /** custom login for HTTP, Mixed and SOCKS inbounds ('' = automatic) */
+  proxy_username?: string;
+  proxy_password?: string;
   sub_token: string;
   sub_url: string;
   online: boolean;
@@ -187,6 +190,9 @@ export interface UserInput extends Partial<UserLimits> {
   note: string;
   inbound_ids: number[];
   group_id?: number | null;
+  /** '' = automatic login on HTTP, Mixed and SOCKS inbounds */
+  proxy_username?: string;
+  proxy_password?: string;
 }
 
 export interface GroupDefaults extends Partial<UserLimits> {
@@ -275,6 +281,7 @@ export type Protocol =
   | 'tun'
   | 'http'
   | 'mixed'
+  | 'socks'
   | 'tunnel'
   | 'mtproto';
 export type Network = 'tcp' | 'ws' | 'grpc' | 'httpupgrade' | 'xhttp';
@@ -307,6 +314,8 @@ export interface InboundSettings {
   awg: AwgParams | null;
   mtu: number;
   udp: boolean;
+  /** socks: no authentication */
+  no_auth?: boolean;
   target_address: string;
   target_port: number;
   tunnel_network: '' | 'tcp' | 'udp' | 'tcp,udp';

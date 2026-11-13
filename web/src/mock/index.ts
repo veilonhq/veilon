@@ -442,6 +442,9 @@ function linksFor(u: User) {
         case 'mixed':
           uri = `socks://${btoa(`${u.username}:${u.password}`)}@${host}:${i.port}#${tag}`;
           break;
+        case 'socks':
+          uri = ss.no_auth ? `socks://${host}:${i.port}#${tag}` : `socks://${btoa(`${u.username}:${u.password}`)}@${host}:${i.port}#${tag}`;
+          break;
         case 'mtproto':
           uri = `tg://proxy?server=${host}&port=${i.port}&secret=ee${hex(32)}7777772e636c6f7564666c6172652e636f6d`;
           break;

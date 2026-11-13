@@ -15,7 +15,7 @@ func SingboxSupported(p *Proxy) bool {
 		// sing-box cannot complete a handshake with current Xray Reality
 		// servers, so Reality entries are left out of its config.
 		return p.Network != "xhttp" && p.Security != "reality"
-	case inbounds.Hysteria, inbounds.TUIC, inbounds.HTTP, inbounds.Mixed, inbounds.WireGuard:
+	case inbounds.Hysteria, inbounds.TUIC, inbounds.HTTP, inbounds.Mixed, inbounds.Socks, inbounds.WireGuard:
 		return true
 	}
 	return false // amneziawg, mtproto, masque: not in sing-box stable
@@ -77,6 +77,16 @@ func singboxExtra(p *Proxy) (o obj, isEndpoint bool) {
 		o["version"] = "5"
 		o["username"] = p.Username
 		o["password"] = p.Password
+	case inbounds.Socks:
+		o["type"] = "socks"
+		o["version"] = "5"
+		if !p.NoAuth {
+			o["username"] = p.Username
+			o["password"] = p.Password
+		}
+		if !p.UDP {
+			o["network"] = "tcp"
+		}
 	case inbounds.WireGuard:
 		w := p.WG
 		peer := obj{"address": p.Server, "port": p.Port, "public_key": w.PeerPublicKey, "allowed_ips": []string{"0.0.0.0/0", "::/0"}}

@@ -11,6 +11,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/certs"
 	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/inbounds"
+	"github.com/veilonhq/veilon/panel/internal/users"
 )
 
 // Proxy is a client-side description of one endpoint, independent of the
@@ -44,8 +45,13 @@ type Proxy struct {
 	ShortID   string
 	SpiderX   string
 
-	// Username for http, mixed and masque (the user's stats identity).
+	// Username for http, mixed, socks and masque: the user's custom proxy
+	// username (http, mixed, socks) or its stats identity.
 	Username string
+	// NoAuth: a socks inbound without authentication (no Username/Password).
+	NoAuth bool
+	// UDP: the socks/mixed inbound allows UDP ASSOCIATE.
+	UDP bool
 	// Hysteria 2.
 	ObfsPassword string
 	UpMbps       int
@@ -157,7 +163,13 @@ func BuildProxiesX(u *db.User, ibs []inbounds.View, s db.Settings, reqHost strin
 			p.Password, p.ObfsPassword, p.UpMbps, p.DownMbps = u.Password, st.ObfsPassword, st.UpMbps, st.DownMbps
 		case inbounds.TUIC:
 			p.UUID, p.Password, p.Congestion = u.UUID, u.Password, st.Congestion
-		case inbounds.HTTP, inbounds.Mixed, inbounds.Masque:
+		case inbounds.HTTP, inbounds.Mixed, inbounds.Socks:
+			p.Username, p.Password = users.ProxyLogin(u)
+			p.UDP = st.UDP
+			if ib.Protocol == inbounds.Socks && st.NoAuth {
+				p.Username, p.Password, p.NoAuth = "", "", true
+			}
+		case inbounds.Masque:
 			p.Username, p.Password = xrayEmail(u), u.Password
 			p.MasquePath = st.Path
 		case inbounds.MTProto:

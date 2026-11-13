@@ -237,7 +237,7 @@ func TestEngineMapping(t *testing.T) {
 	want := map[string]string{
 		VLESS: EngineXray, VMess: EngineXray, Trojan: EngineXray, Shadowsocks: EngineXray,
 		Hysteria: EngineXray, Masque: EngineXray, WireGuard: EngineXray, TUN: EngineXray,
-		HTTP: EngineXray, Mixed: EngineXray, Tunnel: EngineXray,
+		HTTP: EngineXray, Mixed: EngineXray, Socks: EngineXray, Tunnel: EngineXray,
 		TUIC: EngineSingbox, AmneziaWG: EngineAWG, MTProto: EngineMTG,
 	}
 	for p, e := range want {

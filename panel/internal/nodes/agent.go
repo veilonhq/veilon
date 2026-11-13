@@ -22,6 +22,7 @@ import (
 
 	"github.com/veilonhq/veilon/panel/internal/cores"
 	"github.com/veilonhq/veilon/panel/internal/guard"
+	"github.com/veilonhq/veilon/panel/internal/userkey"
 	"github.com/veilonhq/veilon/panel/internal/util"
 	"github.com/veilonhq/veilon/panel/internal/xray"
 )
@@ -125,6 +126,7 @@ func (a *Agent) Restore(ctx context.Context) {
 	if err != nil {
 		return
 	}
+	userkey.Set(xray.ConfigAliases(cfg))
 	if err := a.Core.Apply(ctx, cfg); err != nil {
 		slog.Warn("saved node config does not start", "err", err)
 		return
@@ -526,6 +528,9 @@ func (a *Agent) putConfig(w http.ResponseWriter, r *http.Request) {
 	a.applyMu.Lock()
 	defer a.applyMu.Unlock()
 	a.collect(r.Context()) // keep the counters of the process about to restart
+	// Custom proxy usernames in the new config: map them to their users
+	// before its traffic, online list and access log are read.
+	userkey.Set(xray.ConfigAliases(p.Config))
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	if err := a.Core.Apply(ctx, p.Config); err != nil {

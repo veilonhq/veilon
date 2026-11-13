@@ -56,6 +56,12 @@ type User struct {
 	Password      string
 	SubToken      string
 	LastOnlineAt  *time.Time
+	// ProxyUsername and ProxyPassword are the optional custom login for
+	// HTTP, Mixed and SOCKS inbounds ("" = automatic: "<id>.<username>" and
+	// Password). A custom username is what Xray reports for the user's
+	// traffic on those inbounds (see package userkey).
+	ProxyUsername string `gorm:"column:proxy_username"`
+	ProxyPassword string `gorm:"column:proxy_password"`
 
 	// IPLimit is the number of client IPs allowed at the same time (0 = any).
 	IPLimit int `gorm:"column:ip_limit"`

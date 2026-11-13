@@ -16,7 +16,7 @@ func ClashSupported(p *Proxy) bool {
 		return p.Network != "xhttp" && p.Security != "none"
 	case "vless", "vmess", "shadowsocks":
 		return p.Network != "xhttp"
-	case inbounds.Hysteria, inbounds.TUIC, inbounds.HTTP, inbounds.Mixed, inbounds.WireGuard, inbounds.AmneziaWG:
+	case inbounds.Hysteria, inbounds.TUIC, inbounds.HTTP, inbounds.Mixed, inbounds.Socks, inbounds.WireGuard, inbounds.AmneziaWG:
 		return true
 	}
 	return false // mtproto, masque (Clash Meta's masque is WARP-only)
@@ -113,6 +113,8 @@ func clashExtra(p *Proxy) clashProxy {
 		}
 	case inbounds.Mixed:
 		c.Type, c.Username, c.Password = "socks5", p.Username, p.Password
+	case inbounds.Socks:
+		c.Type, c.Username, c.Password, c.UDP = "socks5", p.Username, p.Password, p.UDP
 	case inbounds.WireGuard, inbounds.AmneziaWG:
 		w := p.WG
 		c.Type, c.IP, c.PrivateKey, c.PublicKey, c.PreSharedKey, c.MTU = "wireguard", w.Address, w.PrivateKey, w.PeerPublicKey, w.PresharedKey, w.MTU

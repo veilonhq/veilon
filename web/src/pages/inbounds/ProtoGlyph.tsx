@@ -14,6 +14,7 @@ const META: Record<Protocol, { code: string; a: string; b: string; shape: Shape 
   tun: { code: 'TN', a: 'var(--info)', b: 'var(--accent)', shape: 'shield' },
   http: { code: 'HT', a: 'var(--accent)', b: 'var(--warn)', shape: 'grid' },
   mixed: { code: 'MX', a: 'var(--violet)', b: 'var(--accent)', shape: 'grid' },
+  socks: { code: 'S5', a: 'var(--info)', b: 'var(--warn)', shape: 'grid' },
   tunnel: { code: 'FW', a: 'var(--warn)', b: 'var(--info)', shape: 'grid' },
   mtproto: { code: 'TG', a: 'var(--info)', b: 'var(--info)', shape: 'grid' },
 };

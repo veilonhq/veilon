@@ -12,6 +12,7 @@ import (
 
 	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/presence"
+	"github.com/veilonhq/veilon/panel/internal/userkey"
 	"github.com/veilonhq/veilon/panel/internal/util"
 )
 
@@ -44,6 +45,10 @@ type View struct {
 	UUID          string     `json:"uuid"`
 	Password      string     `json:"password"`
 	SubToken      string     `json:"sub_token"`
+	// ProxyUsername / ProxyPassword: custom login for HTTP, Mixed and SOCKS
+	// inbounds ("" = automatic).
+	ProxyUsername string     `json:"proxy_username"`
+	ProxyPassword string     `json:"proxy_password"`
 	SubURL        string     `json:"sub_url"`
 	Online        bool       `json:"online"`
 	LastOnlineAt  *time.Time `json:"last_online_at"`
@@ -77,6 +82,8 @@ type Input struct {
 	Note          util.Opt[string]    `json:"note"`
 	InboundIDs    util.Opt[[]int64]   `json:"inbound_ids"`
 	Status        util.Opt[string]    `json:"status"`
+	ProxyUsername util.Opt[string]    `json:"proxy_username"`
+	ProxyPassword util.Opt[string]    `json:"proxy_password"`
 
 	IPLimit           util.Opt[int]     `json:"ip_limit"`
 	DeviceLimit       util.Opt[int]     `json:"device_limit"`
@@ -105,6 +112,49 @@ func (e *ValidationError) Error() string { return e.Msg }
 func verr(f string, a ...any) error { return &ValidationError{Msg: fmt.Sprintf(f, a...)} }
 
 var usernameRe = regexp.MustCompile(`^[A-Za-z0-9_.@-]{3,32}$`)
+
+// Custom proxy login (HTTP, Mixed, SOCKS): characters that are safe in share
+// links, Clash/sing-box configs and Xray accounts.
+var (
+	proxyUserRe = regexp.MustCompile(`^[A-Za-z0-9._-]{3,32}$`)
+	proxyPassRe = regexp.MustCompile(`^[A-Za-z0-9._~!@#$%^&*+=-]{8,64}$`)
+)
+
+// ValidateProxyLogin checks a custom proxy username and password ("" =
+// automatic, always valid).
+func ValidateProxyLogin(user, pass string) error {
+	if user != "" {
+		if !proxyUserRe.MatchString(user) {
+			return verr("proxy_username must be 3-32 chars: letters, digits, . _ -")
+		}
+		if userkey.LooksAuto(user) {
+			return verr("proxy_username must not start with digits and a dot (reserved for automatic logins)")
+		}
+	}
+	if pass != "" && !proxyPassRe.MatchString(pass) {
+		return verr("proxy_password must be 8-64 chars: letters, digits or . _ - ~ ! @ # $ %% ^ & * + =")
+	}
+	return nil
+}
+
+// checkProxyUnique refuses a custom proxy username another user already has
+// (case-insensitive: it identifies the user in Xray's statistics).
+func checkProxyUnique(tx *gorm.DB, name string, self int64) error {
+	if name == "" {
+		return nil
+	}
+	var n int64
+	tx.Model(&db.User{}).Where("LOWER(proxy_username) = LOWER(?) AND id <> ?", name, self).Count(&n)
+	if n > 0 {
+		return &ProxyTakenError{Name: name}
+	}
+	return nil
+}
+
+// ProxyTakenError: another user already has this custom proxy username.
+type ProxyTakenError struct{ Name string }
+
+func (e *ProxyTakenError) Error() string { return "proxy username already in use" }
 
 // Service provides user operations.
 type Service struct {
@@ -137,7 +187,7 @@ func (s *Service) ToView(u *db.User, inboundIDs []int64, host string) View {
 		ID: u.ID, Username: u.Username, Status: u.Status, DataLimit: u.DataLimit,
 		UsedTraffic: u.Used(), Up: u.Up, Down: u.Down, ExpireAt: u.ExpireAt, OnHoldDays: u.OnHoldDays,
 		ResetStrategy: u.ResetStrategy, Note: u.Note, InboundIDs: inboundIDs, UUID: u.UUID,
-		Password: u.Password, SubToken: u.SubToken, LastOnlineAt: LastOnline(u.ID, u.LastOnlineAt),
+		Password: u.Password, SubToken: u.SubToken, ProxyUsername: u.ProxyUsername, ProxyPassword: u.ProxyPassword, LastOnlineAt: LastOnline(u.ID, u.LastOnlineAt),
 		CreatedAt: u.CreatedAt, UpdatedAt: u.UpdatedAt,
 		IPLimit: u.IPLimit, DeviceLimit: u.DeviceLimit, RequireHWID: u.RequireHWID,
 		SpeedLimitDown: kbpsToMbps(u.SpeedDownKbps), SpeedLimitUp: kbpsToMbps(u.SpeedUpKbps),
@@ -357,6 +407,15 @@ func applyInput(u *db.User, in *Input, creating bool) error {
 	if u.ResetStrategy == "" {
 		u.ResetStrategy = db.ResetNone
 	}
+	if in.ProxyUsername.Set {
+		u.ProxyUsername = strings.TrimSpace(in.ProxyUsername.Val)
+	}
+	if in.ProxyPassword.Set {
+		u.ProxyPassword = strings.TrimSpace(in.ProxyPassword.Val)
+	}
+	if err := ValidateProxyLogin(u.ProxyUsername, u.ProxyPassword); err != nil {
+		return err
+	}
 	if in.Note.Set {
 		if len(in.Note.Val) > 2000 {
 			return verr("note too long")
@@ -438,6 +497,9 @@ func (s *Service) CreateOwned(in *Input, host string, owner *int64) (*View, erro
 		if err := validateGroup(tx, u.GroupID); err != nil {
 			return err
 		}
+		if err := checkProxyUnique(tx, u.ProxyUsername, 0); err != nil {
+			return err
+		}
 		var ids []int64
 		if in.InboundIDs.Set {
 			var err error
@@ -482,6 +544,11 @@ func (s *Service) Update(id int64, in *Input, host string) (*View, error) {
 			tx.Model(&db.User{}).Where("username = ? AND id <> ?", u.Username, id).Count(&n)
 			if n > 0 {
 				return verr("username already exists")
+			}
+		}
+		if in.ProxyUsername.Set {
+			if err := checkProxyUnique(tx, u.ProxyUsername, id); err != nil {
+				return err
 			}
 		}
 		req := ""
@@ -643,4 +710,19 @@ func (s *Service) Extend(days int, ids ...int64) error {
 		s.changed()
 	}
 	return err
+}
+
+// ProxyLogin returns the login a user has on HTTP, Mixed and SOCKS
+// inbounds: the custom proxy username/password when set, otherwise the
+// automatic "<id>.<username>" (the user's Xray email) and Password. Each
+// half falls back on its own.
+func ProxyLogin(u *db.User) (user, pass string) {
+	user, pass = u.ProxyUsername, u.ProxyPassword
+	if user == "" {
+		user = fmt.Sprintf("%d.%s", u.ID, u.Username)
+	}
+	if pass == "" {
+		pass = u.Password
+	}
+	return user, pass
 }

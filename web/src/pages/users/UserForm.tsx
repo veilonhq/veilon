@@ -3,11 +3,13 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useCreateUser, useGroups, useUpdateUser, useUser } from '@/api/hooks';
 import type { Group, Inbound, ResetStrategy, UserInput, UserLimits } from '@/api/types';
 import { Sheet } from '@/components/Overlay';
-import { Field, Skeleton, Switch } from '@/components/misc';
+import { Field, PasswordInput, Skeleton, Switch } from '@/components/misc';
 import { Select } from '@/components/Select';
 import { useI18n, type MessageKey } from '@/i18n';
 import { parseDays, persianDigits } from '@/lib/days';
-import { GB, USERNAME_RE } from '@/lib/user';
+import { isProxyLogin } from '@/lib/protocols';
+import { GB, USERNAME_RE, proxyPassProblem, proxyUserProblem } from '@/lib/user';
+import { ApiError } from '@/api/client';
 import { toast } from '@/store/feedback';
 import { LimitField } from './LimitField';
 import s from './Users.module.css';
@@ -155,6 +157,9 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
   const [lim, setLim] = useState<UserLimits>(NO_LIMITS);
   const [winOn, setWinOn] = useState(false);
   const [groupId, setGroupId] = useState<number | null>(null);
+  const [proxyUser, setProxyUser] = useState('');
+  const [proxyPass, setProxyPass] = useState('');
+  const [proxyTaken, setProxyTaken] = useState(false);
   const [openSecs, setOpenSecs] = useState<Set<SecKey>>(new Set(['data', 'time']));
   const groupsQ = useGroups(open);
   const groups = groupsQ.data ?? [];
@@ -192,6 +197,8 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
       });
       setWinOn(!!(u.window_from && u.window_to) || (!!u.window_days && (u.window_days & ALL_DAYS) !== ALL_DAYS));
       setGroupId(u.group_id ?? null);
+      setProxyUser(u.proxy_username ?? '');
+      setProxyPass(u.proxy_password ?? '');
     } else {
       setUsername('');
       setLimitGb(30);
@@ -205,7 +212,10 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
       setLim({ ...NO_LIMITS, window_from: '08:00', window_to: '18:00', window_days: ALL_DAYS });
       setWinOn(false);
       setGroupId(null);
+      setProxyUser('');
+      setProxyPass('');
     }
+    setProxyTaken(false);
     setOpenSecs(new Set(['data', 'time']));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editing, existing.data?.id]);
@@ -241,10 +251,16 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
     if (d.window_from && d.window_to) setWinOn(true);
   };
 
+  /** The custom proxy login applies only to HTTP, Mixed and SOCKS inbounds: shown while one is selected. */
+  const proxyOn = ibs.some((id) => isProxyLogin(inbounds.find((i) => i.id === id)?.protocol ?? ''));
+  const pu = proxyUserProblem(proxyUser);
+  const pp = proxyPassProblem(proxyPass);
+  const proxyUserErr = !proxyOn ? null : proxyTaken ? t('form.proxyUserTaken') : pu === 'chars' ? t('form.proxyUserInvalid') : pu === 'auto' ? t('form.proxyUserAuto') : null;
+  const proxyPassErr = !proxyOn ? null : pp === 'short' ? t('form.proxyPassShort') : pp === 'chars' ? t('form.proxyPassInvalid') : null;
   const daysErr = winOn && (lim.window_days & ALL_DAYS) === 0 ? t('form.weekdaysErr') : null;
   const userErr = !USERNAME_RE.test(username) ? (username ? t('form.usernameInvalid') : t('form.required')) : null;
   const ibErr = ibs.length === 0 ? t('form.inboundsHint') : null;
-  const valid = !userErr && !ibErr && !daysErr && limitGb >= 0 && (expMode !== 'days' || days > 0) && (expMode !== 'hold' || holdDays > 0);
+  const valid = !userErr && !ibErr && !daysErr && !proxyUserErr && !proxyPassErr && limitGb >= 0 && (expMode !== 'days' || days > 0) && (expMode !== 'hold' || holdDays > 0);
   const busy = create.isPending || update.isPending;
   const expDate = new Date(Date.now() + days * 86_400_000);
 
@@ -252,7 +268,7 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
     e.preventDefault();
     setTouched(true);
     if (!valid) {
-      setOpenSecs((x) => new Set([...x, ...(ibErr ? (['access'] as SecKey[]) : []), ...(daysErr ? (['time'] as SecKey[]) : [])]));
+      setOpenSecs((x) => new Set([...x, ...(ibErr || proxyUserErr || proxyPassErr ? (['access'] as SecKey[]) : []), ...(daysErr ? (['time'] as SecKey[]) : [])]));
       return;
     }
     setServerErr(null);
@@ -267,6 +283,8 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
       daily_limit: Math.round(lim.daily_limit),
       group_id: groupId,
     };
+    // hidden (no HTTP/Mixed/SOCKS inbound selected): the stored login is kept as it is
+    if (proxyOn) Object.assign(body, { proxy_username: proxyUser.trim(), proxy_password: proxyPass.trim() });
     // the window is sent only when it actually restricts something
     const wdays = (lim.window_days & ALL_DAYS) === ALL_DAYS ? 0 : lim.window_days & ALL_DAYS;
     const hours = lim.window_from !== lim.window_to;
@@ -275,7 +293,14 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
     if (expMode === 'never') Object.assign(body, { expire_at: null, on_hold_days: null });
     if (expMode === 'days') Object.assign(body, { expire_at: expDate.toISOString(), on_hold_days: null });
     if (expMode === 'hold') Object.assign(body, { expire_at: null, on_hold_days: holdDays });
-    const onError = (err: unknown) => setServerErr((err as Error).message);
+    const onError = (err: unknown) => {
+      if (err instanceof ApiError && err.status === 409 && err.details?.field === 'proxy_username') {
+        setProxyTaken(true);
+        setOpenSecs((x) => new Set([...x, 'access']));
+        return;
+      }
+      setServerErr((err as Error).message);
+    };
     if (editing && editId) {
       update.mutate(
         { id: editId, patch: { ...body, status: active ? 'active' : 'disabled' } },
@@ -531,6 +556,42 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
               </div>
               {touched && ibErr && <span className="field__error">{ibErr}</span>}
             </fieldset>
+
+            {proxyOn && (
+              <fieldset className={s.fs}>
+                <legend className="field__label">{t('form.proxyLogin')}</legend>
+                <span className="field__hint">{t('form.proxyLoginHint')}</span>
+                <div className={s.twoCol}>
+                  <Field label={t('form.proxyUser')} error={(touched || proxyTaken) && proxyUserErr ? proxyUserErr : undefined} optional>
+                    <input
+                      className="input ltr mono"
+                      value={proxyUser}
+                      onChange={(e) => {
+                        setProxyUser(e.target.value.replace(/\s/g, ''));
+                        setProxyTaken(false);
+                      }}
+                      placeholder={t('common.auto')}
+                      autoCapitalize="none"
+                      autoComplete="off"
+                      spellCheck={false}
+                      maxLength={32}
+                      aria-invalid={(touched || proxyTaken) && !!proxyUserErr}
+                    />
+                  </Field>
+                  <Field label={t('form.proxyPass')} error={touched && proxyPassErr ? proxyPassErr : undefined} optional>
+                    <PasswordInput
+                      className="input ltr mono"
+                      value={proxyPass}
+                      onChange={(e) => setProxyPass(e.target.value.replace(/\s/g, ''))}
+                      placeholder={t('common.auto')}
+                      autoComplete="new-password"
+                      maxLength={64}
+                      aria-invalid={touched && !!proxyPassErr}
+                    />
+                  </Field>
+                </div>
+              </fieldset>
+            )}
 
             <div className={s.switchRow}>
               <span>

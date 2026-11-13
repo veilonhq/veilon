@@ -5,7 +5,7 @@ export const PROTOCOL_GROUPS: { id: 'proxy' | 'quic' | 'vpn' | 'utility'; protoc
   { id: 'proxy', protocols: ['vless', 'vmess', 'trojan', 'shadowsocks'] },
   { id: 'quic', protocols: ['hysteria', 'tuic', 'masque'] },
   { id: 'vpn', protocols: ['wireguard', 'amneziawg', 'tun'] },
-  { id: 'utility', protocols: ['http', 'mixed', 'tunnel', 'mtproto'] },
+  { id: 'utility', protocols: ['http', 'mixed', 'socks', 'tunnel', 'mtproto'] },
 ];
 
 export const ALL_PROTOCOLS: Protocol[] = PROTOCOL_GROUPS.flatMap((g) => g.protocols);
@@ -23,6 +23,7 @@ export const PROTO_NAME: Record<Protocol, string> = {
   tun: 'TUN',
   http: 'HTTP',
   mixed: 'Mixed',
+  socks: 'SOCKS',
   tunnel: 'Tunnel',
   mtproto: 'MTProto',
 };
@@ -59,6 +60,8 @@ export const isV2 = (p: Protocol) => p === 'vless' || p === 'vmess' || p === 'tr
 export const isQuic = (p: Protocol) => p === 'hysteria' || p === 'tuic' || p === 'masque';
 export const isWG = (p: Protocol) => p === 'wireguard' || p === 'amneziawg';
 export const hasUsers = (p: Protocol) => p !== 'tunnel' && p !== 'tun';
+/** Users sign in with a proxy username/password (custom per user when set). */
+export const isProxyLogin = (p: string) => p === 'http' || p === 'mixed' || p === 'socks';
 export const hasPort = (p: Protocol) => p !== 'tun';
 /** Inbounds a node can run: Xray-core ones (except TUN), AmneziaWG and MTProto. */
 export const nodeCapable = (p: Protocol) => (engineOf(p) === 'xray' && p !== 'tun') || p === 'amneziawg' || p === 'mtproto';
@@ -93,6 +96,7 @@ export function transportsOf(d: Pick<InboundInput, 'protocol' | 'network' | 'tls
       return { tcp: a.includes('h2'), udp: a.includes('h3') };
     }
     case 'mixed':
+    case 'socks':
       return { tcp: true, udp: !!s?.udp };
     case 'tunnel': {
       const n = s?.tunnel_network || 'tcp';
@@ -125,6 +129,7 @@ export const emptySettings = (): InboundSettings => ({
   awg: null,
   mtu: 0,
   udp: false,
+  no_auth: false,
   target_address: '',
   target_port: 0,
   tunnel_network: '',
@@ -163,6 +168,7 @@ export function portHint(p: Protocol): string {
     case 'http':
       return '8080';
     case 'mixed':
+    case 'socks':
       return '1080';
     case 'tun':
       return '';
@@ -220,6 +226,7 @@ export function inboundDefaults(p: Protocol): InboundInput {
     case 'tun':
       return { ...base, settings: st({ tun_name: 'veilon-tun', gateway: ['10.77.0.1/24'], routes: [], mtu: 1500 }) };
     case 'mixed':
+    case 'socks':
       return { ...base, settings: st({ udp: true }) };
     case 'tunnel':
       return { ...base, settings: st({ tunnel_network: 'tcp', target_port: 0 }) };

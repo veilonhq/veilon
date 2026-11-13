@@ -55,8 +55,12 @@ func extraURI(p *Proxy) string {
 			}
 		}
 		return scheme + "://" + url.UserPassword(p.Username, p.Password).String() + "@" + hostPort(p.Server, p.Port) + q + frag
-	case inbounds.Mixed:
-		// The common "socks://" share form: base64(user:pass) as userinfo.
+	case inbounds.Mixed, inbounds.Socks:
+		// The common "socks://" share form: base64(user:pass) as userinfo,
+		// none for a socks inbound without authentication.
+		if p.NoAuth {
+			return "socks://" + hostPort(p.Server, p.Port) + frag
+		}
 		ui := base64.RawURLEncoding.EncodeToString([]byte(p.Username + ":" + p.Password))
 		return "socks://" + ui + "@" + hostPort(p.Server, p.Port) + frag
 	case inbounds.WireGuard:

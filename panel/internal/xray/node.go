@@ -53,8 +53,41 @@ func NodeConfig(gdb *gorm.DB, dataDir string, inboundIDs []int64, apiPort int) (
 	if err := inlineFiles(cfg); err != nil {
 		return nil, in.Skipped, err
 	}
+	if m, ok := cfg.(map[string]any); ok && len(in.ProxyAliases) > 0 {
+		al := map[string]int64{}
+		for email, name := range in.ProxyAliases {
+			if id, ok := ParseEmail(email); ok {
+				al[name] = id
+			}
+		}
+		m[AliasKey] = al
+	}
 	out, err := json.MarshalIndent(cfg, "", "  ")
 	return out, in.Skipped, err
+}
+
+// AliasKey is the top-level key of a node config that maps custom proxy
+// usernames to user ids, so the agent attributes their traffic, online
+// state and client IPs (Xray ignores unknown top-level keys). It is left
+// out when no user has a custom proxy username, so such configs are
+// byte-identical to older ones.
+const AliasKey = "veilon_aliases"
+
+// ConfigAliases reads the AliasKey table of a node config (nil if none).
+func ConfigAliases(cfg []byte) map[string]int64 {
+	var c map[string]json.RawMessage
+	if json.Unmarshal(cfg, &c) != nil {
+		return nil
+	}
+	raw, ok := c[AliasKey]
+	if !ok {
+		return nil
+	}
+	var m map[string]int64
+	if json.Unmarshal(raw, &m) != nil {
+		return nil
+	}
+	return m
 }
 
 // NodeCapable reports whether inbounds of this protocol can be served by a
