@@ -46,7 +46,7 @@ Veilon یک پنل مدیریت پروکسی رایگان است. یک فایل 
     <td width="50%" valign="top">🚀 <b>نصب با یک دستور</b><br><sub>روی Ubuntu، Debian، CentOS Stream، AlmaLinux، Rocky Linux، Fedora و Arch</sub></td>
   </tr>
   <tr>
-    <td valign="top">🧩 <b>۱۴ پروتکل</b><br><sub>از VLESS و Reality تا Hysteria2، TUIC، WireGuard و AmneziaWG</sub></td>
+    <td valign="top">🧩 <b>۱۸ پروتکل</b><br><sub>از VLESS و Reality تا Hysteria2، TUIC، WireGuard و AmneziaWG</sub></td>
     <td valign="top">🔒 <b>SSL رایگان</b><br><sub>Let's Encrypt برای دامنه یا مستقیم برای IP سرور، با تمدید خودکار</sub></td>
   </tr>
   <tr>
@@ -92,7 +92,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer
 
 ## امکانات
 
-- 🧩 **پروتکل ها:** VLESS، VMess، Trojan، Shadowsocks (شامل 2022)، Hysteria2، TUIC، WireGuard، AmneziaWG، HTTP، Mixed (HTTP + SOCKS)، SOCKS، Tunnel، TUN، MTProto و MASQUE
+- 🧩 **پروتکل ها:** VLESS، VMess، Trojan، Shadowsocks (شامل 2022)، Hysteria2 (با پرش پورت)، TUIC، ShadowTLS، AnyTLS، NaiveProxy، WireGuard، AmneziaWG، HTTP، Mixed (HTTP + SOCKS)، SOCKS، Tunnel، TUN، MTProto و MASQUE
 - 🛡️ **امنیت اتصال:** Reality و TLS، انتقال TCP، WebSocket، gRPC، HTTPUpgrade و XHTTP
 - 🔒 **گواهی رایگان Let's Encrypt:** برای دامنه (۹۰ روزه) یا مستقیم برای IP سرور (کوتاه مدت)، با تمدید خودکار
 - 👥 **مدیریت کاربران:** سقف حجم، تاریخ انقضا، شروع انقضا از اولین اتصال، ریست دوره ای حجم (روزانه، هفتگی، ماهانه)، وضعیت آنلاین و آخرین اتصال، عملیات گروهی
@@ -119,6 +119,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer
 | گروه | پروتکل ها | کاربرد |
 | --- | --- | --- |
 | 🛡️ **پراکسی** | VLESS، VMess، Trojan، Shadowsocks (شامل 2022) | پروتکل های پایه با TLS یا Reality |
+| 🎭 **استتار TLS** | ShadowTLS، AnyTLS، NaiveProxy | شبیه ترافیک عادی HTTPS (با sing-box، روی سرور اصلی) |
 | ⚡ **UDP و QUIC** | Hysteria2، TUIC، MASQUE | سریع روی شبکه های پرتلفات |
 | 🌐 **VPN** | WireGuard، AmneziaWG، TUN | تونل کامل لایه شبکه |
 | 🔧 **ابزاری** | HTTP، Mixed (HTTP + SOCKS)، SOCKS، Tunnel، MTProto | پراکسی ساده، پورت فوروارد و تلگرام |
@@ -258,7 +259,7 @@ cat /root/veilon-credentials.txt
 - **پورت 80/tcp** برای صدور و تمدید گواهی Let's Encrypt
 - **پورت هر ورودی** که می سازید (مثلا 443)
 
-پورت پنل را در فایروال سرور باز کنید، و اگر ارائه دهنده سرور شما در پنل خودش فایروال دارد، آنجا هم باز کنید. برای Hysteria2، TUIC و WireGuard پورت ورودی باید به صورت UDP باز باشد.
+پورت پنل را در فایروال سرور باز کنید، و اگر ارائه دهنده سرور شما در پنل خودش فایروال دارد، آنجا هم باز کنید. برای Hysteria2، TUIC و WireGuard پورت ورودی باید به صورت UDP باز باشد. اگر برای Hysteria2 پرش پورت روشن کرده اید، کل بازه UDP آن را هم باز کنید.
 
 ساده ترین راه برای فایروال داخل سرور (ufw یا firewalld):
 
@@ -376,6 +377,7 @@ veilon cert list
 - **SOCKS و ورود پراکسی دلخواه:** ورودی SOCKS5 تنها (با رمز یا بدون احراز هویت)، و برای هر کاربر نام کاربری و رمز دلخواه روی ورودی های HTTP، Mixed و SOCKS در فرم کاربر. [راهنما](docs/fa/socks-proxy-login.md)
 - **رمزگذاری VLESS:** لایه رمزگذاری پساکوانتومی خود VLESS (X25519 یا ML-KEM-768، حالت native، xorpub یا random، 0-RTT یا 1-RTT) در فرم ورودی VLESS، با ساخت کلید در پنل، روی سرور اصلی و نودها. [راهنما](docs/fa/vless-encryption.md)
 - **تنظیمات پیشرفته ورودی:** فال بک، ECH و نسخه ها و cipher های TLS، ML-DSA-65 در Reality، PROXY protocol و سوکت، تنظیمات اضافه XHTTP (padding، xmux، دانلود از CDN)، انتقال mKCP، Hysteria 2 (کنترل ازدحام و masquerade)، ماسک های fragment و noise، پروکسی معکوس VLESS (پل) و جزئیات شنود، در بخش بسته **تنظیمات پیشرفته** فرم ورودی. [راهنما](docs/fa/xray-advanced.md)
+- **ShadowTLS، AnyTLS، NaiveProxy و پرش پورت:** سه پروتکل استتار TLS با sing-box روی سرور اصلی (NaiveProxy به گواهی یک CA واقعی نیاز دارد)، و پرش پورت Hysteria 2 روی سرور اصلی و نودها با nftables؛ بازه UDP را در فایروال سرویس دهنده ابری هم باز کنید. [راهنما](docs/fa/singbox-protocols.md)
   - **محل اجرا:** در فرم هر ورودی گزینه **محل اجرا** را می بینید: سرور اصلی یا یک یا چند نود. ورودی ای که روی نود است فقط روی همان نودها اجرا می شود و لینک کاربران به آدرس نود اشاره می کند. ورودی هایی که در نسخه های قبل به نود داده شده بودند روی سرور اصلی هم اجرا می مانند تا کاربران قطع نشوند (گزینه **روی سرور اصلی هم اجرا شود**).
   - **محدودیت IP روی همه سرورها:** IP های هر کاربر روی سرور اصلی و همه نودها با هم شمرده می شوند و IP های اضافه روی همه سرورها مسدود می شوند. برای این کار نودها باید برنامه نود را به روز کنند (در صفحه نودها **دستور نصب تازه** را بزنید و روی سرور نود اجرا کنید).
   - **ترافیک به تفکیک سرور:** داشبورد و صفحه نودها سهم هر سرور از ترافیک کاربران را نشان می دهند.
@@ -558,7 +560,7 @@ Veilon is a free proxy panel. One Go binary serves the web UI, the API and subsc
     <td width="50%" valign="top">🚀 <b>One-line install</b><br><sub>Ubuntu, Debian, CentOS Stream, AlmaLinux, Rocky Linux, Fedora and Arch</sub></td>
   </tr>
   <tr>
-    <td valign="top">🧩 <b>14 protocols</b><br><sub>From VLESS and Reality to Hysteria2, TUIC, WireGuard and AmneziaWG</sub></td>
+    <td valign="top">🧩 <b>18 protocols</b><br><sub>From VLESS and Reality to Hysteria2, TUIC, WireGuard and AmneziaWG</sub></td>
     <td valign="top">🔒 <b>Free SSL</b><br><sub>Let's Encrypt for a domain or directly for the server IP, auto renewed</sub></td>
   </tr>
   <tr>
@@ -577,7 +579,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer
 
 ## Features
 
-- 🧩 **Protocols:** VLESS, VMess, Trojan, Shadowsocks (incl. 2022), Hysteria2, TUIC, WireGuard, AmneziaWG, HTTP, Mixed (HTTP + SOCKS), SOCKS, Tunnel, TUN, MTProto and MASQUE
+- 🧩 **Protocols:** VLESS, VMess, Trojan, Shadowsocks (incl. 2022), Hysteria2 (with port hopping), TUIC, ShadowTLS, AnyTLS, NaiveProxy, WireGuard, AmneziaWG, HTTP, Mixed (HTTP + SOCKS), SOCKS, Tunnel, TUN, MTProto and MASQUE
 - 🛡️ **Security and transports:** Reality and TLS; TCP, WebSocket, gRPC, HTTPUpgrade and XHTTP
 - 🔒 **Free Let's Encrypt certificates:** For a domain (90 days) or directly for the server IP (short-lived), renewed automatically
 - 👥 **Users:** Data cap, expiry, expiry starting at first connection, periodic data reset (daily, weekly, monthly), online status and last connection, bulk actions
@@ -604,6 +606,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer
 | Group | Protocols | Use |
 | --- | --- | --- |
 | 🛡️ **Proxies** | VLESS, VMess, Trojan, Shadowsocks (incl. 2022) | Core protocols with TLS or Reality |
+| 🎭 **TLS camouflage** | ShadowTLS, AnyTLS, NaiveProxy | Look like normal HTTPS (sing-box, main server) |
 | ⚡ **UDP / QUIC** | Hysteria2, TUIC, MASQUE | Fast on lossy networks |
 | 🌐 **VPN** | WireGuard, AmneziaWG, TUN | Full network-layer tunnels |
 | 🔧 **Utility** | HTTP, Mixed (HTTP + SOCKS), SOCKS, Tunnel, MTProto | Plain proxies, port forwarding and Telegram |
@@ -693,7 +696,7 @@ install.sh uninstall [--purge] [-y]
 
 ## Firewall
 
-Open the panel port in your server firewall, and in your provider's firewall panel if it has one. Also open 80/tcp (Let's Encrypt validation) and every inbound port (UDP for Hysteria2, TUIC and WireGuard).
+Open the panel port in your server firewall, and in your provider's firewall panel if it has one. Also open 80/tcp (Let's Encrypt validation) and every inbound port (UDP for Hysteria2, TUIC and WireGuard), and the whole UDP range of a Hysteria2 inbound with port hopping.
 
 `veilon firewall` opens the Veilon ports in ufw or firewalld.
 
@@ -796,6 +799,7 @@ Guide and download: https://skylarsob.github.io/ScanON/
 - **SOCKS and custom proxy login:** a plain SOCKS5 inbound (with a password or no authentication), and a per-user custom username and password for HTTP, Mixed and SOCKS inbounds in the user form. [Guide](docs/en/socks-proxy-login.md)
 - **VLESS Encryption:** VLESS's own post-quantum encryption layer (X25519 or ML-KEM-768, native, xorpub or random mode, 0-RTT or 1-RTT) in the VLESS inbound form, with in-panel key generation, on the main server and on nodes. [Guide](docs/en/vless-encryption.md)
 - **Advanced inbound settings:** fallbacks, TLS ECH, versions and ciphers, Reality ML-DSA-65, PROXY protocol and socket options, XHTTP extras (padding, xmux, download through a CDN), the mKCP transport, Hysteria 2 congestion and masquerade, fragment and noise masks, VLESS reverse proxy (bridge) and sniffing details, in the collapsed **Advanced settings** block of the inbound form. [Guide](docs/en/xray-advanced.md)
+- **ShadowTLS, AnyTLS, NaiveProxy and port hopping:** three TLS-camouflage protocols on sing-box on the main server (NaiveProxy needs a certificate from a real CA), and Hysteria 2 port hopping on the main server and nodes with nftables; open the UDP range in your cloud provider's firewall too. [Guide](docs/en/singbox-protocols.md)
   - **Runs on:** the inbound form has a **Runs on** choice: the main server, or one or more nodes. An inbound on nodes runs only there and users' links point at the node address. Inbounds assigned to a node by an earlier version keep running on the main server too so users are not cut off (**Also run on the main server**).
   - **IP limits across nodes:** a user's IPs on the main server and all nodes are counted together, and IPs over the limit are blocked on every server. Nodes need an updated node agent for this (on the Nodes page choose **New install command** and run it on the node server).
   - **Traffic by server:** the Dashboard and the Nodes page show each server's share of users' traffic.
