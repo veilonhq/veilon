@@ -35,7 +35,7 @@ The first time you press `/start`, the bot asks whether it should speak Persian 
 `/start` or `/menu` opens the main menu:
 
 - **👥 Users:** list with search and filters, create, edit, renew (days and data), reset usage, enable and disable, group and inbounds, connections, subscription link and QR, new subscription link, and delete with confirmation.
-- **📥 Inbounds:** list, create, rename and change port, link address, where it runs (main server or nodes), full JSON edit, turn on and off, and delete with confirmation.
+- **📥 Inbounds:** list, create (see below), rename and change port, link address, **🔧 Security and transport**, where it runs (main server or nodes), full JSON edit, turn on and off, and delete with confirmation.
 - **🌐 Nodes:** list with status, details, add a node and its install command, a new install command, agent update with progress, the node's Xray version (five newest stable releases) with confirmation and steps, enable and disable, and delete with confirmation.
 - **📊 Server status:** CPU, memory, disk, uptime, traffic, online users, core versions, logs (long logs as a file) and core restart with confirmation.
 - **⬆️ Update:** check for a new release, release notes, and install with confirmation and progress.
@@ -44,6 +44,24 @@ The first time you press `/start`, the bot asks whether it should speak Persian 
 - **⚙️ Panel settings:** the same fields as the web Settings page. Port, panel path, subscription path and certificate changes ask first. The bot token can only be changed in the web panel. Each notification type is switched on or off here as well.
 - **👤 Admins:** list, add, role, permissions, quotas, password, disable, and delete with confirmation.
 - **🗂 Event log:** panel events, 10 per page, filtered by admin.
+
+### Creating an inbound from the bot
+
+**📥 Inbounds → ➕ New inbound** asks, one question per screen, the same choices as the web panel's inbound form, for every protocol:
+
+- **All protocols:** name, port, listen address, sniffing, the address in links and where it runs (main server and nodes, when there are nodes and the protocol runs on nodes).
+- **VLESS, VMess, Trojan and Shadowsocks:** the transport (tcp meaning RAW, ws, grpc, httpupgrade, xhttp, kcp meaning mKCP), path and host or gRPC service name and mode or XHTTP mode, the Shadowsocks cipher, and security: none, TLS or Reality. Only combinations the protocol and transport support get a button (Reality only for VLESS and Trojan over tcp, grpc and xhttp).
+- **TLS:** the certificate (one of the panel's, or a new self-signed one for a domain you type), SNI, client fingerprint, ALPN and allow insecure.
+- **Reality:** target (dest), server names, short IDs (or made automatically), fingerprint and SpiderX. The panel makes the keys.
+- **VLESS:** VLESS Encryption (X25519 or ML-KEM-768 key, appearance, 0-RTT or 1-RTT and ticket lifetime) and Flow (Vision, only where allowed).
+- **Hysteria 2, TUIC, MASQUE, AnyTLS and NaiveProxy:** the certificate (or an automatic self-signed one; NaiveProxy needs a real CA certificate), SNI and fingerprint, plus each protocol's settings: Hysteria 2 obfs password, speeds and port hopping, TUIC congestion control, MASQUE IP range, MTU, path and ALPN, AnyTLS padding scheme.
+- **The rest:** ShadowTLS (handshake server and port, inner Shadowsocks cipher), WireGuard and AmneziaWG (address, DNS, MTU, keepalive, private key, AmneziaWG parameters), TUN, HTTP (with or without TLS), Mixed and SOCKS (UDP and password login), Tunnel (target and network) and MTProto (FakeTLS domain).
+
+Nothing is filled in silently: a question's usual value is only offered as a button (for example "Default: /ws" or "Suggested: 443"), and you can send another value. **🔙 Back** reopens the previous question with its answer. At the end, the **final review** shows every value; each one's button asks that question again, and when the change needs new answers (for example Reality is not allowed after moving to ws), those questions are asked. **✅ Create inbound** creates it through the panel's own API, and the server's validation errors are shown right there. Less common settings (fallbacks, socket options, ML-DSA-65, reverse proxy and so on) are in **⚙️ Advanced settings** after creation.
+
+### Changing an inbound's security and transport
+
+On a VLESS, VMess, Trojan, Shadowsocks, HTTP or always-TLS inbound's screen, **🔧 Security and transport** shows the current values. Tap a value to change it (the same questions as when creating), then **💾 Save**. The name, port, users and other settings are not touched.
 
 ## 5. Notifications
 
