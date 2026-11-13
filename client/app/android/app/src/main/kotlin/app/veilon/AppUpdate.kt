@@ -50,26 +50,17 @@ object AppUpdate {
         return abis.toList()
     }
 
-    private fun inUpdateDir(ctx: Context, path: String): File? {
-        if (path.isBlank()) return null
-        val f = File(path).canonicalFile
-        val dir = updateDir(ctx).canonicalFile
-        return if (f.parentFile == dir && f.isFile) f else null
-    }
+    /** 1.0.9: see [UpdatePaths.resolve] (no Android dependency, unit-tested). */
+    private fun inUpdateDir(ctx: Context, path: String): File? = UpdatePaths.resolve(updateDir(ctx), path)
 
-    /** Lower-case hex sha256 of a file in the update folder, or "" when missing. */
+    /**
+     * Lower-case hex sha256 of a file in the update folder. 1.0.9: throws
+     * with the reason (missing / outside the folder / read error) instead of
+     * returning "", so the Dart side can tell a failed check from a real
+     * mismatch (the Dart side hashes first; this is its fallback).
+     */
     fun sha256(ctx: Context, path: String): String {
-        val f = inUpdateDir(ctx, path) ?: return ""
-        val md = MessageDigest.getInstance("SHA-256")
-        f.inputStream().use { input ->
-            val buf = ByteArray(64 * 1024)
-            while (true) {
-                val n = input.read(buf)
-                if (n < 0) break
-                md.update(buf, 0, n)
-            }
-        }
-        return md.digest().joinToString("") { "%02x".format(it) }
+        return UpdatePaths.sha256(updateDir(ctx), path)
     }
 
     /** SHA-256 (hex) of each signing certificate of [pi], current signers only. */

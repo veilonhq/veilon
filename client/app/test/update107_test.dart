@@ -2,6 +2,9 @@
 // the "client-latest" release notes, installed-variant → asset mapping with
 // no fallback, checksums) and the Settings row flow with a fake client.
 import 'dart:convert';
+import 'dart:io';
+
+import 'package:crypto/crypto.dart' as crypto;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -41,6 +44,7 @@ Map<String, Object?> clientLatest({
   bool checksums = true,
   bool draft = false,
   String? body,
+  int apkSize = 31000000,
 }) =>
     {
       'tag_name': 'client-latest',
@@ -50,7 +54,7 @@ Map<String, Object?> clientLatest({
       'html_url': 'https://github.com/veilonhq/veilon/releases/tag/client-latest',
       'body': body ?? _body(version),
       'assets': [
-        for (final v in variants) _asset('veilon-client-$v.apk'),
+        for (final v in variants) _asset('veilon-client-$v.apk', apkSize),
         if (checksums) _asset('checksums.txt', 300),
       ],
     };
@@ -340,6 +344,71 @@ void main() {
       state.dispose();
     });
 
+    // 1.0.9: the phone's case. Native sha256 fails (PlatformException → ''),
+    // which 1.0.8 showed as "checksum mismatch". Dart hashes now: the
+    // update reaches the installer.
+    testWidgets('native hash failing no longer blocks the update (universal)', (t) async {
+      addTearDown(t.view.reset);
+      final dir = Directory.systemTemp.createTempSync('upd109w');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final good = List<int>.generate(200000, (i) => (i * 13) & 0xff);
+      final fake = _FakeClient(clientLatest(version: '1.0.8', apkSize: good.length),
+          sums: {'veilon-client-universal.apk': crypto.sha256.convert(good).toString()}, files: [good]);
+      updateClientFactory = () => fake;
+      fakeAbis = const ['arm64-v8a', 'armeabi-v7a'];
+      fakeUpdateDir = dir.path;
+      fakeNativeSha = null;
+      addTearDown(() {
+        updateClientFactory = UpdateClient.new;
+        fakeAbis = const [];
+        fakeUpdateDir = null;
+      });
+      final state = await openRow(t, 'en');
+      await t.tap(find.byKey(const ValueKey('update-go')));
+      for (var i = 0; i < 20; i++) {
+        await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+        await t.pump(const Duration(milliseconds: 100));
+      }
+      expect(fake.downloads, ['veilon-client-universal.apk']);
+      expect(calls.where((c) => c.method == 'installApk'), hasLength(1));
+      expect(find.textContaining('checksum'), findsNothing);
+      await t.pump(const Duration(seconds: 6));
+      state.dispose();
+    });
+
+    for (final lang in ['fa', 'en']) {
+      testWidgets('real mismatch twice → one re-download, error shows both hashes ($lang)', (t) async {
+        addTearDown(t.view.reset);
+        final dir = Directory.systemTemp.createTempSync('upd109w');
+        addTearDown(() => dir.deleteSync(recursive: true));
+        final bad = List<int>.generate(1000, (i) => i & 0xff);
+        final fake = _FakeClient(clientLatest(version: '1.0.8', apkSize: bad.length),
+            sums: {'veilon-client-arm64-v8a.apk': '0f4c6865${'0' * 56}'}, files: [bad, bad]);
+        updateClientFactory = () => fake;
+        fakeAbis = const ['arm64-v8a'];
+        fakeUpdateDir = dir.path;
+        addTearDown(() {
+          updateClientFactory = UpdateClient.new;
+          fakeAbis = const [];
+          fakeUpdateDir = null;
+        });
+        final state = await openRow(t, lang);
+        await t.tap(find.byKey(const ValueKey('update-go')));
+        for (var i = 0; i < 20; i++) {
+          await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+          await t.pump(const Duration(milliseconds: 100));
+        }
+        expect(fake.downloads, hasLength(2));
+        final got = crypto.sha256.convert(bad).toString().substring(0, 8);
+        expect(find.textContaining('0f4c6865'), findsOneWidget);
+        expect(find.textContaining(got), findsOneWidget);
+        expect(calls.where((c) => c.method == 'installApk'), isEmpty);
+        expect(dir.listSync().whereType<File>(), isEmpty, reason: 'bad file deleted');
+        await t.pump(const Duration(seconds: 6));
+        state.dispose();
+      });
+    }
+
     testWidgets('network error → short message', (t) async {
       addTearDown(t.view.reset);
       updateClientFactory = () => _FakeClient(null, error: const UpdateError('network', 'Failed host lookup'));
@@ -353,10 +422,15 @@ void main() {
 }
 
 class _FakeClient extends UpdateClient {
-  _FakeClient(this.release, {this.error});
+  _FakeClient(this.release, {this.error, this.sums, this.files = const []});
   final Map<String, Object?>? release;
   final UpdateError? error;
   final downloads = <String>[];
+
+  /// 1.0.9: checksums.txt entries (default: fixed a/b/c hashes) and the bytes
+  /// each download writes (one entry per download; none = nothing written).
+  final Map<String, String>? sums;
+  final List<List<int>> files;
 
   @override
   Future<UpdateCheck> check(String currentVersion) async {
@@ -367,11 +441,14 @@ class _FakeClient extends UpdateClient {
   }
 
   @override
-  Future<String> fetchChecksums(ClientRelease r) async =>
-      '${'a' * 64}  veilon-client-arm64-v8a.apk\n${'b' * 64}  veilon-client-armeabi-v7a.apk\n${'c' * 64}  veilon-client-universal.apk\n';
+  Future<String> fetchChecksums(ClientRelease r) async => sums != null
+      ? sums!.entries.map((e) => '${e.value}  ${e.key}').join('\n')
+      : '${'a' * 64}  veilon-client-arm64-v8a.apk\n${'b' * 64}  veilon-client-armeabi-v7a.apk\n${'c' * 64}  veilon-client-universal.apk\n';
 
   @override
   Future<void> download(ReleaseAsset a, String path, {Progress? onProgress, bool Function()? cancelled}) async {
     downloads.add(a.name);
+    final i = downloads.length - 1;
+    if (i < files.length) File(path).writeAsBytesSync(files[i]);
   }
 }

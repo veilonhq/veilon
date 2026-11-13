@@ -30,13 +30,31 @@ Future<void> checkForUpdates(BuildContext context, {UpdateClient? client, Native
   }
 }
 
+/// Native sha256 as the fallback hasher: '' (any native failure) becomes an
+/// error carrying the native reason instead of a fake mismatch.
+Future<String> nativeSha256(Native native, String path) async {
+  native.lastError = null;
+  final h = await native.sha256File(path);
+  if (h.trim().isEmpty) throw native.lastError ?? 'no hash';
+  return h;
+}
+
 String updateErrorText(S s, Object e) {
   if (e is UpdateError) {
     final key = 'update.err.${e.code}';
     final t = s.t(key);
     if (t == key) return s.t('update.err.badResponse');
     if (e.code == 'assetMissing') return t.replaceAll('{v}', e.detail);
-    if (e.code == 'install') return t.replaceAll('{e}', e.detail);
+    if (e.code == 'install' || e.code == 'verifyFailed' || e.code == 'storage') {
+      return t.replaceAll('{e}', e.detail.isEmpty ? '?' : e.detail);
+    }
+    if (e.code == 'checksumMismatch') {
+      final parts = e.detail.split('/');
+      return t
+          .replaceAll('{exp}', parts.isNotEmpty && parts[0].isNotEmpty ? parts[0] : '?')
+          .replaceAll('{got}', parts.length > 1 && parts[1].isNotEmpty ? parts[1] : '?');
+    }
+    if (e.code == 'sizeMismatch') return t.replaceAll('{e}', e.detail.isEmpty ? '?' : e.detail);
     return t;
   }
   return s.t('update.err.network');
@@ -119,11 +137,26 @@ Future<void> _flow(BuildContext context, UpdateClient client, Native native) asy
       }
     } catch (_) {}
     path = '$dir/${asset.name}';
-    await client.download(asset, path,
-        onProgress: (got, total) => progress.value = total > 0 ? (got / total).clamp(0.0, 1.0) : null, cancelled: () => cancelled);
-    phase.value = s.t('update.verifying');
-    progress.value = null;
-    verifySha256(expected, await native.sha256File(path));
+    // 1.0.9: Dart hashes the file (native only as a fallback), the length
+    // on disk is checked, and a damaged or unverifiable file is deleted and
+    // downloaded once more before an error is shown.
+    await downloadVerified(
+      client,
+      asset,
+      path,
+      expected,
+      onProgress: (got, total) => progress.value = total > 0 ? (got / total).clamp(0.0, 1.0) : null,
+      cancelled: () => cancelled,
+      nativeHash: (p) => nativeSha256(native, p),
+      onVerify: () {
+        phase.value = s.t('update.verifying');
+        progress.value = null;
+      },
+      onRetry: (_, _) {
+        phase.value = s.t('update.retrying');
+        progress.value = null;
+      },
+    );
     if (cancelled) throw const UpdateError('cancelled');
     phase.value = s.t('update.installing');
     var res = await native.installApk(path);
@@ -141,7 +174,7 @@ Future<void> _flow(BuildContext context, UpdateClient client, Native native) asy
     dl.close();
   } catch (e) {
     dl.close();
-    if (path != null && e is UpdateError && e.code == 'checksumMismatch') {
+    if (path != null && e is UpdateError && retryableUpdateErrors.contains(e.code)) {
       try {
         File(path).deleteSync();
       } catch (_) {}

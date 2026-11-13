@@ -1,7 +1,7 @@
 name: veilon
 description: "Veilon — VPN client for the Veilon panel."
 publish_to: 'none'
-version: 1.0.8+9
+version: 1.0.9+10
 
 environment:
   sdk: ^3.13.7
@@ -13,6 +13,7 @@ dependencies:
     sdk: flutter
   shared_preferences: any
   url_launcher: ^6.3.3
+  crypto: ^3.0.6
 
 dev_dependencies:
   flutter_test:

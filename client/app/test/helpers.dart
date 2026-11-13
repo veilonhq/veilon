@@ -106,6 +106,13 @@ Uint8List? fakeAppIcon;
 /// ABI folders the mock reports for 'installedAbis'.
 List<String> fakeAbis = const [];
 
+/// 1.0.9 updater mocks: the update folder ('updateDir'), the native
+/// 'sha256File' answer (null = the PlatformException 1.0.8 turned into a
+/// fake checksum mismatch) and the 'installApk' answer.
+String? fakeUpdateDir;
+String? fakeNativeSha;
+String fakeInstallResult = 'ok';
+
 void installNativeMocks() {
   final m = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   m.setMockMethodCallHandler(coreChannel, (call) async {
@@ -145,6 +152,13 @@ void installNativeMocks() {
         return fakeAppIcon;
       case 'installedAbis':
         return fakeAbis;
+      case 'updateDir':
+        return fakeUpdateDir;
+      case 'sha256File':
+        if (fakeNativeSha == null) throw PlatformException(code: 'native', message: 'file is not in the update folder');
+        return fakeNativeSha;
+      case 'installApk':
+        return fakeInstallResult;
       case 'setSubPins':
         lastSubPins = (call.arguments as Map)['pins'] as String?;
         return true;
