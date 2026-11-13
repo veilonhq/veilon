@@ -125,17 +125,18 @@ func (m *Manager) StartXrayUpdate(ctx context.Context, n *db.Node, version strin
 	u.mu.Unlock()
 	audit.Log(m.DB, admin, "node.xray.requested", fmt.Sprintf("%s: %s → %s", n.Name, orDash(info.XrayVersion), version), ip)
 	node := *n
-	go util.Safe("node xray follow "+n.Name, func() { m.followXray(&node) })
+	every := XrayFollowEvery // read here, not in the goroutine (tests change it)
+	go util.Safe("node xray follow "+n.Name, func() { m.followXray(&node, every) })
 	return &c, nil
 }
 
-// followXray asks the node about its install every XrayFollowEvery until
+// followXray asks the node about its install every `every` until
 // it ends, so the panel shows each step, then asks for a round (the new
 // version re-renders the node's config).
-func (m *Manager) followXray(n *db.Node) {
+func (m *Manager) followXray(n *db.Node, every time.Duration) {
 	end := time.Now().Add(XrayUpdateDeadline + time.Minute)
 	for time.Now().Before(end) {
-		time.Sleep(XrayFollowEvery)
+		time.Sleep(every)
 		st := m.XrayUpdateState(n.ID)
 		if st == nil || st.Final() {
 			break
