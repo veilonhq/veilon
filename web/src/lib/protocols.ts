@@ -77,15 +77,18 @@ export const sniffingApplies = (p: Protocol) => !(p === 'tun' || p === 'tunnel' 
 export const needsNetAdmin = (p: Protocol) => p === 'tun' || p === 'amneziawg';
 
 /** Which socket types an inbound listens on (mirrors the server's Transports). */
-export function transportsOf(d: Pick<InboundInput, 'protocol' | 'network' | 'tls' | 'settings'>): { tcp: boolean; udp: boolean } {
+export function transportsOf(d: Pick<InboundInput, 'protocol' | 'network' | 'tls' | 'settings'> & { advanced?: InboundInput['advanced'] }): { tcp: boolean; udp: boolean } {
   const s = d.settings;
   switch (d.protocol) {
     case 'vless':
     case 'vmess':
     case 'trojan':
+      if (d.network === 'kcp') return { tcp: false, udp: true };
       return { tcp: true, udp: d.network === 'xhttp' && !!d.tls?.alpn.includes('h3') };
     case 'shadowsocks':
-      return { tcp: true, udp: true };
+      // UDP on RAW unless switched off; other transports carry it in their stream.
+      if (d.network === 'kcp') return { tcp: false, udp: true };
+      return { tcp: true, udp: (d.network === 'tcp' && !d.advanced?.ss?.no_udp) || (d.network === 'xhttp' && !!d.tls?.alpn.includes('h3')) };
     case 'hysteria':
     case 'tuic':
     case 'wireguard':

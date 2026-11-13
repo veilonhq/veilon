@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { genRealityKeys, genVlessEncKeys, genWgKeys, useCerts, useInbounds, useNodes, useSaveInbound, useSettings } from '@/api/hooks';
 import { ApiError } from '@/api/client';
 import { portClash, type PortClash } from '@/lib/portConflict';
-import type { AwgParams, Inbound, InboundInput, InboundSettings, Network, Protocol, Security, VlessEnc, VNode } from '@/api/types';
+import type { AwgParams, Inbound, InboundAdvanced, InboundInput, InboundSettings, Network, Protocol, Security, VlessEnc, VNode } from '@/api/types';
 import { Sheet } from '@/components/Overlay';
 import { Select } from '@/components/Select';
 import { CopyButton, Field, Switch } from '@/components/misc';
@@ -39,12 +39,14 @@ import {
 } from '@/lib/protocols';
 import { toast } from '@/store/feedback';
 import { ProtoGlyph } from './ProtoGlyph';
+import { ConnectionAdvanced, SecurityAdvanced, advErrors } from './AdvancedSections';
+import { TLS_FPS, cleanAdvanced } from '@/lib/advanced';
 import s from './Inbounds.module.css';
 
-const NETWORKS: Network[] = ['tcp', 'ws', 'grpc', 'httpupgrade', 'xhttp'];
+const NETWORKS: Network[] = ['tcp', 'ws', 'grpc', 'httpupgrade', 'xhttp', 'kcp'];
 const SECURITIES: Security[] = ['none', 'tls', 'reality'];
-const FPS = ['chrome', 'firefox', 'safari', 'edge', 'ios', 'android', 'random', 'randomized'];
-// Reality only works with these client fingerprints.
+const FPS = TLS_FPS;
+// Reality only works with these client fingerprints (checked with Xray 26.10.31).
 const REALITY_FPS = ['chrome', 'firefox', 'safari'];
 const ALPNS = ['h3', 'h2', 'http/1.1'];
 
@@ -76,6 +78,7 @@ function toInput(ib: Inbound): InboundInput {
     serve_main: rest.serve_main ?? true,
     settings: withSettings(rest.settings),
     vless_encryption: rest.protocol === 'vless' ? { ...emptyVlessEnc(), ...(rest.vless_encryption ?? {}) } : null,
+    advanced: rest.advanced ?? null,
   };
 }
 
@@ -86,7 +89,7 @@ function toBody(d0: InboundInput): InboundInput {
   const p = d.protocol;
   if (isV2(p)) {
     const r = d.reality && !REALITY_FPS.includes(d.reality.fingerprint) ? { ...d.reality, fingerprint: 'chrome' } : d.reality;
-    return { ...d, reality: r, settings: emptySettings(), vless_encryption: p === 'vless' ? d.vless_encryption ?? null : null };
+    return { ...d, reality: r, settings: emptySettings(), vless_encryption: p === 'vless' ? d.vless_encryption ?? null : null, advanced: cleanAdvanced(d) };
   }
   const b: InboundInput = { ...d, network: 'tcp', transport: { path: '', host: '', service_name: '', mode: '' }, flow: '', ss_method: '', reality: null, vless_encryption: null };
   if (isQuic(p)) b.security = 'tls';
@@ -102,6 +105,7 @@ function toBody(d0: InboundInput): InboundInput {
     b.port = 0;
     b.listen = '';
   }
+  b.advanced = cleanAdvanced(b);
   return b;
 }
 
@@ -169,7 +173,7 @@ function NumInput({ value, onChange, min, max, placeholder, invalid }: { value: 
 }
 
 export function InboundWizard({ open, onClose, editing }: { open: boolean; onClose: () => void; editing: Inbound | null }) {
-  const { t, n, date } = useI18n();
+  const { t, n, date, lang } = useI18n();
   const [step, setStep] = useState(0);
   const [dir, setDir] = useState(1);
   const [d, setD] = useState<InboundInput>(defaults('vless'));
@@ -206,6 +210,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
   const patchT = (x: Partial<InboundInput['transport']>) => setD((v) => ({ ...v, transport: { ...v.transport, ...x } }));
   const patchTls = (x: Partial<NonNullable<InboundInput['tls']>>) => setD((v) => ({ ...v, tls: { ...(v.tls ?? (isQuic(v.protocol) ? quicTls() : emptyTls())), ...x } }));
   const patchReality = (x: Partial<NonNullable<InboundInput['reality']>>) => setD((v) => ({ ...v, reality: { ...(v.reality ?? emptyReality()), ...x } }));
+  const setAdv = (fn: (a: InboundAdvanced) => InboundAdvanced) => setD((v) => ({ ...v, advanced: fn(v.advanced ?? {}) }));
   const patchAwg = (x: Partial<AwgParams>) => setD((v) => ({ ...v, settings: { ...v.settings, awg: { ...(v.settings.awg ?? { jc: 4, jmin: 40, jmax: 70, s1: 0, s2: 0, h1: 1, h2: 2, h3: 3, h4: 4 }), ...x } } }));
 
   const pickProtocol = (np: Protocol) => setD((x) => ({ ...defaults(np), remark: x.remark, port: hasPort(np) ? x.port : 0, node_ids: x.node_ids, serve_main: x.serve_main }));
@@ -221,6 +226,11 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
       if ((net === 'ws' || net === 'httpupgrade' || net === 'xhttp') && !x.transport.path) next.transport = { ...x.transport, path: '/' + net };
       if (net === 'grpc' && !x.transport.service_name) next.transport = { ...x.transport, service_name: 'grpc', mode: 'gun' };
       if (net === 'xhttp' && !x.transport.mode) next.transport = { ...next.transport, mode: 'auto' };
+      // mKCP cannot carry Reality.
+      if (net === 'kcp' && x.security === 'reality') {
+        next.security = 'none';
+        next.reality = null;
+      }
       return next;
     });
   };
@@ -352,6 +362,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
         if (!between(st.target_port, 1, 65535)) e.targetPort = t('inb.portInvalid');
       }
       if (p === 'mtproto' && st.faketls_domain && !HOST.test(st.faketls_domain.trim())) e.faketls = t('inb.invalidHost');
+      Object.assign(e, advErrors(d, 'connection', t));
     }
     if (step >= 2) {
       if (steps.includes('security')) {
@@ -363,6 +374,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
         if (p === 'masque' && !d.tls?.alpn.length) e.alpn = t('form.required');
         const ve = d.vless_encryption;
         if (p === 'vless' && ve?.enabled && ve.rtt === '0rtt' && !between(ve.ticket_seconds, 1, 86400)) e.ticket = range(1, 86400);
+        Object.assign(e, advErrors(d, 'security', t));
       }
       if (p === 'amneziawg' && st.awg) {
         const a = st.awg;
@@ -530,6 +542,10 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
     if (p === 'tunnel') reviewRows.push([t('inb.forwardTo'), `${st.target_address}:${st.target_port} · ${st.tunnel_network || 'tcp'}`]);
     if (p === 'mtproto') reviewRows.push([t('inb.fakeTls'), st.faketls_domain || 'www.cloudflare.com']);
     if (sniffingApplies(p)) reviewRows.push([t('inb.sniffing'), d.sniffing ? t('common.yes') : t('common.no')]);
+    {
+      const adv = cleanAdvanced(d);
+      reviewRows.push([t('adv.title'), adv ? Object.keys(adv).map((k) => t(`adv.key.${k}` as MessageKey)).join(lang === 'fa' ? '، ' : ', ') : t('adv.none')]);
+    }
   }
   const flowNodes = [
     protoName(p),
@@ -717,7 +733,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
                   <span className="field__label">{t('inb.step.transport')}</span>
                   <div className={`${s.tiles} ${s.tilesSm}`} role="radiogroup" aria-label={t('inb.step.transport')}>
                     {NETWORKS.map((net) => {
-                      const disabled = p === 'shadowsocks' && net !== 'tcp';
+                      const disabled = false;
                       return (
                         <button key={net} type="button" role="radio" aria-checked={d.network === net} disabled={disabled} className={`${s.tile} ${s.tileSm} ${d.network === net ? s.tileOn : ''}`} onClick={() => setNetwork(net)}>
                           <strong className="mono">{net}</strong>
@@ -929,6 +945,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
                   <Switch checked={d.sniffing} onChange={(v) => patch({ sniffing: v })} label={t('inb.sniffing')} />
                 </div>
               )}
+              <ConnectionAdvanced d={d} setAdv={setAdv} err={err} inbounds={allInbounds.data ?? []} editing={editing} />
               {needsNetAdmin(p) && (
                 <p className={`${s.span2} ${s.warnNote}`}>
                   <AlertTriangle size={16} aria-hidden="true" />
@@ -943,7 +960,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
               <div className={s.span2}>
                 <div className={`${s.tiles} ${s.tilesSec}`} role="radiogroup" aria-label={t('inb.step.security')}>
                   {SECURITIES.map((sec) => {
-                    const disabled = (sec === 'reality' && !realityAllowed(d)) || (p === 'shadowsocks' && sec !== 'none');
+                    const disabled = (sec === 'reality' && !realityAllowed(d)) || (p === 'shadowsocks' && sec === 'reality') || (d.network === 'kcp' && sec === 'reality');
                     const Icon = sec === 'none' ? ShieldOff : sec === 'tls' ? Lock : Sparkles;
                     return (
                       <button key={sec} type="button" role="radio" aria-checked={d.security === sec} disabled={disabled} className={`${s.tile} ${s.tileSm} ${d.security === sec ? s.tileOn : ''}`} onClick={() => setSecurity(sec)}>
@@ -954,7 +971,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
                     );
                   })}
                 </div>
-                {p === 'shadowsocks' ? <p className={s.note}>{t('inb.ssNoTls')}</p> : !realityAllowed(d) && <p className={s.note}>{t('inb.realityOnly')}</p>}
+                {!realityAllowed(d) && <p className={s.note}>{t('inb.realityOnly')}</p>}
               </div>
 
               {d.security === 'tls' && d.tls && (
@@ -1145,6 +1162,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
                   />
                 </Field>
               )}
+              <SecurityAdvanced d={d} setAdv={setAdv} err={err} />
             </div>
           )}
 

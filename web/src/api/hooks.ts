@@ -24,6 +24,7 @@ import type {
   RealityKeys,
   VlessEnc,
   VlessEncKeys,
+  KeyPair,
   Settings,
   SystemStats,
   TrafficPoint,
@@ -507,6 +508,11 @@ export function useSaveHosts() {
 export const genRealityKeys = () => api<RealityKeys>('/inbounds/reality-keys', { method: 'POST' });
 export const genVlessEncKeys = (auth: VlessEnc['auth']) => api<VlessEncKeys>('/inbounds/vless-enc-keys', { method: 'POST', body: { auth } });
 export const genWgKeys = () => api<WgKeys>('/inbounds/wireguard-keys', { method: 'POST' });
+export const genMldsa65Keys = () => api<KeyPair>('/inbounds/mldsa65-keys', { method: 'POST' });
+export const genEchKeys = (serverName: string) => api<KeyPair>('/inbounds/ech-keys', { method: 'POST', body: { server_name: serverName } });
+/** The reverse-proxy bridge's Xray config (JSON object). */
+export const getReverseBridge = (id: number, nodeId?: number) =>
+  api<Record<string, unknown>>(`/inbounds/${id}/reverse-bridge${nodeId ? `?node=${nodeId}` : ''}`);
 
 /* ---------- certs ---------- */
 export function useCerts() {

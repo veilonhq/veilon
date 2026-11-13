@@ -284,7 +284,7 @@ export type Protocol =
   | 'socks'
   | 'tunnel'
   | 'mtproto';
-export type Network = 'tcp' | 'ws' | 'grpc' | 'httpupgrade' | 'xhttp';
+export type Network = 'tcp' | 'ws' | 'grpc' | 'httpupgrade' | 'xhttp' | 'kcp';
 /** informational network of non-v2 protocols */
 export type InfoNetwork = Network | 'udp' | 'quic' | 'h2' | 'tun' | 'tcp,udp';
 
@@ -371,6 +371,93 @@ export interface VlessEncKeys {
   source: 'xray' | 'go';
 }
 
+/** Optional security/transport settings. Every unset field = the old behaviour. */
+export interface InboundAdvanced {
+  sniffing?: { dest_override?: string[]; route_only?: boolean; metadata_only?: boolean; domains_excluded?: string[] };
+  sockopt?: {
+    accept_proxy_protocol?: boolean;
+    tcp_fast_open?: boolean;
+    keepalive_interval?: number;
+    keepalive_idle?: number;
+    mark?: number;
+    v6only?: boolean;
+    congestion?: string;
+  };
+  fallbacks?: AdvFallback[];
+  tls?: {
+    min_version?: string;
+    max_version?: string;
+    cipher_suites?: string;
+    reject_unknown_sni?: boolean;
+    /** secret; the client list is derived */
+    ech_server_keys?: string;
+    ech_config_list?: string;
+    pin_cert?: boolean;
+  };
+  reality?: {
+    /** secret; the client verify key is derived */
+    mldsa65_seed?: string;
+    mldsa65_verify?: string;
+    min_client_ver?: string;
+    max_client_ver?: string;
+    max_time_diff?: number;
+    limit_fallback_upload?: AdvLimit;
+    limit_fallback_download?: AdvLimit;
+  };
+  tcp?: { type: string; host?: string[]; path?: string[] };
+  ws?: { headers?: Record<string, string>; heartbeat_period?: number };
+  grpc?: { user_agent?: string; idle_timeout?: number; health_check_timeout?: number; permit_without_stream?: boolean; initial_windows_size?: number };
+  xhttp?: {
+    x_padding_bytes?: string;
+    no_sse_header?: boolean;
+    sc_max_each_post_bytes?: string;
+    sc_max_buffered_posts?: number;
+    sc_stream_up_server_secs?: string;
+    xmux?: { max_concurrency?: string; max_connections?: string; c_max_reuse_times?: string; h_max_request_times?: string; h_max_reusable_secs?: string; h_keep_alive_period?: number };
+    download?: { address: string; port?: number; sni?: string; host?: string };
+  };
+  kcp?: {
+    mtu?: number;
+    tti?: number;
+    uplink_capacity?: number;
+    downlink_capacity?: number;
+    cwnd_multiplier?: number;
+    max_sending_window?: number;
+    header?: string;
+    header_domain?: string;
+    seed?: string;
+  };
+  hysteria?: {
+    congestion?: '' | 'bbr' | 'brutal' | 'force-brutal';
+    brutal_up_mbps?: number;
+    brutal_down_mbps?: number;
+    udp_idle_timeout?: number;
+    masquerade?: { type: 'proxy' | 'string'; url?: string; rewrite_host?: boolean; content?: string; status_code?: number; headers?: Record<string, string> } | null;
+  };
+  tuic?: { zero_rtt?: boolean; heartbeat?: number; udp_relay_mode?: '' | 'native' | 'quic' };
+  ss?: { no_udp?: boolean };
+  masks?: { fragment?: { packets: string; length: string; delay?: string } | null; noise?: { rand: string; delay?: string } | null };
+  reverse?: { enabled: boolean; uuid: string; route_self: boolean; route_inbound_ids?: number[] };
+}
+export interface AdvFallback {
+  name?: string;
+  alpn?: string;
+  path?: string;
+  dest: string;
+  xver?: number;
+}
+export interface AdvLimit {
+  after_bytes?: number;
+  bytes_per_sec?: number;
+  burst_bytes_per_sec?: number;
+}
+/** A generated server secret and its client half. */
+export interface KeyPair {
+  server: string;
+  client: string;
+  source: 'xray' | 'go';
+}
+
 export interface Transport {
   path: string;
   host: string;
@@ -393,6 +480,8 @@ export interface Inbound {
   flow: '' | 'xtls-rprx-vision';
   /** vless only (null for other protocols) */
   vless_encryption?: VlessEnc | null;
+  /** optional security/transport settings (null = none) */
+  advanced?: InboundAdvanced | null;
   ss_method: string;
   sniffing: boolean;
   address_override: string;
