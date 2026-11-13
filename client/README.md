@@ -27,6 +27,8 @@
 🖥 [نصب پنل](https://github.com/veilonhq/veilon)
 &nbsp;·&nbsp;
 🔍 [اسکنر DNS و IP (ScanON)](https://github.com/skylarsob/ScanON)
+&nbsp;·&nbsp;
+📢 [کانال تلگرام](https://t.me/veilon2)
 
 </div>
 
@@ -90,6 +92,8 @@ The official Android client for the Veilon panel
 🖥 [Install the panel](https://github.com/veilonhq/veilon)
 &nbsp;·&nbsp;
 🔍 [DNS & IP scanner (ScanON)](https://github.com/skylarsob/ScanON)
+&nbsp;·&nbsp;
+📢 [Telegram channel](https://t.me/veilon2)
 
 </div>
 
