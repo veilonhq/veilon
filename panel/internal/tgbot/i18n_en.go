@@ -807,7 +807,7 @@ var enCatalog = map[string]string{
 	"آزمایش نسخه و تنظیمات نود": "Test version and node config",
 	"راه اندازی دوباره Xray":    "Restart Xray",
 	"پرش پورت":                  "Port hopping",
-	"بازه پورت های UDP را بفرستید (مثلا 20000-30000 یا 20000-30000,40000-40100). کلاینت ها هر چند ثانیه بین این پورت ها جابجا می شوند. برای خاموش کردن - بفرستید:": "Send the UDP port range (e.g. 20000-30000 or 20000-30000,40000-40100). Clients switch between these ports every few seconds. Send - to turn it off:",
+	"بازه پورت های UDP را به شکل شروع-پایان بفرستید و چند بازه را با ویرگول جدا کنید. نمونه:\n20000-30000\nکلاینت ها هر چند ثانیه بین این پورت ها جابجا می شوند. برای خاموش کردن - بفرستید:": "Send the UDP port range as start-end; separate several ranges with commas. Example:\n20000-30000\n Clients switch between these ports every few seconds. Send - to turn it off:",
 	"سرور دست دهی": "Handshake server",
 	"دامنه یک سایت با TLS 1.3 را بفرستید (مثلا www.microsoft.com یا www.microsoft.com:443):": "Send the domain of a site with TLS 1.3 (e.g. www.microsoft.com or www.microsoft.com:443):",
 	"⚠️ پورت درست نیست. دوباره بفرستید:":                                                     "⚠️ The port is not valid. Send it again:",
