@@ -24,14 +24,16 @@ type inbound struct {
 		Dest        string   `json:"dest"`
 		ServerNames []string `json:"server_names"`
 	} `json:"reality"`
-	Flow            string    `json:"flow"`
-	VLESSEnc        *vlessEnc `json:"vless_encryption"`
-	AddressOverride string    `json:"address_override"`
-	UserCount       int64     `json:"user_count"`
-	HostCount       int64     `json:"host_count"`
-	NodeIDs         []int64   `json:"node_ids"`
-	ServeMain       bool      `json:"serve_main"`
-	OnMain          bool      `json:"on_main"`
+	Flow            string         `json:"flow"`
+	Sniffing        bool           `json:"sniffing"`
+	Advanced        map[string]any `json:"advanced"`
+	VLESSEnc        *vlessEnc      `json:"vless_encryption"`
+	AddressOverride string         `json:"address_override"`
+	UserCount       int64          `json:"user_count"`
+	HostCount       int64          `json:"host_count"`
+	NodeIDs         []int64        `json:"node_ids"`
+	ServeMain       bool           `json:"serve_main"`
+	OnMain          bool           `json:"on_main"`
 }
 
 var protoNames = []struct{ key, label string }{
@@ -251,6 +253,9 @@ func inboundView(r *req, a []string) {
 	if ib.Protocol == "vless" {
 		t += T("🔐 رمزگذاری VLESS: ") + encSummary(ib.VLESSEnc) + "\n"
 	}
+	if sum := advSummary(ib.Advanced); sum != "" {
+		t += T("⚙️ پیشرفته: ") + sum + "\n"
+	}
 	if ib.AddressOverride != "" {
 		t += T("آدرس در لینک ها: ") + code(ib.AddressOverride) + "\n"
 	}
@@ -267,6 +272,9 @@ func inboundView(r *req, a []string) {
 	}
 	if ib.Protocol == "vless" {
 		kb = append(kb, []Button{btn(T("🔐 رمزگذاری VLESS"), "ve", id)})
+	}
+	if advApplies(&ib) {
+		kb = append(kb, []Button{btn(T("⚙️ تنظیمات پیشرفته"), "xv", id)})
 	}
 	if len(ns) > 0 {
 		kb = append(kb, []Button{btn(T("🖥 محل اجرا"), "ip", id)})
