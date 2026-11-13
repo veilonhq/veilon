@@ -105,9 +105,9 @@ func init() {
 	on("ie", func(r *req, a []string) {
 		id, f := argInt(a, 0), argStr(a, 1)
 		p := map[string][2]string{
-			"remark": {"نام ورودی", "نام تازه را بفرستید:"},
-			"port":   {"پورت", "پورت تازه را بفرستید (۱ تا ۶۵۵۳۵):"},
-			"addr":   {"آدرس در لینک ها", "آدرس یا دامنه ای که در لینک ها نوشته شود را بفرستید (- برای آدرس پیش فرض سرور):"},
+			"remark": {T("نام ورودی"), T("نام تازه را بفرستید:")},
+			"port":   {T("پورت"), T("پورت تازه را بفرستید (۱ تا ۶۵۵۳۵):")},
+			"addr":   {T("آدرس در لینک ها"), T("آدرس یا دامنه ای که در لینک ها نوشته شود را بفرستید (- برای آدرس پیش فرض سرور):")},
 		}[f]
 		r.ask("ifield", a, p[0], p[1], cbd("iv", id))
 	})
@@ -120,7 +120,7 @@ func init() {
 		case "port":
 			n, ok := parseInt(text)
 			if !ok {
-				r.ask("ifield", a, "پورت", "⚠️ یک عدد بفرستید:", cbd("iv", id))
+				r.ask("ifield", a, T("پورت"), T("⚠️ یک عدد بفرستید:"), cbd("iv", id))
 				return
 			}
 			body["port"] = n
@@ -144,15 +144,15 @@ func init() {
 			r.fail(err, "il")
 			return
 		}
-		q := "ورودی <b>" + esc(ib.Remark) + "</b> حذف شود؟"
+		q := T("ورودی <b>") + esc(ib.Remark) + T("</b> حذف شود؟")
 		if ib.UserCount > 0 {
-			q += "\n" + faInt(ib.UserCount) + " کاربر از این ورودی جدا می شوند."
+			q += "\n" + faInt(ib.UserCount) + T(" کاربر از این ورودی جدا می شوند.")
 		}
-		confirm(r, "حذف ورودی", q, cbd("idy", id), cbd("iv", id))
+		confirm(r, T("حذف ورودی"), q, cbd("idy", id), cbd("iv", id))
 	})
 	on("idy", func(r *req, a []string) {
 		id := argInt(a, 0)
-		r.progress("در حال حذف ورودی")
+		r.progress(T("در حال حذف ورودی"))
 		if err := r.call("DELETE", fmt.Sprintf("/inbounds/%d", id), nil, nil); err != nil {
 			r.fail(err, cbd("iv", id))
 			return
@@ -167,11 +167,11 @@ func init() {
 			bs = append(bs, btn(p.label, "inp", p.key))
 		}
 		kb := chunk(bs, 3)
-		r.show(view{text: header("➕", "ورودی جدید") + "پروتکل را انتخاب کنید:", kb: append(kb, nav("il"))})
+		r.show(view{text: header("➕", T("ورودی جدید")) + T("پروتکل را انتخاب کنید:"), kb: append(kb, nav("il"))})
 	})
 	on("inp", func(r *req, a []string) {
 		r.st.draft = map[string]string{"proto": argStr(a, 0)}
-		r.ask("inremark", nil, "ورودی جدید · "+protoLabel(argStr(a, 0)), "یک نام برای ورودی بفرستید:", "in")
+		r.ask("inremark", nil, T("ورودی جدید · ")+protoLabel(argStr(a, 0)), T("یک نام برای ورودی بفرستید:"), "in")
 	})
 	onInput("inremark", func(r *req, _ []string, text string, _ *Document) {
 		r.st.draft["remark"] = text
@@ -184,7 +184,7 @@ func init() {
 	onInput("inport", func(r *req, _ []string, text string, _ *Document) {
 		n, ok := parseInt(text)
 		if !ok || n < 1 || n > 65535 {
-			inboundAskPort(r, "⚠️ پورت باید عددی از ۱ تا ۶۵۵۳۵ باشد.\n")
+			inboundAskPort(r, T("⚠️ پورت باید عددی از ۱ تا ۶۵۵۳۵ باشد.\n"))
 			return
 		}
 		r.st.draft["port"] = strconv.FormatInt(n, 10)
@@ -208,9 +208,9 @@ func inboundsList(r *req, _ []string) {
 		r.fail(err, "home")
 		return
 	}
-	text := header("📥", "ورودی ها") + "تعداد: <b>" + faInt(len(list)) + "</b>\n"
+	text := header("📥", T("ورودی ها")) + T("تعداد: <b>") + faInt(len(list)) + "</b>\n"
 	if len(list) == 0 {
-		text += "\nهنوز ورودی ای ساخته نشده است."
+		text += T("\nهنوز ورودی ای ساخته نشده است.")
 	}
 	kb := Keyboard{}
 	for _, ib := range list {
@@ -220,7 +220,7 @@ func inboundsList(r *req, _ []string) {
 		}
 		kb = append(kb, []Button{btn(fmt.Sprintf("%s %s · %s:%s · 👥%s", mark, cut(ib.Remark, 16), protoLabel(ib.Protocol), fa(strconv.Itoa(ib.Port)), faInt(ib.UserCount)), "iv", ib.ID)})
 	}
-	kb = append(kb, []Button{btn("➕ ورودی جدید", "in")}, nav("home"))
+	kb = append(kb, []Button{btn(T("➕ ورودی جدید"), "in")}, nav("home"))
 	r.show(view{text: text, kb: kb})
 }
 
@@ -233,37 +233,37 @@ func inboundView(r *req, a []string) {
 	}
 	ns := r.nodes()
 	t := header("📥", ib.Remark)
-	st := "✅ روشن"
+	st := T("✅ روشن")
 	if !ib.Enabled {
-		st = "⛔️ خاموش"
+		st = T("⛔️ خاموش")
 	}
-	t += "وضعیت: " + st + "\n"
-	t += "پروتکل: <b>" + protoLabel(ib.Protocol) + "</b> · پورت: <b>" + fa(strconv.Itoa(ib.Port)) + "</b>\n"
-	t += "شبکه: " + esc(ib.Network) + " · امنیت: " + esc(ib.Security) + "\n"
+	t += T("وضعیت: ") + st + "\n"
+	t += T("پروتکل: <b>") + protoLabel(ib.Protocol) + T("</b> · پورت: <b>") + fa(strconv.Itoa(ib.Port)) + "</b>\n"
+	t += T("شبکه: ") + esc(ib.Network) + T(" · امنیت: ") + esc(ib.Security) + "\n"
 	if ib.Reality != nil && ib.Security == "reality" {
-		t += "مقصد Reality: " + code(ib.Reality.Dest) + "\n"
+		t += T("مقصد Reality: ") + code(ib.Reality.Dest) + "\n"
 	}
 	if ib.TLS != nil && ib.Security == "tls" && ib.TLS.SNI != "" {
 		t += "SNI: " + code(ib.TLS.SNI) + "\n"
 	}
 	if ib.AddressOverride != "" {
-		t += "آدرس در لینک ها: " + code(ib.AddressOverride) + "\n"
+		t += T("آدرس در لینک ها: ") + code(ib.AddressOverride) + "\n"
 	}
-	t += "👥 کاربران: " + faInt(ib.UserCount) + " · 🔀 هاست ها: " + faInt(ib.HostCount) + "\n"
-	t += "🖥 اجرا روی: " + placeText(&ib, ns) + "\n"
-	toggle := btn("⛔️ خاموش کردن", "it", id)
+	t += T("👥 کاربران: ") + faInt(ib.UserCount) + T(" · 🔀 هاست ها: ") + faInt(ib.HostCount) + "\n"
+	t += T("🖥 اجرا روی: ") + placeText(&ib, ns) + "\n"
+	toggle := btn(T("⛔️ خاموش کردن"), "it", id)
 	if !ib.Enabled {
-		toggle = btn("✅ روشن کردن", "it", id)
+		toggle = btn(T("✅ روشن کردن"), "it", id)
 	}
 	kb := Keyboard{
 		{toggle},
-		{btn("✏️ نام", "ie", id, "remark"), btn("✏️ پورت", "ie", id, "port")},
-		{btn("🌐 آدرس لینک ها", "ie", id, "addr"), btn("🧾 ویرایش کامل (JSON)", "ij", id)},
+		{btn(T("✏️ نام"), "ie", id, "remark"), btn(T("✏️ پورت"), "ie", id, "port")},
+		{btn(T("🌐 آدرس لینک ها"), "ie", id, "addr"), btn(T("🧾 ویرایش کامل (JSON)"), "ij", id)},
 	}
 	if len(ns) > 0 {
-		kb = append(kb, []Button{btn("🖥 محل اجرا", "ip", id)})
+		kb = append(kb, []Button{btn(T("🖥 محل اجرا"), "ip", id)})
 	}
-	kb = append(kb, []Button{btn("🗑 حذف", "id", id), btn("🔄 تازه سازی", "iv", id)}, nav("il"))
+	kb = append(kb, []Button{btn(T("🗑 حذف"), "id", id), btn(T("🔄 تازه سازی"), "iv", id)}, nav("il"))
 	r.show(view{text: t, kb: kb})
 }
 
@@ -274,12 +274,12 @@ func placeText(ib *inbound, ns []nodeRow) string {
 	}
 	var parts []string
 	if ib.OnMain || len(ib.NodeIDs) == 0 {
-		parts = append(parts, "سرور اصلی")
+		parts = append(parts, T("سرور اصلی"))
 	}
 	for _, id := range ib.NodeIDs {
-		parts = append(parts, "نود "+esc(names[id]))
+		parts = append(parts, T("نود ")+esc(names[id]))
 	}
-	return strings.Join(parts, "، ")
+	return strings.Join(parts, T("، "))
 }
 
 func inboundPatch(r *req, id int64, body map[string]any) {
@@ -302,12 +302,12 @@ func inboundJSON(r *req, a []string) {
 		delete(raw, k)
 	}
 	b, _ := json.MarshalIndent(raw, "", "  ")
-	if err := r.cl.SendDocument(r.ctx, r.chat, fmt.Sprintf("inbound-%d.json", id), b, "🧾 تنظیمات کامل ورودی"); err != nil {
+	if err := r.cl.SendDocument(r.ctx, r.chat, fmt.Sprintf("inbound-%d.json", id), b, T("🧾 تنظیمات کامل ورودی")); err != nil {
 		r.fail(err, cbd("iv", id))
 		return
 	}
 	r.msgID = 0
-	r.ask("ijson", a, "ویرایش کامل ورودی", "فایل بالا را ویرایش کنید و همان را (به شکل فایل یا متن JSON) بفرستید. فقط کلید هایی که می فرستید تغییر می کنند.", cbd("iv", id))
+	r.ask("ijson", a, T("ویرایش کامل ورودی"), T("فایل بالا را ویرایش کنید و همان را (به شکل فایل یا متن JSON) بفرستید. فقط کلید هایی که می فرستید تغییر می کنند."), cbd("iv", id))
 }
 
 func inboundJSONInput(r *req, a []string, text string, doc *Document) {
@@ -323,7 +323,7 @@ func inboundJSONInput(r *req, a []string, text string, doc *Document) {
 	}
 	var body map[string]any
 	if err := json.Unmarshal(data, &body); err != nil {
-		r.ask("ijson", a, "ویرایش کامل ورودی", "⚠️ JSON درست نیست: "+esc(err.Error())+"\nدوباره بفرستید:", cbd("iv", id))
+		r.ask("ijson", a, T("ویرایش کامل ورودی"), T("⚠️ JSON درست نیست: ")+esc(err.Error())+T("\nدوباره بفرستید:"), cbd("iv", id))
 		return
 	}
 	inboundPatch(r, id, body)
@@ -355,13 +355,13 @@ func inboundPlacement(r *req, a []string) {
 		r.st.draft[key] = joinSet(sel)
 	}
 	ns := r.nodes()
-	kb := Keyboard{{btn(onOff(sel["0"])+" سرور اصلی", "ipt", id, 0)}}
+	kb := Keyboard{{btn(onOff(sel["0"])+T(" سرور اصلی"), "ipt", id, 0)}}
 	for _, n := range ns {
 		k := strconv.FormatInt(n.ID, 10)
-		kb = append(kb, []Button{btn(onOff(sel[k])+" نود "+cut(n.Name, 20), "ipt", id, n.ID)})
+		kb = append(kb, []Button{btn(onOff(sel[k])+T(" نود ")+cut(n.Name, 20), "ipt", id, n.ID)})
 	}
-	kb = append(kb, []Button{btn("💾 ذخیره", "ips", id)}, nav(cbd("iv", id)))
-	r.show(view{text: header("🖥", "محل اجرای "+ib.Remark) + "سرور هایی که این ورودی روی آن ها اجرا شود را انتخاب کنید. اگر هیچ نودی انتخاب نشود، روی سرور اصلی اجرا می شود.", kb: kb})
+	kb = append(kb, []Button{btn(T("💾 ذخیره"), "ips", id)}, nav(cbd("iv", id)))
+	r.show(view{text: header("🖥", T("محل اجرای ")+ib.Remark) + T("سرور هایی که این ورودی روی آن ها اجرا شود را انتخاب کنید. اگر هیچ نودی انتخاب نشود، روی سرور اصلی اجرا می شود."), kb: kb})
 }
 
 func inboundPlacementSave(r *req, a []string) {
@@ -399,25 +399,25 @@ func joinSet(m map[string]bool) string {
 
 func inboundAskPort(r *req, warn string) {
 	p := 10000 + rand.IntN(50000)
-	r.ask("inport", nil, "ورودی جدید · "+protoLabel(r.st.draft["proto"]), warn+"پورت را بفرستید:", "in",
-		[]Button{btn("🎲 پورت تصادفی "+fa(strconv.Itoa(p)), "inrp", p), btn("۴۴۳", "inrp", 443)})
+	r.ask("inport", nil, T("ورودی جدید · ")+protoLabel(r.st.draft["proto"]), warn+T("پورت را بفرستید:"), "in",
+		[]Button{btn(T("🎲 پورت تصادفی ")+fa(strconv.Itoa(p)), "inrp", p), btn(T("۴۴۳"), "inrp", 443)})
 }
 
 // inboundAskExtra asks the one protocol-specific value the bot needs.
 func inboundAskExtra(r *req) {
 	p := r.st.draft["proto"]
-	title := "ورودی جدید · " + protoLabel(p)
+	title := T("ورودی جدید · ") + protoLabel(p)
 	switch p {
 	case "vless":
-		r.ask("inextra", nil, title, "دامنه مقصد Reality را بفرستید (مثلا www.microsoft.com):", "in",
-			[]Button{btn("پیش فرض: www.microsoft.com", "inx")})
+		r.ask("inextra", nil, title, T("دامنه مقصد Reality را بفرستید (مثلا www.microsoft.com):"), "in",
+			[]Button{btn(T("پیش فرض: www.microsoft.com"), "inx")})
 	case "trojan", "hysteria", "tuic", "masque":
-		r.ask("inextra", nil, title, "SNI یا دامنه را بفرستید. بدون دامنه، یک گواهی خودامضا ساخته می شود.", "in",
-			[]Button{btn("بدون دامنه (خودامضا)", "inx")})
+		r.ask("inextra", nil, title, T("SNI یا دامنه را بفرستید. بدون دامنه، یک گواهی خودامضا ساخته می شود."), "in",
+			[]Button{btn(T("بدون دامنه (خودامضا)"), "inx")})
 	case "tunnel":
-		r.ask("inextra", nil, title, "مقصد تونل را به شکل address:port بفرستید (مثلا 1.1.1.1:53):", "in")
+		r.ask("inextra", nil, title, T("مقصد تونل را به شکل address:port بفرستید (مثلا 1.1.1.1:53):"), "in")
 	case "mtproto":
-		r.ask("inextra", nil, title, "دامنه FakeTLS را بفرستید:", "in", []Button{btn("پیش فرض: www.cloudflare.com", "inx")})
+		r.ask("inextra", nil, title, T("دامنه FakeTLS را بفرستید:"), "in", []Button{btn(T("پیش فرض: www.cloudflare.com"), "inx")})
 	default:
 		r.st.draft["extra"] = ""
 		inboundAskPlace(r, nil)
@@ -439,13 +439,13 @@ func inboundAskPlace(r *req, a []string) {
 		sel[a[0]] = !sel[a[0]]
 		r.st.draft["place"] = joinSet(sel)
 	}
-	kb := Keyboard{{btn(onOff(sel["0"])+" سرور اصلی", "inpl", 0)}}
+	kb := Keyboard{{btn(onOff(sel["0"])+T(" سرور اصلی"), "inpl", 0)}}
 	for _, n := range ns {
 		k := strconv.FormatInt(n.ID, 10)
-		kb = append(kb, []Button{btn(onOff(sel[k])+" نود "+cut(n.Name, 20), "inpl", n.ID)})
+		kb = append(kb, []Button{btn(onOff(sel[k])+T(" نود ")+cut(n.Name, 20), "inpl", n.ID)})
 	}
-	kb = append(kb, []Button{btn("✅ ساختن ورودی", "inok")}, []Button{btn("✖️ انصراف", "il")})
-	r.show(view{text: header("🖥", "ورودی جدید · محل اجرا") + "این ورودی روی کدام سرور ها اجرا شود؟", kb: kb})
+	kb = append(kb, []Button{btn(T("✅ ساختن ورودی"), "inok")}, []Button{btn(T("✖️ انصراف"), "il")})
+	r.show(view{text: header("🖥", T("ورودی جدید · محل اجرا")) + T("این ورودی روی کدام سرور ها اجرا شود؟"), kb: kb})
 }
 
 // inboundBody builds a new inbound the way the web wizard does.
@@ -531,7 +531,7 @@ func inboundCreate(r *req, _ []string) {
 		r.fail(err, "in")
 		return
 	}
-	r.progress("در حال ساختن ورودی")
+	r.progress(T("در حال ساختن ورودی"))
 	var out inbound
 	if err := r.call("POST", "/inbounds", body, &out); err != nil {
 		r.fail(err, "in")

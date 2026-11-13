@@ -16,17 +16,17 @@ import (
 const usersPerPage = 8
 
 var statusLabel = map[string]string{
-	"active":   "🟢 فعال",
-	"disabled": "⚪️ غیرفعال",
-	"limited":  "🔴 حجم تمام شده",
-	"expired":  "🟠 منقضی",
-	"on_hold":  "🔵 در انتظار اولین اتصال",
+	"active":   T("🟢 فعال"),
+	"disabled": T("⚪️ غیرفعال"),
+	"limited":  T("🔴 حجم تمام شده"),
+	"expired":  T("🟠 منقضی"),
+	"on_hold":  T("🔵 در انتظار اولین اتصال"),
 }
 
 var statusDot = map[string]string{"active": "🟢", "disabled": "⚪️", "limited": "🔴", "expired": "🟠", "on_hold": "🔵"}
 
 var userFilters = []struct{ key, label string }{
-	{"", "همه"}, {"online", "آنلاین"}, {"active", "فعال"}, {"expired", "منقضی"}, {"limited", "حجم تمام"}, {"disabled", "غیرفعال"}, {"on_hold", "در انتظار"},
+	{"", T("همه")}, {"online", T("آنلاین")}, {"active", T("فعال")}, {"expired", T("منقضی")}, {"limited", T("حجم تمام")}, {"disabled", T("غیرفعال")}, {"on_hold", T("در انتظار")},
 }
 
 func init() {
@@ -36,7 +36,7 @@ func init() {
 		usersList(r, []string{"1"})
 	})
 	on("us", func(r *req, a []string) {
-		r.ask("usearch", nil, "جستجوی کاربر", "بخشی از نام کاربری یا یادداشت را بفرستید:", "ul:1")
+		r.ask("usearch", nil, T("جستجوی کاربر"), T("بخشی از نام کاربری یا یادداشت را بفرستید:"), "ul:1")
 	})
 	onInput("usearch", func(r *req, a []string, text string, _ *Document) {
 		r.st.userSearch = text
@@ -55,31 +55,31 @@ func init() {
 	on("ura", func(r *req, a []string) { userExtend(r, argInt(a, 0), argInt(a, 1)) })
 	on("urd", func(r *req, a []string) {
 		id := argInt(a, 0)
-		r.ask("uextend", a, "تمدید زمان", "چند روز اضافه شود؟ (یک عدد، مثلا ۳۰)", cbd("ur", id))
+		r.ask("uextend", a, T("تمدید زمان"), T("چند روز اضافه شود؟ (یک عدد، مثلا ۳۰)"), cbd("ur", id))
 	})
 	onInput("uextend", func(r *req, a []string, text string, _ *Document) {
 		n, ok := parseInt(text)
 		if !ok || n < 1 {
-			r.ask("uextend", a, "تمدید زمان", "⚠️ یک عدد درست از ۱ به بالا بفرستید:", cbd("ur", argInt(a, 0)))
+			r.ask("uextend", a, T("تمدید زمان"), T("⚠️ یک عدد درست از ۱ به بالا بفرستید:"), cbd("ur", argInt(a, 0)))
 			return
 		}
 		userExtend(r, argInt(a, 0), n)
 	})
 	on("urg", func(r *req, a []string) { userAddTraffic(r, argInt(a, 0), float64(argInt(a, 1))) })
 	on("urG", func(r *req, a []string) {
-		r.ask("uaddgb", a, "افزودن حجم", "چند گیگابایت اضافه شود؟ (مثلا ۲۰ یا ۰.۵)", cbd("ur", argInt(a, 0)))
+		r.ask("uaddgb", a, T("افزودن حجم"), T("چند گیگابایت اضافه شود؟ (مثلا ۲۰ یا ۰.۵)"), cbd("ur", argInt(a, 0)))
 	})
 	onInput("uaddgb", func(r *req, a []string, text string, _ *Document) {
 		n, ok := parseNum(text)
 		if !ok || n <= 0 {
-			r.ask("uaddgb", a, "افزودن حجم", "⚠️ یک عدد بزرگتر از صفر بفرستید:", cbd("ur", argInt(a, 0)))
+			r.ask("uaddgb", a, T("افزودن حجم"), T("⚠️ یک عدد بزرگتر از صفر بفرستید:"), cbd("ur", argInt(a, 0)))
 			return
 		}
 		userAddTraffic(r, argInt(a, 0), n)
 	})
 	on("urr", func(r *req, a []string) {
 		id := argInt(a, 0)
-		confirm(r, "صفر کردن مصرف", "مصرف این کاربر صفر شود؟", cbd("urry", id), cbd("ur", id))
+		confirm(r, T("صفر کردن مصرف"), T("مصرف این کاربر صفر شود؟"), cbd("urry", id), cbd("ur", id))
 	})
 	on("urry", func(r *req, a []string) {
 		id := argInt(a, 0)
@@ -87,7 +87,7 @@ func init() {
 			r.fail(err, cbd("uv", id))
 			return
 		}
-		r.toast("✅ مصرف صفر شد")
+		r.toast(T("✅ مصرف صفر شد"))
 		userView(r, []string{strconv.FormatInt(id, 10)})
 	})
 	on("ue", userEditMenu)
@@ -109,7 +109,7 @@ func init() {
 	})
 	on("urv", func(r *req, a []string) {
 		id := argInt(a, 0)
-		confirm(r, "تعویض لینک اشتراک", "لینک اشتراک و کلید های این کاربر عوض می شود و لینک قبلی دیگر کار نمی کند. ادامه می دهید؟", cbd("urvy", id), cbd("ue", id))
+		confirm(r, T("تعویض لینک اشتراک"), T("لینک اشتراک و کلید های این کاربر عوض می شود و لینک قبلی دیگر کار نمی کند. ادامه می دهید؟"), cbd("urvy", id), cbd("ue", id))
 	})
 	on("urvy", func(r *req, a []string) {
 		id := argInt(a, 0)
@@ -117,7 +117,7 @@ func init() {
 			r.fail(err, cbd("uv", id))
 			return
 		}
-		r.toast("✅ لینک تازه ساخته شد")
+		r.toast(T("✅ لینک تازه ساخته شد"))
 		userView(r, []string{strconv.FormatInt(id, 10)})
 	})
 	onInput("ufield", userFieldInput)
@@ -136,7 +136,7 @@ func init() {
 	onInput("undays", userNewDays)
 	on("unh", func(r *req, a []string) {
 		r.st.draft["hold"] = "1"
-		r.ask("undays", nil, "کاربر جدید", "شروع از اولین اتصال: چند روز بعد از اولین اتصال منقضی شود؟", "ul:1")
+		r.ask("undays", nil, T("کاربر جدید"), T("شروع از اولین اتصال: چند روز بعد از اولین اتصال منقضی شود؟"), "ul:1")
 	})
 	on("unib", userNewInbounds)
 	on("unok", userNewCreate)
@@ -181,21 +181,21 @@ func usersList(r *req, a []string) {
 	if pages < 1 {
 		pages = 1
 	}
-	text := header("👥", "کاربران")
-	filter := "همه"
+	text := header("👥", T("کاربران"))
+	filter := T("همه")
 	for _, f := range userFilters {
 		if f.key == r.st.userFilter {
 			filter = f.label
 		}
 	}
-	text += fmt.Sprintf("نمایش: <b>%s</b> · تعداد: <b>%s</b>\n", filter, faInt(res.Total))
+	text += Tf("نمایش: <b>%s</b> · تعداد: <b>%s</b>\n", filter, faInt(res.Total))
 	if r.st.userSearch != "" {
-		text += "🔍 جستجو: " + code(r.st.userSearch) + "\n"
+		text += T("🔍 جستجو: ") + code(r.st.userSearch) + "\n"
 	}
 	if len(res.Items) == 0 {
-		text += "\nکاربری پیدا نشد."
+		text += T("\nکاربری پیدا نشد.")
 	} else {
-		text += "\nبرای دیدن جزئیات روی کاربر بزنید."
+		text += T("\nبرای دیدن جزئیات روی کاربر بزنید.")
 	}
 	kb := Keyboard{}
 	for _, u := range res.Items {
@@ -219,9 +219,9 @@ func usersList(r *req, a []string) {
 			next = userFilters[(i+1)%len(userFilters)]
 		}
 	}
-	kb = append(kb, []Button{btn("➕ کاربر جدید", "un"), btn("🔍 جستجو", "us"), btn("🔀 "+next.label, "uf", next.key)})
+	kb = append(kb, []Button{btn(T("➕ کاربر جدید"), "un"), btn(T("🔍 جستجو"), "us"), btn("🔀 "+next.label, "uf", next.key)})
 	if r.st.userSearch != "" || r.st.userFilter != "" {
-		kb = append(kb, []Button{btn("✖️ حذف فیلتر ها", "usc")})
+		kb = append(kb, []Button{btn(T("✖️ حذف فیلتر ها"), "usc")})
 	}
 	kb = append(kb, nav("home"))
 	r.show(view{text: text, kb: kb})
@@ -247,43 +247,43 @@ func (r *req) getUser(id int64) (*users.View, error) {
 	return &u, nil
 }
 
-var weekdays = []string{"یکشنبه", "دوشنبه", "سه شنبه", "چهارشنبه", "پنجشنبه", "جمعه", "شنبه"}
+var weekdays = []string{T("یکشنبه"), T("دوشنبه"), T("سه شنبه"), T("چهارشنبه"), T("پنجشنبه"), T("جمعه"), T("شنبه")}
 
 func userText(u *users.View, ibs map[int64]string, loc *time.Location, now time.Time) string {
 	t := header("👤", u.Username)
 	st := statusLabel[u.Status]
 	if u.Online {
-		st += " · ⚡️ آنلاین"
+		st += T(" · ⚡️ آنلاین")
 	}
-	t += "وضعیت: " + st + "\n"
+	t += T("وضعیت: ") + st + "\n"
 	if u.SuspendReason == "window" {
-		t += "⏸ بیرون از بازه ساعت مجاز\n"
+		t += T("⏸ بیرون از بازه ساعت مجاز\n")
 	} else if u.SuspendReason == "daily" {
-		t += "⏸ سقف روزانه پر شده است\n"
+		t += T("⏸ سقف روزانه پر شده است\n")
 	}
-	t += "\n📦 مصرف: <b>" + size(u.UsedTraffic) + "</b>"
+	t += T("\n📦 مصرف: <b>") + size(u.UsedTraffic) + "</b>"
 	if u.DataLimit > 0 {
 		pct := u.UsedTraffic * 100 / u.DataLimit
-		t += " از " + size(u.DataLimit) + " (" + faInt(pct) + "٪)\n" + bar(u.UsedTraffic, u.DataLimit) + "\n"
+		t += T(" از ") + size(u.DataLimit) + " (" + faInt(pct) + T("٪)\n") + bar(u.UsedTraffic, u.DataLimit) + "\n"
 	} else {
-		t += " · حجم نامحدود\n"
+		t += T(" · حجم نامحدود\n")
 	}
 	t += "↑ " + size(u.Up) + "  ↓ " + size(u.Down) + "\n"
 	switch {
 	case u.ExpireAt != nil:
 		d := u.ExpireAt.Sub(now)
-		rem := left(d) + " مانده"
+		rem := left(d) + T(" مانده")
 		if d <= 0 {
-			rem = left(d) + " پیش"
+			rem = left(d) + T(" پیش")
 		}
-		t += "⏳ انقضا: " + jdate(*u.ExpireAt, loc) + " (" + rem + ")\n"
+		t += T("⏳ انقضا: ") + jdate(*u.ExpireAt, loc) + " (" + rem + ")\n"
 	case u.OnHoldDays != nil:
-		t += "⏳ " + faInt(*u.OnHoldDays) + " روز، از اولین اتصال\n"
+		t += "⏳ " + faInt(*u.OnHoldDays) + T(" روز، از اولین اتصال\n")
 	default:
-		t += "⏳ زمان نامحدود\n"
+		t += T("⏳ زمان نامحدود\n")
 	}
 	if u.LastOnlineAt != nil {
-		t += "🕘 آخرین اتصال: " + jdate(*u.LastOnlineAt, loc) + "\n"
+		t += T("🕘 آخرین اتصال: ") + jdate(*u.LastOnlineAt, loc) + "\n"
 	}
 	var names []string
 	for _, id := range u.InboundIDs {
@@ -292,37 +292,37 @@ func userText(u *users.View, ibs map[int64]string, loc *time.Location, now time.
 		}
 	}
 	if len(names) == 0 {
-		t += "📥 ورودی ها: <i>هیچ</i>\n"
+		t += T("📥 ورودی ها: <i>هیچ</i>\n")
 	} else {
-		t += "📥 ورودی ها: " + strings.Join(names, "، ") + "\n"
+		t += T("📥 ورودی ها: ") + strings.Join(names, T("، ")) + "\n"
 	}
 	var lim []string
 	if u.IPLimit > 0 {
 		lim = append(lim, "IP "+faInt(u.IPLimit))
 	}
 	if u.DeviceLimit > 0 {
-		lim = append(lim, "دستگاه "+faInt(u.DeviceLimit))
+		lim = append(lim, T("دستگاه ")+faInt(u.DeviceLimit))
 	}
 	if u.SpeedLimitDown > 0 || u.SpeedLimitUp > 0 {
-		lim = append(lim, "سرعت ↓"+mbps(u.SpeedLimitDown)+" ↑"+mbps(u.SpeedLimitUp))
+		lim = append(lim, T("سرعت ↓")+mbps(u.SpeedLimitDown)+" ↑"+mbps(u.SpeedLimitUp))
 	}
 	if u.DailyLimit > 0 {
-		lim = append(lim, "روزانه "+size(u.DailyLimit))
+		lim = append(lim, T("روزانه ")+size(u.DailyLimit))
 	}
 	if u.TrafficMultiplier != 1 && u.TrafficMultiplier > 0 {
-		lim = append(lim, "ضریب "+fa(strconv.FormatFloat(u.TrafficMultiplier, 'f', -1, 64)))
+		lim = append(lim, T("ضریب ")+fa(strconv.FormatFloat(u.TrafficMultiplier, 'f', -1, 64)))
 	}
 	if u.WindowFrom != "" {
-		lim = append(lim, "ساعت "+fa(u.WindowFrom+"-"+u.WindowTo))
+		lim = append(lim, T("ساعت ")+fa(u.WindowFrom+"-"+u.WindowTo))
 	}
 	if u.BlockTorrent {
-		lim = append(lim, "بدون تورنت")
+		lim = append(lim, T("بدون تورنت"))
 	}
 	if len(lim) > 0 {
-		t += "🎛 محدودیت ها: " + strings.Join(lim, " · ") + "\n"
+		t += T("🎛 محدودیت ها: ") + strings.Join(lim, " · ") + "\n"
 	}
 	if u.ResetStrategy != "" && u.ResetStrategy != "no_reset" {
-		t += "🔁 ریست دوره ای: " + resetLabel[u.ResetStrategy] + "\n"
+		t += T("🔁 ریست دوره ای: ") + resetLabel[u.ResetStrategy] + "\n"
 	}
 	if u.Note != "" {
 		t += "📝 " + esc(cut(u.Note, 200)) + "\n"
@@ -337,7 +337,7 @@ func mbps(v float64) string {
 	return fa(strconv.FormatFloat(v, 'f', -1, 64))
 }
 
-var resetLabel = map[string]string{"no_reset": "ندارد", "day": "روزانه", "week": "هفتگی", "month": "ماهانه"}
+var resetLabel = map[string]string{"no_reset": T("ندارد"), "day": T("روزانه"), "week": T("هفتگی"), "month": T("ماهانه")}
 
 func userView(r *req, a []string) {
 	id := argInt(a, 0)
@@ -347,15 +347,15 @@ func userView(r *req, a []string) {
 		return
 	}
 	text := userText(u, r.loadInbounds(), r.b.loc(), r.b.now())
-	toggle := btn("⏸ غیرفعال کردن", "ut", id)
+	toggle := btn(T("⏸ غیرفعال کردن"), "ut", id)
 	if u.Status == "disabled" {
-		toggle = btn("▶️ فعال کردن", "ut", id)
+		toggle = btn(T("▶️ فعال کردن"), "ut", id)
 	}
 	r.show(view{text: text, kb: Keyboard{
-		{btn("🔗 لینک و QR", "uq", id), btn("♻️ تمدید", "ur", id)},
-		{btn("✏️ ویرایش", "ue", id), btn("📡 اتصال ها", "uc", id)},
-		{toggle, btn("🗑 حذف", "ud", id)},
-		{btn("🔄 تازه سازی", "uv", id)},
+		{btn(T("🔗 لینک و QR"), "uq", id), btn(T("♻️ تمدید"), "ur", id)},
+		{btn(T("✏️ ویرایش"), "ue", id), btn(T("📡 اتصال ها"), "uc", id)},
+		{toggle, btn(T("🗑 حذف"), "ud", id)},
+		{btn(T("🔄 تازه سازی"), "uv", id)},
 		nav("ul:1"),
 	}})
 }
@@ -367,13 +367,13 @@ func userQR(r *req, a []string) {
 		r.fail(err, "ul:1")
 		return
 	}
-	r.toast("⏳ در حال ساخت QR")
+	r.toast(T("⏳ در حال ساخت QR"))
 	png, err := qrcode.Encode(u.SubURL, qrcode.Medium, 512)
 	if err != nil {
 		r.fail(err, cbd("uv", id))
 		return
 	}
-	cap := "🔗 <b>لینک اشتراک " + esc(u.Username) + "</b>\n" + code(u.SubURL)
+	cap := T("🔗 <b>لینک اشتراک ") + esc(u.Username) + "</b>\n" + code(u.SubURL)
 	if err := r.cl.SendPhoto(r.ctx, r.chat, png, cap); err != nil {
 		r.fail(err, cbd("uv", id))
 		return
@@ -402,15 +402,15 @@ func userToggle(r *req, a []string) {
 		return
 	}
 	if st == "active" {
-		r.toast("✅ فعال شد")
+		r.toast(T("✅ فعال شد"))
 	} else {
-		r.toast("⏸ غیرفعال شد")
+		r.toast(T("⏸ غیرفعال شد"))
 	}
 	userView(r, a)
 }
 
 func confirm(r *req, title, question, yes, no string) {
-	r.show(view{text: header("⚠️", title) + question, kb: Keyboard{{Button{Text: "✅ بله، انجام بده", Data: yes}, Button{Text: "✖️ نه", Data: no}}}})
+	r.show(view{text: header("⚠️", title) + question, kb: Keyboard{{Button{Text: T("✅ بله، انجام بده"), Data: yes}, Button{Text: T("✖️ نه"), Data: no}}}})
 }
 
 func userDeleteAsk(r *req, a []string) {
@@ -420,7 +420,7 @@ func userDeleteAsk(r *req, a []string) {
 		r.fail(err, "ul:1")
 		return
 	}
-	confirm(r, "حذف کاربر", "کاربر <b>"+esc(u.Username)+"</b> برای همیشه حذف شود؟ این کار برگشت ندارد.", cbd("udy", id), cbd("uv", id))
+	confirm(r, T("حذف کاربر"), T("کاربر <b>")+esc(u.Username)+T("</b> برای همیشه حذف شود؟ این کار برگشت ندارد."), cbd("udy", id), cbd("uv", id))
 }
 
 func userDelete(r *req, a []string) {
@@ -429,7 +429,7 @@ func userDelete(r *req, a []string) {
 		r.fail(err, cbd("uv", id))
 		return
 	}
-	r.toast("🗑 حذف شد")
+	r.toast(T("🗑 حذف شد"))
 	usersList(r, []string{"1"})
 }
 
@@ -440,22 +440,22 @@ func userRenew(r *req, a []string) {
 		r.fail(err, "ul:1")
 		return
 	}
-	text := header("♻️", "تمدید "+u.Username)
+	text := header("♻️", T("تمدید ")+u.Username)
 	if u.ExpireAt == nil && u.OnHoldDays == nil {
-		text += "این کاربر زمان نامحدود دارد؛ افزودن روز روی او اثری ندارد (برای گذاشتن تاریخ از ویرایش استفاده کنید).\n"
+		text += T("این کاربر زمان نامحدود دارد؛ افزودن روز روی او اثری ندارد (برای گذاشتن تاریخ از ویرایش استفاده کنید).\n")
 	}
 	if u.DataLimit == 0 {
-		text += "حجم این کاربر نامحدود است.\n"
+		text += T("حجم این کاربر نامحدود است.\n")
 	} else {
-		text += "مصرف: " + size(u.UsedTraffic) + " از " + size(u.DataLimit) + "\n"
+		text += T("مصرف: ") + size(u.UsedTraffic) + T(" از ") + size(u.DataLimit) + "\n"
 	}
-	text += "\nچه کاری انجام شود؟"
+	text += T("\nچه کاری انجام شود؟")
 	r.show(view{text: text, kb: Keyboard{
-		{btn("➕ ۷ روز", "ura", id, 7), btn("➕ ۳۰ روز", "ura", id, 30), btn("➕ ۹۰ روز", "ura", id, 90)},
-		{btn("✍️ روز دلخواه", "urd", id)},
-		{btn("➕ ۱۰ GB", "urg", id, 10), btn("➕ ۵۰ GB", "urg", id, 50), btn("➕ ۱۰۰ GB", "urg", id, 100)},
-		{btn("✍️ حجم دلخواه", "urG", id)},
-		{btn("🧹 صفر کردن مصرف", "urr", id)},
+		{btn(T("➕ ۷ روز"), "ura", id, 7), btn(T("➕ ۳۰ روز"), "ura", id, 30), btn(T("➕ ۹۰ روز"), "ura", id, 90)},
+		{btn(T("✍️ روز دلخواه"), "urd", id)},
+		{btn(T("➕ ۱۰ GB"), "urg", id, 10), btn(T("➕ ۵۰ GB"), "urg", id, 50), btn(T("➕ ۱۰۰ GB"), "urg", id, 100)},
+		{btn(T("✍️ حجم دلخواه"), "urG", id)},
+		{btn(T("🧹 صفر کردن مصرف"), "urr", id)},
 		nav(cbd("uv", id)),
 	}})
 }
@@ -467,7 +467,7 @@ func userExtend(r *req, id, days int64) {
 		return
 	}
 	if u.ExpireAt == nil && u.OnHoldDays == nil {
-		r.alert("این کاربر زمان نامحدود دارد.")
+		r.alert(T("این کاربر زمان نامحدود دارد."))
 		userRenew(r, []string{strconv.FormatInt(id, 10)})
 		return
 	}
@@ -475,7 +475,7 @@ func userExtend(r *req, id, days int64) {
 		r.fail(err, cbd("ur", id))
 		return
 	}
-	r.toast("✅ " + faInt(days) + " روز اضافه شد")
+	r.toast("✅ " + faInt(days) + T(" روز اضافه شد"))
 	userView(r, []string{strconv.FormatInt(id, 10)})
 }
 
@@ -486,7 +486,7 @@ func userAddTraffic(r *req, id int64, n float64) {
 		return
 	}
 	if u.DataLimit == 0 {
-		r.alert("حجم این کاربر نامحدود است.")
+		r.alert(T("حجم این کاربر نامحدود است."))
 		userRenew(r, []string{strconv.FormatInt(id, 10)})
 		return
 	}
@@ -494,7 +494,7 @@ func userAddTraffic(r *req, id int64, n float64) {
 		r.fail(err, cbd("ur", id))
 		return
 	}
-	r.toast("✅ حجم اضافه شد")
+	r.toast(T("✅ حجم اضافه شد"))
 	userView(r, []string{strconv.FormatInt(id, 10)})
 }
 
@@ -503,7 +503,7 @@ func userPatch(r *req, id int64, body map[string]any, back string) {
 		r.fail(err, cbd(back, id))
 		return
 	}
-	r.toast("✅ ذخیره شد")
+	r.toast(T("✅ ذخیره شد"))
 	if back == "ue" {
 		userEditMenu(r, []string{strconv.FormatInt(id, 10)})
 		return
@@ -526,18 +526,18 @@ func userFlip(r *req, id int64, field string) {
 
 // userFields are the fields edited by typing a value.
 var userFields = map[string]struct{ label, prompt string }{
-	"name": {"نام کاربری", "نام کاربری تازه را بفرستید (۳ تا ۳۲ حرف انگلیسی، رقم، _ . @ -):"},
-	"lim":  {"حجم کل", "حجم کل به گیگابایت را بفرستید (۰ یعنی نامحدود):"},
-	"exp":  {"مدت اعتبار", "چند روز از امروز معتبر باشد؟ (۰ یعنی زمان نامحدود)"},
-	"hold": {"شروع از اولین اتصال", "چند روز بعد از اولین اتصال منقضی شود؟ (تاریخ فعلی برداشته می شود)"},
-	"note": {"یادداشت", "یادداشت را بفرستید (- برای پاک کردن):"},
-	"ipl":  {"محدودیت IP", "حداکثر تعداد IP همزمان (۰ یعنی بدون محدودیت):"},
-	"dev":  {"محدودیت دستگاه", "حداکثر تعداد دستگاه (۰ یعنی بدون محدودیت):"},
-	"spd":  {"سرعت دانلود", "سقف سرعت دانلود به Mbps (۰ یعنی نامحدود):"},
-	"spu":  {"سرعت آپلود", "سقف سرعت آپلود به Mbps (۰ یعنی نامحدود):"},
-	"mul":  {"ضریب مصرف", "ضریب مصرف را بفرستید (۱ یعنی عادی، مثلا ۱.۵):"},
-	"dly":  {"سقف روزانه", "سقف مصرف روزانه به گیگابایت (۰ یعنی ندارد):"},
-	"win":  {"بازه ساعت مجاز", "بازه را به شکل 08:00-23:00 بفرستید (- برای همیشه مجاز):"},
+	"name": {T("نام کاربری"), T("نام کاربری تازه را بفرستید (۳ تا ۳۲ حرف انگلیسی، رقم، _ . @ -):")},
+	"lim":  {T("حجم کل"), T("حجم کل به گیگابایت را بفرستید (۰ یعنی نامحدود):")},
+	"exp":  {T("مدت اعتبار"), T("چند روز از امروز معتبر باشد؟ (۰ یعنی زمان نامحدود)")},
+	"hold": {T("شروع از اولین اتصال"), T("چند روز بعد از اولین اتصال منقضی شود؟ (تاریخ فعلی برداشته می شود)")},
+	"note": {T("یادداشت"), T("یادداشت را بفرستید (- برای پاک کردن):")},
+	"ipl":  {T("محدودیت IP"), T("حداکثر تعداد IP همزمان (۰ یعنی بدون محدودیت):")},
+	"dev":  {T("محدودیت دستگاه"), T("حداکثر تعداد دستگاه (۰ یعنی بدون محدودیت):")},
+	"spd":  {T("سرعت دانلود"), T("سقف سرعت دانلود به Mbps (۰ یعنی نامحدود):")},
+	"spu":  {T("سرعت آپلود"), T("سقف سرعت آپلود به Mbps (۰ یعنی نامحدود):")},
+	"mul":  {T("ضریب مصرف"), T("ضریب مصرف را بفرستید (۱ یعنی عادی، مثلا ۱.۵):")},
+	"dly":  {T("سقف روزانه"), T("سقف مصرف روزانه به گیگابایت (۰ یعنی ندارد):")},
+	"win":  {T("بازه ساعت مجاز"), T("بازه را به شکل 08:00-23:00 بفرستید (- برای همیشه مجاز):")},
 }
 
 func userEditMenu(r *req, a []string) {
@@ -548,10 +548,10 @@ func userEditMenu(r *req, a []string) {
 		return
 	}
 	f := func(k string) Button { return btn("✏️ "+userFields[k].label, "uef", id, k) }
-	text := header("✏️", "ویرایش "+u.Username) + "کدام مورد تغییر کند؟\n\n"
-	text += "🔁 ریست دوره ای: <b>" + resetLabel[u.ResetStrategy] + "</b>\n"
-	text += onOff(u.RequireHWID) + " الزام شناسه دستگاه (HWID)\n" + onOff(u.BlockTorrent) + " مسدود کردن تورنت\n"
-	days := "همه روز ها"
+	text := header("✏️", T("ویرایش ")+u.Username) + T("کدام مورد تغییر کند؟\n\n")
+	text += T("🔁 ریست دوره ای: <b>") + resetLabel[u.ResetStrategy] + "</b>\n"
+	text += onOff(u.RequireHWID) + T(" الزام شناسه دستگاه (HWID)\n") + onOff(u.BlockTorrent) + T(" مسدود کردن تورنت\n")
+	days := T("همه روز ها")
 	if u.WindowDays != 0 {
 		var ds []string
 		for i, d := range weekdays {
@@ -559,20 +559,20 @@ func userEditMenu(r *req, a []string) {
 				ds = append(ds, d)
 			}
 		}
-		days = strings.Join(ds, "، ")
+		days = strings.Join(ds, T("، "))
 	}
-	text += "📅 روز های مجاز: " + days + "\n"
+	text += T("📅 روز های مجاز: ") + days + "\n"
 	r.show(view{text: text, kb: Keyboard{
 		{f("name"), f("lim")},
 		{f("exp"), f("hold")},
 		{f("ipl"), f("dev")},
 		{f("spd"), f("spu")},
 		{f("dly"), f("mul")},
-		{f("win"), btn("📅 روز های مجاز", "uef", id, "days")},
-		{btn("📥 ورودی ها", "uef", id, "inb"), btn("🏷 گروه", "uef", id, "grp")},
-		{btn("🔁 ریست دوره ای", "uef", id, "rst"), f("note")},
-		{btn(onOff(u.RequireHWID)+" HWID", "uht", id), btn(onOff(u.BlockTorrent)+" تورنت", "utt", id)},
-		{btn("🔑 تعویض لینک اشتراک", "urv", id)},
+		{f("win"), btn(T("📅 روز های مجاز"), "uef", id, "days")},
+		{btn(T("📥 ورودی ها"), "uef", id, "inb"), btn(T("🏷 گروه"), "uef", id, "grp")},
+		{btn(T("🔁 ریست دوره ای"), "uef", id, "rst"), f("note")},
+		{btn(onOff(u.RequireHWID)+" HWID", "uht", id), btn(onOff(u.BlockTorrent)+T(" تورنت"), "utt", id)},
+		{btn(T("🔑 تعویض لینک اشتراک"), "urv", id)},
 		nav(cbd("uv", id)),
 	}})
 }
@@ -582,9 +582,9 @@ func userEditField(r *req, a []string) {
 	back := cbd("ue", id)
 	switch k {
 	case "rst":
-		r.show(view{text: header("🔁", "ریست دوره ای مصرف"), kb: Keyboard{
-			{btn("ندارد", "urs", id, "no_reset"), btn("روزانه", "urs", id, "day")},
-			{btn("هفتگی", "urs", id, "week"), btn("ماهانه", "urs", id, "month")},
+		r.show(view{text: header("🔁", T("ریست دوره ای مصرف")), kb: Keyboard{
+			{btn(T("ندارد"), "urs", id, "no_reset"), btn(T("روزانه"), "urs", id, "day")},
+			{btn(T("هفتگی"), "urs", id, "week"), btn(T("ماهانه"), "urs", id, "month")},
 			nav(back),
 		}})
 	case "days":
@@ -600,12 +600,12 @@ func userEditField(r *req, a []string) {
 			r.fail(err, back)
 			return
 		}
-		bs := []Button{btn("بدون گروه", "ugp", id, 0)}
+		bs := []Button{btn(T("بدون گروه"), "ugp", id, 0)}
 		for _, g := range gs {
 			bs = append(bs, btn("🏷 "+cut(g.Name, 20), "ugp", id, g.ID))
 		}
 		kb := chunk(bs, 2)
-		r.show(view{text: header("🏷", "گروه کاربر") + "گروه را انتخاب کنید:", kb: append(kb, nav(back))})
+		r.show(view{text: header("🏷", T("گروه کاربر")) + T("گروه را انتخاب کنید:"), kb: append(kb, nav(back))})
 	default:
 		fd, ok := userFields[k]
 		if !ok {
@@ -626,7 +626,7 @@ func userFieldInput(r *req, a []string, text string, _ *Document) {
 	num := func() (float64, bool) {
 		n, ok := parseNum(text)
 		if !ok || n < 0 {
-			again("یک عدد درست بفرستید.")
+			again(T("یک عدد درست بفرستید."))
 			return 0, false
 		}
 		return n, true
@@ -654,7 +654,7 @@ func userFieldInput(r *req, a []string, text string, _ *Document) {
 	case "exp":
 		n, ok := parseInt(text)
 		if !ok || n < 0 {
-			again("یک عدد صحیح بفرستید.")
+			again(T("یک عدد صحیح بفرستید."))
 			return
 		}
 		if n == 0 {
@@ -666,14 +666,14 @@ func userFieldInput(r *req, a []string, text string, _ *Document) {
 	case "hold":
 		n, ok := parseInt(text)
 		if !ok || n < 1 {
-			again("یک عدد صحیح از ۱ به بالا بفرستید.")
+			again(T("یک عدد صحیح از ۱ به بالا بفرستید."))
 			return
 		}
 		body["on_hold_days"], body["expire_at"] = n, nil
 	case "ipl", "dev":
 		n, ok := parseInt(text)
 		if !ok || n < 0 {
-			again("یک عدد صحیح بفرستید.")
+			again(T("یک عدد صحیح بفرستید."))
 			return
 		}
 		if k == "ipl" {
@@ -694,7 +694,7 @@ func userFieldInput(r *req, a []string, text string, _ *Document) {
 		} else {
 			from, to, ok := strings.Cut(strings.ReplaceAll(t, " ", ""), "-")
 			if !ok {
-				again("شکل درست: 08:00-23:00")
+				again(T("شکل درست: 08:00-23:00"))
 				return
 			}
 			body["window_from"], body["window_to"] = from, to
@@ -729,7 +729,7 @@ func userWeekday(r *req, a []string) {
 	for _, i := range order {
 		bs = append(bs, btn(onOff(u.WindowDays&(1<<i) != 0)+" "+weekdays[i], "uwd", id, i))
 	}
-	text := header("📅", "روز های مجاز "+u.Username) + "روز هایی که کاربر می تواند وصل شود. اگر هیچ روزی انتخاب نشود، همه روز ها مجاز است."
+	text := header("📅", T("روز های مجاز ")+u.Username) + T("روز هایی که کاربر می تواند وصل شود. اگر هیچ روزی انتخاب نشود، همه روز ها مجاز است.")
 	r.show(view{text: text, kb: append(chunk(bs, 3), nav(cbd("ue", id)))})
 }
 
@@ -770,13 +770,13 @@ func userInboundToggle(r *req, a []string) {
 			r.fail(err, cbd("ue", id))
 			return
 		}
-		r.toast("✅ ذخیره شد")
+		r.toast(T("✅ ذخیره شد"))
 	}
 	kb := Keyboard{}
 	for _, ib := range list {
 		kb = append(kb, []Button{btn(fmt.Sprintf("%s %s · %s:%s", onOff(have[ib.ID]), cut(ib.Remark, 20), ib.Protocol, fa(strconv.Itoa(ib.Port))), "uib", id, ib.ID)})
 	}
-	r.show(view{text: header("📥", "ورودی های "+u.Username) + "با زدن هر ورودی، آن را برای کاربر روشن یا خاموش کنید.", kb: append(kb, nav(cbd("ue", id)))})
+	r.show(view{text: header("📥", T("ورودی های ")+u.Username) + T("با زدن هر ورودی، آن را برای کاربر روشن یا خاموش کنید."), kb: append(kb, nav(cbd("ue", id)))})
 }
 
 type connIP struct {
@@ -816,9 +816,9 @@ func userConns(r *req, a []string) {
 	}
 	loc := r.b.loc()
 	sort.SliceStable(c.IPs, func(i, j int) bool { return c.IPs[i].LastSeen.After(c.IPs[j].LastSeen) })
-	text := header("📡", "اتصال های "+u.Username)
+	text := header("📡", T("اتصال های ")+u.Username)
 	kb := Keyboard{}
-	text += "<b>IP ها</b> (" + faInt(len(c.IPs)) + ")\n"
+	text += T("<b>IP ها</b> (") + faInt(len(c.IPs)) + ")\n"
 	for i, ip := range c.IPs {
 		if i >= 8 {
 			text += "…\n"
@@ -832,13 +832,13 @@ func userConns(r *req, a []string) {
 			mark = "⛔️"
 		}
 		text += mark + " " + code(ip.IP) + " " + esc(ip.Country) + " · " + jdate(ip.LastSeen, loc) + "\n"
-		act := "⛔️ مسدود"
+		act := T("⛔️ مسدود")
 		if ip.Blocked {
-			act = "✅ آزاد"
+			act = T("✅ آزاد")
 		}
 		kb = append(kb, []Button{btn(act+" "+ip.IP, "uci", id, ip.ID, "b"), btn("🗑", "uci", id, ip.ID, "d")})
 	}
-	text += "\n<b>دستگاه ها</b> (" + faInt(len(c.Devices)) + ")\n"
+	text += T("\n<b>دستگاه ها</b> (") + faInt(len(c.Devices)) + ")\n"
 	for i, d := range c.Devices {
 		if i >= 6 {
 			text += "…\n"
@@ -853,13 +853,13 @@ func userConns(r *req, a []string) {
 			name = cut(d.HWID, 16)
 		}
 		text += mark + " " + esc(name) + " · " + jdate(d.LastSeen, loc) + "\n"
-		act := "⛔️ مسدود"
+		act := T("⛔️ مسدود")
 		if d.Blocked {
-			act = "✅ آزاد"
+			act = T("✅ آزاد")
 		}
 		kb = append(kb, []Button{btn(act+" "+cut(name, 18), "ucd", id, d.ID, "b"), btn("🗑", "ucd", id, d.ID, "d")})
 	}
-	kb = append(kb, []Button{btn("🔄 تازه سازی", "uc", id)}, nav(cbd("uv", id)))
+	kb = append(kb, []Button{btn(T("🔄 تازه سازی"), "uc", id)}, nav(cbd("uv", id)))
 	r.show(view{text: text, kb: kb})
 }
 
@@ -890,7 +890,7 @@ func userConnIP(r *req, a []string) {
 		r.fail(err, cbd("uc", id))
 		return
 	}
-	r.toast("✅ انجام شد")
+	r.toast(T("✅ انجام شد"))
 	userConns(r, a)
 }
 
@@ -915,7 +915,7 @@ func userConnDevice(r *req, a []string) {
 		r.fail(err, cbd("uc", id))
 		return
 	}
-	r.toast("✅ انجام شد")
+	r.toast(T("✅ انجام شد"))
 	userConns(r, a)
 }
 
@@ -923,19 +923,19 @@ func userConnDevice(r *req, a []string) {
 
 func userNew(r *req, _ []string) {
 	r.st.draft = map[string]string{}
-	r.ask("unname", nil, "کاربر جدید (۱ از ۴)", "نام کاربری را بفرستید (۳ تا ۳۲ حرف انگلیسی، رقم، _ . @ -):", "ul:1")
+	r.ask("unname", nil, T("کاربر جدید (۱ از ۴)"), T("نام کاربری را بفرستید (۳ تا ۳۲ حرف انگلیسی، رقم، _ . @ -):"), "ul:1")
 }
 
 func userNewName(r *req, _ []string, text string, _ *Document) {
 	r.st.draft["name"] = strings.TrimSpace(text)
-	r.ask("ungb", nil, "کاربر جدید (۲ از ۴)", "نام: "+code(text)+"\n\nحجم به گیگابایت را بفرستید:", "ul:1",
-		[]Button{btn("♾ حجم نامحدود", "unl")})
+	r.ask("ungb", nil, T("کاربر جدید (۲ از ۴)"), T("نام: ")+code(text)+T("\n\nحجم به گیگابایت را بفرستید:"), "ul:1",
+		[]Button{btn(T("♾ حجم نامحدود"), "unl")})
 }
 
 func userNewGB(r *req, _ []string, text string, _ *Document) {
 	n, ok := parseNum(text)
 	if !ok || n < 0 {
-		r.ask("ungb", nil, "کاربر جدید (۲ از ۴)", "⚠️ یک عدد درست بفرستید. حجم به گیگابایت:", "ul:1", []Button{btn("♾ حجم نامحدود", "unl")})
+		r.ask("ungb", nil, T("کاربر جدید (۲ از ۴)"), T("⚠️ یک عدد درست بفرستید. حجم به گیگابایت:"), "ul:1", []Button{btn(T("♾ حجم نامحدود"), "unl")})
 		return
 	}
 	r.st.draft["gb"] = strconv.FormatFloat(n, 'f', -1, 64)
@@ -944,15 +944,15 @@ func userNewGB(r *req, _ []string, text string, _ *Document) {
 
 func userNewDaysAsk(r *req) {
 	r.st.draft["hold"] = ""
-	r.ask("undays", nil, "کاربر جدید (۳ از ۴)", "چند روز اعتبار داشته باشد؟", "ul:1",
-		[]Button{btn("۳۰ روز", "und", 30, ""), btn("۶۰ روز", "und", 60, ""), btn("۹۰ روز", "und", 90, "")},
-		[]Button{btn("♾ زمان نامحدود", "und", 0, ""), btn("🔵 از اولین اتصال", "unh")})
+	r.ask("undays", nil, T("کاربر جدید (۳ از ۴)"), T("چند روز اعتبار داشته باشد؟"), "ul:1",
+		[]Button{btn(T("۳۰ روز"), "und", 30, ""), btn(T("۶۰ روز"), "und", 60, ""), btn(T("۹۰ روز"), "und", 90, "")},
+		[]Button{btn(T("♾ زمان نامحدود"), "und", 0, ""), btn(T("🔵 از اولین اتصال"), "unh")})
 }
 
 func userNewDays(r *req, _ []string, text string, _ *Document) {
 	n, ok := parseInt(text)
 	if !ok || n < 0 {
-		r.ask("undays", nil, "کاربر جدید (۳ از ۴)", "⚠️ یک عدد صحیح بفرستید. چند روز؟", "ul:1")
+		r.ask("undays", nil, T("کاربر جدید (۳ از ۴)"), T("⚠️ یک عدد صحیح بفرستید. چند روز؟"), "ul:1")
 		return
 	}
 	r.st.draft["days"] = strconv.FormatInt(n, 10)
@@ -991,27 +991,27 @@ func userNewInbounds(r *req, a []string) {
 	}
 	r.st.draft["inb"] = strings.Join(keep, ",")
 	d := r.st.draft
-	text := header("➕", "کاربر جدید (۴ از ۴)") + "نام: " + code(d["name"]) + "\n"
+	text := header("➕", T("کاربر جدید (۴ از ۴)")) + T("نام: ") + code(d["name"]) + "\n"
 	if g, _ := parseNum(d["gb"]); g > 0 {
-		text += "حجم: " + fa(d["gb"]) + " GB\n"
+		text += T("حجم: ") + fa(d["gb"]) + " GB\n"
 	} else {
-		text += "حجم: نامحدود\n"
+		text += T("حجم: نامحدود\n")
 	}
 	switch {
 	case d["hold"] == "1":
-		text += "زمان: " + fa(d["days"]) + " روز از اولین اتصال\n"
+		text += T("زمان: ") + fa(d["days"]) + T(" روز از اولین اتصال\n")
 	case d["days"] == "0":
-		text += "زمان: نامحدود\n"
+		text += T("زمان: نامحدود\n")
 	default:
-		text += "زمان: " + fa(d["days"]) + " روز\n"
+		text += T("زمان: ") + fa(d["days"]) + T(" روز\n")
 	}
-	text += "\nورودی های کاربر را انتخاب کنید و بعد «ساختن» را بزنید:"
+	text += T("\nورودی های کاربر را انتخاب کنید و بعد «ساختن» را بزنید:")
 	kb := Keyboard{}
 	for _, ib := range list {
 		k := strconv.FormatInt(ib.ID, 10)
 		kb = append(kb, []Button{btn(fmt.Sprintf("%s %s · %s", onOff(sel[k]), cut(ib.Remark, 22), ib.Protocol), "unib", ib.ID)})
 	}
-	kb = append(kb, []Button{btn("✅ ساختن کاربر", "unok")}, []Button{btn("✖️ انصراف", "ul", 1)})
+	kb = append(kb, []Button{btn(T("✅ ساختن کاربر"), "unok")}, []Button{btn(T("✖️ انصراف"), "ul", 1)})
 	r.show(view{text: text, kb: kb})
 }
 
@@ -1042,6 +1042,6 @@ func userNewCreate(r *req, _ []string) {
 		return
 	}
 	r.st.draft = map[string]string{}
-	r.toast("✅ کاربر ساخته شد")
+	r.toast(T("✅ کاربر ساخته شد"))
 	userView(r, []string{strconv.FormatInt(u.ID, 10)})
 }

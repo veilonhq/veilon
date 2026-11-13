@@ -39,6 +39,26 @@ type Client struct {
 	Token string
 	Base  string
 	HTTP  *http.Client
+	// Lang is the language of a chat; texts are resolved to it before they
+	// are sent (nil: Persian).
+	Lang func(chat int64) string
+}
+
+// local resolves a two language text for chat.
+func (c *Client) local(chat int64, s string) string {
+	l := langFa
+	if c.Lang != nil {
+		l = c.Lang(chat)
+	}
+	return localize(s, l)
+}
+
+func (c *Client) localKB(chat int64, kb Keyboard) Keyboard {
+	l := langFa
+	if c.Lang != nil {
+		l = c.Lang(chat)
+	}
+	return localizeKB(kb, l)
 }
 
 // NewClient builds a client; proxy is "" or an http(s):// or socks5:// URL.
@@ -244,6 +264,7 @@ func (c *Client) GetUpdates(ctx context.Context, offset int64, timeout int) ([]U
 
 // Send posts a new HTML message.
 func (c *Client) Send(ctx context.Context, chat int64, text string, kb Keyboard) (*Message, error) {
+	text, kb = c.local(chat, text), c.localKB(chat, kb)
 	p := map[string]any{"chat_id": chat, "text": text, "parse_mode": "HTML", "link_preview_options": map[string]bool{"is_disabled": true}}
 	if kb != nil {
 		p["reply_markup"] = markup(kb)
@@ -257,6 +278,7 @@ func (c *Client) Send(ctx context.Context, chat int64, text string, kb Keyboard)
 
 // Edit replaces the text and keyboard of a message.
 func (c *Client) Edit(ctx context.Context, chat int64, msgID int, text string, kb Keyboard) error {
+	text, kb = c.local(chat, text), c.localKB(chat, kb)
 	p := map[string]any{"chat_id": chat, "message_id": msgID, "text": text, "parse_mode": "HTML",
 		"link_preview_options": map[string]bool{"is_disabled": true}, "reply_markup": markup(kb)}
 	err := c.Call(ctx, "editMessageText", p, nil)
@@ -279,12 +301,14 @@ func (c *Client) Delete(ctx context.Context, chat int64, msgID int) error {
 
 // SendPhoto posts a PNG with an HTML caption.
 func (c *Client) SendPhoto(ctx context.Context, chat int64, png []byte, caption string) error {
+	caption = c.local(chat, caption)
 	return c.Upload(ctx, "sendPhoto", map[string]string{"chat_id": strconv.FormatInt(chat, 10), "caption": caption, "parse_mode": "HTML"},
 		"photo", "qr.png", png, nil)
 }
 
 // SendDocument posts a file with an HTML caption.
 func (c *Client) SendDocument(ctx context.Context, chat int64, name string, data []byte, caption string) error {
+	caption = c.local(chat, caption)
 	return c.Upload(ctx, "sendDocument", map[string]string{"chat_id": strconv.FormatInt(chat, 10), "caption": caption, "parse_mode": "HTML"},
 		"document", name, data, nil)
 }

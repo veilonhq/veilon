@@ -2,6 +2,16 @@
 
 Each release's notes, Persian first. Older releases: https://github.com/veilonhq/veilon/releases
 
+## Unreleased
+
+### فارسی
+
+- ربات تلگرام انگلیسی هم صحبت می کند: اولین `/start` می پرسد زبان فارسی باشد یا انگلیسی، انتخاب هر مدیر جدا ذخیره می شود و از دکمه **🌐 زبان** در منوی اصلی (یا `/lang`) عوض می شود. در انگلیسی تاریخ ها میلادی و عدد ها لاتین هستند و اعلان ها هم به زبان هر مدیر فرستاده می شوند
+
+### English
+
+- The Telegram bot now speaks English too: the first `/start` asks for Persian or English, each admin's choice is saved separately and can be changed with the **🌐 Language** button in the main menu (or `/lang`). In English, dates are Gregorian and digits are Latin, and notifications go out in each admin's language
+
 ## v0.3.9 (2026-11-12)
 
 ### فارسی

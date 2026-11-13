@@ -12,33 +12,33 @@ import (
 const auditPerPage = 10
 
 var auditActions = map[string]string{
-	"auth.login":            "ورود",
-	"auth.login_failed":     "ورود ناموفق",
-	"auth.password_changed": "تغییر رمز",
-	"auth.username_changed": "تغییر نام کاربری",
-	"user.create":           "ساختن کاربر",
-	"user.update":           "ویرایش کاربر",
-	"user.delete":           "حذف کاربر",
-	"user.reset_traffic":    "صفر کردن مصرف",
-	"user.revoke_sub":       "لینک اشتراک تازه",
-	"backup.create":         "گرفتن پشتیبان",
-	"backup.restore":        "بازگردانی پشتیبان",
-	"core.restart":          "راه اندازی دوباره هسته",
-	"panel.update":          "بروزرسانی پنل",
-	"node.install":          "دستور نصب نود",
-	"inbound.create":        "ساختن ورودی",
-	"inbound.update":        "ویرایش ورودی",
-	"inbound.delete":        "حذف ورودی",
-	"node.create":           "ساختن نود",
-	"node.update":           "ویرایش نود",
-	"node.delete":           "حذف نود",
-	"admin.create":          "ساختن ادمین",
-	"admin.update":          "ویرایش ادمین",
-	"admin.delete":          "حذف ادمین",
-	"settings.update":       "تغییر تنظیمات",
-	"xray.config":           "تنظیمات Xray",
-	"telegram.update":       "تنظیمات ربات",
-	"telegram.notify":       "اعلان های ربات",
+	"auth.login":            T("ورود"),
+	"auth.login_failed":     T("ورود ناموفق"),
+	"auth.password_changed": T("تغییر رمز"),
+	"auth.username_changed": T("تغییر نام کاربری"),
+	"user.create":           T("ساختن کاربر"),
+	"user.update":           T("ویرایش کاربر"),
+	"user.delete":           T("حذف کاربر"),
+	"user.reset_traffic":    T("صفر کردن مصرف"),
+	"user.revoke_sub":       T("لینک اشتراک تازه"),
+	"backup.create":         T("گرفتن پشتیبان"),
+	"backup.restore":        T("بازگردانی پشتیبان"),
+	"core.restart":          T("راه اندازی دوباره هسته"),
+	"panel.update":          T("بروزرسانی پنل"),
+	"node.install":          T("دستور نصب نود"),
+	"inbound.create":        T("ساختن ورودی"),
+	"inbound.update":        T("ویرایش ورودی"),
+	"inbound.delete":        T("حذف ورودی"),
+	"node.create":           T("ساختن نود"),
+	"node.update":           T("ویرایش نود"),
+	"node.delete":           T("حذف نود"),
+	"admin.create":          T("ساختن ادمین"),
+	"admin.update":          T("ویرایش ادمین"),
+	"admin.delete":          T("حذف ادمین"),
+	"settings.update":       T("تغییر تنظیمات"),
+	"xray.config":           T("تنظیمات Xray"),
+	"telegram.update":       T("تنظیمات ربات"),
+	"telegram.notify":       T("اعلان های ربات"),
 }
 
 func init() {
@@ -85,14 +85,14 @@ func auditList(r *req, a []string) {
 	if pages < 1 {
 		pages = 1
 	}
-	t := header("🗂", "گزارش فعالیت")
+	t := header("🗂", T("گزارش فعالیت"))
 	if r.st.auditActor != "" {
-		t += "فقط: <b>" + esc(r.st.auditActor) + "</b>\n"
+		t += T("فقط: <b>") + esc(r.st.auditActor) + "</b>\n"
 	}
-	t += "تعداد: " + faInt(res.Total) + " · تازه ترین ها بالا\n"
+	t += T("تعداد: ") + faInt(res.Total) + T(" · تازه ترین ها بالا\n")
 	loc := r.b.loc()
 	if len(res.Items) == 0 {
-		t += "\nموردی نیست."
+		t += T("\nموردی نیست.")
 	}
 	for _, e := range res.Items {
 		act := auditActions[e.Action]
@@ -101,7 +101,7 @@ func auditList(r *req, a []string) {
 		}
 		who := e.Admin
 		if who == "" {
-			who = "ناشناس"
+			who = T("ناشناس")
 		}
 		t += "\n🕒 " + jdate(e.CreatedAt, loc) + " · <b>" + esc(act) + "</b>\n👤 " + esc(cut(who, 30))
 		if e.IP != "" {
@@ -116,11 +116,11 @@ func auditList(r *req, a []string) {
 	if p := pager("au", page, pages); p != nil {
 		kb = append(kb, p)
 	}
-	row := []Button{btn("👤 فیلتر ادمین", "auf")}
+	row := []Button{btn(T("👤 فیلتر ادمین"), "auf")}
 	if r.st.auditActor != "" {
-		row = append(row, btn("🧹 همه", "aus", -1))
+		row = append(row, btn(T("🧹 همه"), "aus", -1))
 	}
-	row = append(row, btn("🔄 تازه کردن", "au", page))
+	row = append(row, btn(T("🔄 تازه کردن"), "au", page))
 	kb = append(kb, row, nav("home"))
 	r.show(view{text: t, kb: kb})
 }
@@ -143,10 +143,10 @@ func auditFilter(r *req, _ []string) {
 		bs = append(bs, btn(mark+cut(n, 24), "aus", i))
 	}
 	kb := chunk(bs, 2)
-	kb = append(kb, []Button{btn("🧹 همه ادمین ها", "aus", -1)}, nav("au"))
-	t := header("👤", "فیلتر گزارش") + "کارهای کدام ادمین نشان داده شود؟"
+	kb = append(kb, []Button{btn(T("🧹 همه ادمین ها"), "aus", -1)}, nav("au"))
+	t := header("👤", T("فیلتر گزارش")) + T("کارهای کدام ادمین نشان داده شود؟")
 	if len(res.Actors) == 0 {
-		t += "\n\nهنوز گزارشی ثبت نشده است."
+		t += T("\n\nهنوز گزارشی ثبت نشده است.")
 	}
 	r.show(view{text: t, kb: kb})
 }

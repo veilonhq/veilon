@@ -30,6 +30,8 @@ The **Bot status** card shows whether the bot is running, its username and the l
 
 ## 4. Bot sections
 
+The first time you press `/start`, the bot asks whether it should speak Persian or English. Each admin's choice is saved separately and can be changed at any time with the **🌐 Language** button in the main menu (or `/lang`); notifications are sent in that admin's language too.
+
 `/start` or `/menu` opens the main menu:
 
 - **👥 Users:** list with search and filters, create, edit, renew (days and data), reset usage, enable and disable, group and inbounds, connections, subscription link and QR, new subscription link, and delete with confirmation.

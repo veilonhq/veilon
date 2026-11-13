@@ -1,7 +1,6 @@
 package tgbot
 
 import (
-	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
@@ -52,7 +51,7 @@ func pct(used, total int64) string {
 	if total <= 0 {
 		return ""
 	}
-	return fa(strconv.FormatFloat(float64(used)*100/float64(total), 'f', 0, 64)) + "٪"
+	return fa(strconv.FormatFloat(float64(used)*100/float64(total), 'f', 0, 64)) + T("٪")
 }
 
 func uptime(sec int64) string {
@@ -61,11 +60,11 @@ func uptime(sec int64) string {
 	m := (sec % 3600) / 60
 	switch {
 	case d > 0:
-		return faInt(d) + " روز و " + faInt(h) + " ساعت"
+		return faInt(d) + T(" روز و ") + faInt(h) + T(" ساعت")
 	case h > 0:
-		return faInt(h) + " ساعت و " + faInt(m) + " دقیقه"
+		return faInt(h) + T(" ساعت و ") + faInt(m) + T(" دقیقه")
 	default:
-		return faInt(m) + " دقیقه"
+		return faInt(m) + T(" دقیقه")
 	}
 }
 
@@ -78,16 +77,16 @@ func init() {
 	on("sl", sysLogs)
 	on("slf", sysLogsFile)
 	on("sr", func(r *req, _ []string) {
-		confirm(r, "راه اندازی دوباره هسته",
-			"هسته ها (Xray و بقیه) دوباره راه اندازی شوند؟\nاتصال همه کاربران چند ثانیه قطع می شود.", "sry", "sys")
+		confirm(r, T("راه اندازی دوباره هسته"),
+			T("هسته ها (Xray و بقیه) دوباره راه اندازی شوند؟\nاتصال همه کاربران چند ثانیه قطع می شود."), "sry", "sys")
 	})
 	on("sry", func(r *req, _ []string) {
-		r.progress("در حال راه اندازی دوباره هسته")
+		r.progress(T("در حال راه اندازی دوباره هسته"))
 		if err := r.call("POST", "/core/restart", nil, nil); err != nil {
 			r.fail(err, "sys")
 			return
 		}
-		r.toast("♻️ هسته دوباره راه اندازی شد")
+		r.toast(T("♻️ هسته دوباره راه اندازی شد"))
 		// The engines take a moment to come back.
 		time.Sleep(2 * time.Second)
 		sysView(r, nil)
@@ -100,26 +99,26 @@ func sysView(r *req, _ []string) {
 		r.fail(err, "home")
 		return
 	}
-	t := header("📊", "وضعیت سرور")
-	t += "🧠 پردازنده: <b>" + fa(strconv.FormatFloat(s.CPU, 'f', 0, 64)) + "٪</b>"
+	t := header("📊", T("وضعیت سرور"))
+	t += T("🧠 پردازنده: <b>") + fa(strconv.FormatFloat(s.CPU, 'f', 0, 64)) + T("٪</b>")
 	if s.Cores > 0 {
-		t += " · " + faInt(s.Cores) + " هسته"
+		t += " · " + faInt(s.Cores) + T(" هسته")
 	}
 	if len(s.Load) > 0 {
-		t += " · بار: " + fa(strconv.FormatFloat(s.Load[0], 'f', 2, 64))
+		t += T(" · بار: ") + fa(strconv.FormatFloat(s.Load[0], 'f', 2, 64))
 	}
 	t += "\n"
-	t += "💾 رم: " + bar(s.MemUsed, s.MemTotal) + " " + pct(s.MemUsed, s.MemTotal) + " · " + size(s.MemUsed) + " از " + size(s.MemTotal) + "\n"
-	t += "🗄 دیسک: " + bar(s.DiskUsed, s.DiskTotal) + " " + pct(s.DiskUsed, s.DiskTotal) + " · " + size(s.DiskUsed) + " از " + size(s.DiskTotal) + "\n"
-	t += "⏱ روشن از: " + uptime(s.Uptime) + "\n"
-	t += "🌐 سرعت شبکه: ⬆️ " + speed(s.NetUp) + " · ⬇️ " + speed(s.NetDown) + "\n"
-	t += "📶 ترافیک کل کاربران: ⬆️ " + size(s.TotalUp) + " · ⬇️ " + size(s.TotalDown) + "\n"
-	t += "👥 کاربران: " + faInt(s.UsersTotal) + " · 🟢 آنلاین: <b>" + faInt(s.UsersOnline) + "</b> · فعال: " + faInt(s.UsersActive) + "\n"
+	t += T("💾 رم: ") + bar(s.MemUsed, s.MemTotal) + " " + pct(s.MemUsed, s.MemTotal) + " · " + size(s.MemUsed) + T(" از ") + size(s.MemTotal) + "\n"
+	t += T("🗄 دیسک: ") + bar(s.DiskUsed, s.DiskTotal) + " " + pct(s.DiskUsed, s.DiskTotal) + " · " + size(s.DiskUsed) + T(" از ") + size(s.DiskTotal) + "\n"
+	t += T("⏱ روشن از: ") + uptime(s.Uptime) + "\n"
+	t += T("🌐 سرعت شبکه: ⬆️ ") + speed(s.NetUp) + " · ⬇️ " + speed(s.NetDown) + "\n"
+	t += T("📶 ترافیک کل کاربران: ⬆️ ") + size(s.TotalUp) + " · ⬇️ " + size(s.TotalDown) + "\n"
+	t += T("👥 کاربران: ") + faInt(s.UsersTotal) + T(" · 🟢 آنلاین: <b>") + faInt(s.UsersOnline) + T("</b> · فعال: ") + faInt(s.UsersActive) + "\n"
 	if s.UsersExpired+s.UsersLimited > 0 {
-		t += "⌛️ منقضی: " + faInt(s.UsersExpired) + " · 📛 حجم تمام: " + faInt(s.UsersLimited) + "\n"
+		t += T("⌛️ منقضی: ") + faInt(s.UsersExpired) + T(" · 📛 حجم تمام: ") + faInt(s.UsersLimited) + "\n"
 	}
 	if len(s.CoreList) > 0 {
-		t += "\n<b>هسته ها</b>\n"
+		t += T("\n<b>هسته ها</b>\n")
 		for _, c := range s.CoreList {
 			mark := "🟢"
 			switch {
@@ -135,7 +134,7 @@ func sysView(r *req, _ []string) {
 				t += " " + code(c.Version)
 			}
 			if !c.Enabled && !c.Running && !c.Stopped {
-				t += " · بدون ورودی"
+				t += T(" · بدون ورودی")
 			}
 			if c.Error != "" && !c.Running {
 				t += "\n   ⚠️ " + esc(cut(c.Error, 200))
@@ -143,10 +142,10 @@ func sysView(r *req, _ []string) {
 			t += "\n"
 		}
 	}
-	t += "\nپنل: " + code(r.b.Version) + " · " + jdate(r.b.now(), r.b.loc())
+	t += T("\nپنل: ") + code(r.b.Version) + " · " + jdate(r.b.now(), r.b.loc())
 	r.show(view{text: t, kb: Keyboard{
-		{btn("🔄 تازه کردن", "sys"), btn("📜 لاگ ها", "sl", "all")},
-		{btn("♻️ راه اندازی دوباره هسته", "sr")},
+		{btn(T("🔄 تازه کردن"), "sys"), btn(T("📜 لاگ ها"), "sl", "all")},
+		{btn(T("♻️ راه اندازی دوباره هسته"), "sr")},
 		nav("home"),
 	}})
 }
@@ -178,9 +177,9 @@ func logSources(r *req) []string {
 func srcLabel(s string) string {
 	switch s {
 	case "all":
-		return "همه"
+		return T("همه")
 	case "panel":
-		return "پنل"
+		return T("پنل")
 	}
 	return coreLabel(s)
 }
@@ -205,24 +204,24 @@ func sysLogs(r *req, a []string) {
 	}
 	kb := chunk(srcRow, 4)
 	kb = append(kb,
-		[]Button{btn("🔄 تازه کردن", "sl", src), btn("📄 فایل ۱۰۰۰ خط", "slf", src)},
+		[]Button{btn(T("🔄 تازه کردن"), "sl", src), btn(T("📄 فایل ۱۰۰۰ خط"), "slf", src)},
 		nav("sys"))
-	t := header("📜", "لاگ ها · "+srcLabel(src))
+	t := header("📜", T("لاگ ها · ")+srcLabel(src))
 	if len(lines) == 0 {
-		r.show(view{text: t + "لاگی ثبت نشده است.", kb: kb})
+		r.show(view{text: t + T("لاگی ثبت نشده است."), kb: kb})
 		return
 	}
 	body := strings.Join(lines, "\n")
 	// A screen holds at most 4096 characters: longer logs go as a file.
 	if len([]rune(t+body)) > 3500 {
-		if err := r.cl.SendDocument(r.ctx, r.chat, logFileName(src, r), []byte(body+"\n"), "📜 آخرین "+faInt(len(lines))+" خط لاگ · "+esc(srcLabel(src))); err != nil {
+		if err := r.cl.SendDocument(r.ctx, r.chat, logFileName(src, r), []byte(body+"\n"), T("📜 آخرین ")+faInt(len(lines))+T(" خط لاگ · ")+esc(srcLabel(src))); err != nil {
 			r.fail(err, "sys")
 			return
 		}
-		r.fresh(view{text: t + "آخرین " + faInt(len(lines)) + " خط لاگ طولانی بود و به صورت فایل فرستاده شد.", kb: kb})
+		r.fresh(view{text: t + T("آخرین ") + faInt(len(lines)) + T(" خط لاگ طولانی بود و به صورت فایل فرستاده شد."), kb: kb})
 		return
 	}
-	r.show(view{text: t + "آخرین " + faInt(len(lines)) + " خط:\n<pre>" + esc(body) + "</pre>", kb: kb})
+	r.show(view{text: t + T("آخرین ") + faInt(len(lines)) + T(" خط:\n<pre>") + esc(body) + "</pre>", kb: kb})
 }
 
 func logFileName(src string, r *req) string {
@@ -231,7 +230,7 @@ func logFileName(src string, r *req) string {
 
 func sysLogsFile(r *req, a []string) {
 	src := argStr(a, 0)
-	r.progress("در حال آماده کردن فایل لاگ")
+	r.progress(T("در حال آماده کردن فایل لاگ"))
 	lines, err := r.logLines(src, 1000)
 	if err != nil {
 		r.fail(err, cbd("sl", src))
@@ -241,9 +240,9 @@ func sysLogsFile(r *req, a []string) {
 		lines = []string{"(empty)"}
 	}
 	if err := r.cl.SendDocument(r.ctx, r.chat, logFileName(src, r), []byte(strings.Join(lines, "\n")+"\n"),
-		"📜 "+fmt.Sprintf("%s خط لاگ · %s", faInt(len(lines)), esc(srcLabel(src)))); err != nil {
+		"📜 "+Tf("%s خط لاگ · %s", faInt(len(lines)), esc(srcLabel(src)))); err != nil {
 		r.fail(err, cbd("sl", src))
 		return
 	}
-	r.fresh(view{text: header("📜", "لاگ ها") + "فایل لاگ فرستاده شد.", kb: Keyboard{{btn("📜 لاگ ها", "sl", src)}, nav("sys")}})
+	r.fresh(view{text: header("📜", T("لاگ ها")) + T("فایل لاگ فرستاده شد."), kb: Keyboard{{btn(T("📜 لاگ ها"), "sl", src)}, nav("sys")}})
 }

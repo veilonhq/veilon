@@ -102,7 +102,7 @@ func (r *req) route(data string) {
 	}
 	h := routes[key]
 	if h == nil {
-		r.toast("این دکمه دیگر کار نمی کند")
+		r.toast(T("این دکمه دیگر کار نمی کند"))
 		home(r, nil)
 		return
 	}
@@ -119,9 +119,13 @@ func (r *req) route(data string) {
 func (r *req) onMessage(m *Message) {
 	r.st.watch++
 	text := strings.TrimSpace(m.Text)
-	if text == "/start" || text == "/menu" || strings.HasPrefix(text, "/start ") {
+	if text == "/start" || text == "/menu" || text == "/lang" || strings.HasPrefix(text, "/start ") {
 		r.st.pending = nil
 		r.msgID = 0
+		if text == "/lang" || loadLang(r.b.DB, r.from) == "" {
+			langMenu(r, nil)
+			return
+		}
 		home(r, nil)
 		return
 	}
@@ -170,12 +174,15 @@ func (r *req) fresh(v view) {
 	r.show(v)
 }
 
+// local resolves a two language text to the admin's language.
+func (r *req) local(s string) string { return localize(s, r.b.langOf(r.chat)) }
+
 func (r *req) toast(text string) {
 	if r.cbID == "" || r.answered {
 		return
 	}
 	r.answered = true
-	_ = r.cl.Answer(r.ctx, r.cbID, text, false)
+	_ = r.cl.Answer(r.ctx, r.cbID, r.local(text), false)
 }
 
 func (r *req) alert(text string) {
@@ -183,7 +190,7 @@ func (r *req) alert(text string) {
 		return
 	}
 	r.answered = true
-	_ = r.cl.Answer(r.ctx, r.cbID, text, true)
+	_ = r.cl.Answer(r.ctx, r.cbID, r.local(text), true)
 }
 
 // ask shows a prompt and waits for the admin to type a value.
@@ -191,14 +198,14 @@ func (r *req) ask(kind string, args []string, title, prompt, back string, extra 
 	r.st.pending = &pending{kind: kind, args: args, back: back}
 	kb := Keyboard{}
 	kb = append(kb, extra...)
-	kb = append(kb, []Button{btn("✖️ انصراف", back)})
+	kb = append(kb, []Button{btn(T("✖️ انصراف"), back)})
 	r.show(view{text: header("✍️", title) + prompt, kb: kb})
 }
 
 // progress shows a short "working" screen before a slow action.
 func (r *req) progress(text string) {
 	r.toast("⏳")
-	r.show(view{text: "⏳ " + text + "\nلطفا چند لحظه صبر کنید...", kb: Keyboard{}})
+	r.show(view{text: "⏳ " + text + T("\nلطفا چند لحظه صبر کنید..."), kb: Keyboard{}})
 }
 
 // watch redraws the current screen every b.WatchEvery until draw reports
@@ -247,7 +254,7 @@ func (r *req) call(method, path string, body, out any) error {
 
 // fail shows an API error under a screen with a way back.
 func (r *req) fail(err error, back string) {
-	r.show(view{text: header("⚠️", "انجام نشد") + esc(errText(err)), kb: Keyboard{{btn("🔙 بازگشت", back), btn("🏠 خانه", "home")}}})
+	r.show(view{text: header("⚠️", T("انجام نشد")) + esc(errText(err)), kb: Keyboard{{btn(T("🔙 بازگشت"), back), btn(T("🏠 خانه"), "home")}}})
 }
 
 func errText(err error) string {
@@ -255,9 +262,9 @@ func errText(err error) string {
 	if errors.As(err, &ae) {
 		switch ae.Status {
 		case 403:
-			return "دسترسی کافی نیست: " + ae.Message
+			return T("دسترسی کافی نیست: ") + ae.Message
 		case 404:
-			return "پیدا نشد (شاید حذف شده است)."
+			return T("پیدا نشد (شاید حذف شده است).")
 		}
 		return ae.Message
 	}
@@ -276,8 +283,12 @@ func esc(s string) string { return html.EscapeString(s) }
 
 func code(s string) string { return "<code>" + esc(s) + "</code>" }
 
-// fa writes the digits of s in Persian.
+// fa writes the digits of s in Persian (Latin in English).
 func fa(s string) string {
+	return both(faDigits(s), s)
+}
+
+func faDigits(s string) string {
 	return strings.Map(func(r rune) rune {
 		if r >= '0' && r <= '9' {
 			return '۰' + (r - '0')
@@ -339,7 +350,7 @@ func (b *Bot) loc() *time.Location {
 func jdate(t time.Time, loc *time.Location) string {
 	t = t.In(loc)
 	y, m, d := toJalali(t.Year(), int(t.Month()), t.Day())
-	return fa(fmt.Sprintf("%04d/%02d/%02d %02d:%02d", y, m, d, t.Hour(), t.Minute()))
+	return both(faDigits(fmt.Sprintf("%04d/%02d/%02d %02d:%02d", y, m, d, t.Hour(), t.Minute())), t.Format("2006-01-02 15:04"))
 }
 
 // toJalali converts a Gregorian date to the solar hijri calendar.
@@ -376,11 +387,11 @@ func left(d time.Duration) string {
 	}
 	switch {
 	case d >= 48*time.Hour:
-		return faInt(int64(d/(24*time.Hour))) + " روز"
+		return faInt(int64(d/(24*time.Hour))) + T(" روز")
 	case d >= time.Hour:
-		return faInt(int64(d/time.Hour)) + " ساعت"
+		return faInt(int64(d/time.Hour)) + T(" ساعت")
 	default:
-		return faInt(int64(d/time.Minute)) + " دقیقه"
+		return faInt(int64(d/time.Minute)) + T(" دقیقه")
 	}
 }
 
@@ -409,9 +420,9 @@ func pager(key string, page, pages int, args ...any) []Button {
 
 func nav(back string) []Button {
 	if back == "" || back == "home" {
-		return []Button{btn("🏠 خانه", "home")}
+		return []Button{btn(T("🏠 خانه"), "home")}
 	}
-	return []Button{btn("🔙 بازگشت", back), btn("🏠 خانه", "home")}
+	return []Button{btn(T("🔙 بازگشت"), back), btn(T("🏠 خانه"), "home")}
 }
 
 func argInt(a []string, i int) int64 {
@@ -441,13 +452,7 @@ func chunk(bs []Button, n int) Keyboard {
 	return kb
 }
 
-func cut(s string, n int) string {
-	rs := []rune(s)
-	if len(rs) <= n {
-		return s
-	}
-	return string(rs[:n-1]) + "…"
-}
+func cut(s string, n int) string { return cutText(s, n) }
 
 func init() {
 	on("noop", func(r *req, a []string) { r.toast("") })
@@ -463,17 +468,25 @@ func home(r *req, _ []string) {
 		UsersOnline int64   `json:"users_online"`
 		CPU         float64 `json:"cpu_percent"`
 	}
-	text := header("🛡", "Veilon | مدیریت پنل")
+	text := header("🛡", T("Veilon | مدیریت پنل"))
 	if err := r.call("GET", "/system/stats", nil, &st); err == nil {
-		text += fmt.Sprintf("👥 کاربران: <b>%s</b>   🟢 آنلاین: <b>%s</b>\n🧠 پردازنده: <b>%s٪</b>\n",
+		text += Tf("👥 کاربران: <b>%s</b>   🟢 آنلاین: <b>%s</b>\n🧠 پردازنده: <b>%s٪</b>\n",
 			faInt(st.UsersTotal), faInt(st.UsersOnline), fa(strconv.FormatFloat(st.CPU, 'f', 0, 64)))
 	}
-	text += "\nیک بخش را انتخاب کنید:"
+	text += T("\nیک بخش را انتخاب کنید:")
 	r.show(view{text: text, kb: Keyboard{
-		{btn("👥 کاربران", "ul", 1), btn("📥 ورودی ها", "il")},
-		{btn("🌐 نود ها", "nl"), btn("📊 وضعیت سرور", "sys")},
-		{btn("⬆️ بروزرسانی", "upd"), btn("💾 پشتیبان", "bk")},
-		{btn("🧭 تنظیمات Xray", "xr"), btn("⚙️ تنظیمات پنل", "ps")},
-		{btn("👤 ادمین ها", "al"), btn("🗂 گزارش فعالیت", "au", 1)},
+		{btn(T("👥 کاربران"), "ul", 1), btn(T("📥 ورودی ها"), "il")},
+		{btn(T("🌐 نود ها"), "nl"), btn(T("📊 وضعیت سرور"), "sys")},
+		{btn(T("⬆️ بروزرسانی"), "upd"), btn(T("💾 پشتیبان"), "bk")},
+		{btn(T("🧭 تنظیمات Xray"), "xr"), btn(T("⚙️ تنظیمات پنل"), "ps")},
+		{btn(T("👤 ادمین ها"), "al"), btn(T("🗂 گزارش فعالیت"), "au", 1)},
+		{btn(both("🌐 زبان: فارسی", "🌐 Language: English"), "langm")},
 	}})
+}
+
+// jday formats the date of t, without the clock.
+func jday(t time.Time, loc *time.Location) string {
+	t = t.In(loc)
+	y, m, d := toJalali(t.Year(), int(t.Month()), t.Day())
+	return both(faDigits(fmt.Sprintf("%04d/%02d/%02d", y, m, d)), t.Format("2006-01-02"))
 }

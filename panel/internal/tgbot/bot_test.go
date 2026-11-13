@@ -271,6 +271,11 @@ func newRigWith(t *testing.T, setup func(srv *api.Server, b *tgbot.Bot)) *rig {
 	if err := tgbot.SaveConfig(gdb, tgbot.Config{Enabled: true, Admins: []int64{adminID}, Token: token, Notify: tgbot.Notify{}}); err != nil {
 		t.Fatal(err)
 	}
+	// The admin already picked Persian (TestLanguagePickedOnFirstStart
+	// covers the first start).
+	if err := db.SetSetting(gdb, fmt.Sprintf("_telegram_lang_%d", adminID), "fa"); err != nil {
+		t.Fatal(err)
+	}
 	b := &tgbot.Bot{DB: gdb, API: srv, PollTimeout: 1, WatchEvery: 100 * time.Millisecond}
 	if setup != nil {
 		setup(srv, b)

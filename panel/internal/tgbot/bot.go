@@ -163,7 +163,11 @@ func (b *Bot) Run(ctx context.Context) {
 }
 
 func (b *Bot) client(cfg Config) (*Client, error) {
-	return NewClient(cfg.Token, b.Base, cfg.Proxy)
+	cl, err := NewClient(cfg.Token, b.Base, cfg.Proxy)
+	if err == nil {
+		cl.Lang = b.langOf
+	}
+	return cl, err
 }
 
 func sleepCtx(ctx context.Context, d time.Duration) bool {
@@ -379,7 +383,7 @@ func Test(ctx context.Context, cfg Config, base string) (*User, map[int64]error,
 	}
 	res := map[int64]error{}
 	for _, id := range cfg.Admins {
-		_, err := cl.Send(ctx, id, "✅ <b>Veilon</b>\nاتصال ربات به پنل برقرار است. برای باز کردن منو /start را بفرستید.", nil)
+		_, err := cl.Send(ctx, id, "✅ <b>Veilon</b>\nاتصال ربات به پنل برقرار است. برای باز کردن منو /start را بفرستید.\nThe bot is connected to the panel. Send /start to open the menu.", nil)
 		res[id] = err
 	}
 	return me, res, nil

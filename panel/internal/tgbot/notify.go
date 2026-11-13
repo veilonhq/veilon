@@ -164,13 +164,13 @@ func (b *Bot) userEvents(now time.Time, n Notify, active map[string]map[int64]bo
 				// a user that went straight past 100% gets one notice
 				active[nkTraffic90][u.ID] = true
 				evs = append(evs, event{kind: nkTraffic100, subject: u.ID, mark: mark, user: u, record: true,
-					text: "<b>" + esc(u.Username) + "</b> حجمش تمام شد (" + size(used) + " از " + size(u.DataLimit) + ")"})
+					text: "<b>" + esc(u.Username) + T("</b> حجمش تمام شد (") + size(used) + T(" از ") + size(u.DataLimit) + ")"})
 				continue
 			}
 			active[nkTraffic90][u.ID] = true
 			pct := used * 100 / u.DataLimit
 			evs = append(evs, event{kind: nkTraffic90, subject: u.ID, mark: mark, user: u, record: true,
-				text: "<b>" + esc(u.Username) + "</b> " + faInt(pct) + "٪ حجمش را مصرف کرد (" + size(used) + " از " + size(u.DataLimit) + ")"})
+				text: "<b>" + esc(u.Username) + "</b> " + faInt(pct) + T("٪ حجمش را مصرف کرد (") + size(used) + T(" از ") + size(u.DataLimit) + ")"})
 		}
 	}
 	if n.Expiry {
@@ -185,12 +185,12 @@ func (b *Bot) userEvents(now time.Time, n Notify, active map[string]map[int64]bo
 				active[nkExpired][u.ID] = true
 				active[nkExpiring][u.ID] = true
 				evs = append(evs, event{kind: nkExpired, subject: u.ID, mark: mark, user: u, record: true,
-					text: "<b>" + esc(u.Username) + "</b> منقضی شد"})
+					text: "<b>" + esc(u.Username) + T("</b> منقضی شد")})
 				continue
 			}
 			active[nkExpiring][u.ID] = true
 			evs = append(evs, event{kind: nkExpiring, subject: u.ID, mark: mark, user: u, record: true,
-				text: "<b>" + esc(u.Username) + "</b> کمتر از یک روز مانده (" + left(u.ExpireAt.Sub(now)) + ")"})
+				text: "<b>" + esc(u.Username) + T("</b> کمتر از یک روز مانده (") + left(u.ExpireAt.Sub(now)) + ")"})
 		}
 	}
 	// A user who already got the 100% (or expired) notice does not also get
@@ -240,7 +240,7 @@ func (b *Bot) nodeEvents(ctx context.Context, cfg Config, active map[string]map[
 			b.nodeOff[nd.ID] = 0
 			if reported[nd.ID] && nd.Enabled && (st == "online" || st == "degraded") {
 				back = append(back, event{kind: "node_on", subject: nd.ID, nodeID: nd.ID, name: nd.Name,
-					text: "🟢 <b>" + esc(nd.Name) + "</b> دوباره وصل شد"})
+					text: "🟢 <b>" + esc(nd.Name) + T("</b> دوباره وصل شد")})
 				active[nkNodeOff][nd.ID] = true // removed after the send
 			} else if reported[nd.ID] && nd.Enabled {
 				active[nkNodeOff][nd.ID] = true // not back yet (waiting)
@@ -252,7 +252,7 @@ func (b *Bot) nodeEvents(ctx context.Context, cfg Config, active map[string]map[
 			continue
 		}
 		active[nkNodeOff][nd.ID] = true
-		msg := "🔴 <b>" + esc(nd.Name) + "</b> آفلاین شد"
+		msg := "🔴 <b>" + esc(nd.Name) + T("</b> آفلاین شد")
 		if nd.State.Error != "" {
 			msg += " · " + esc(cut(nd.State.Error, 80))
 		}
@@ -275,7 +275,7 @@ func (b *Bot) releaseEvents(ctx context.Context, cfg Config) []event {
 		return nil
 	}
 	return []event{{kind: nkRelease, mark: info.Available.Tag, record: true,
-		text: "نسخه تازه پنل منتشر شد: " + code(info.Available.Tag) + " (نسخه فعلی " + code(info.Current) + ")"}}
+		text: T("نسخه تازه پنل منتشر شد: ") + code(info.Available.Tag) + T(" (نسخه فعلی ") + code(info.Current) + ")"}}
 }
 
 // noticeMessage groups a round's events into one message with buttons.
@@ -284,12 +284,12 @@ func noticeMessage(evs []event) (string, Keyboard) {
 		title string
 		kinds []string
 	}{
-		{"📊 حجم", []string{nkTraffic100, nkTraffic90}},
-		{"⏳ انقضا", []string{nkExpired, nkExpiring}},
-		{"🌐 نود ها", []string{nkNodeOff, "node_on"}},
-		{"⬆️ بروزرسانی", []string{nkRelease}},
+		{T("📊 حجم"), []string{nkTraffic100, nkTraffic90}},
+		{T("⏳ انقضا"), []string{nkExpired, nkExpiring}},
+		{T("🌐 نود ها"), []string{nkNodeOff, "node_on"}},
+		{T("⬆️ بروزرسانی"), []string{nkRelease}},
 	}
-	t := "🔔 <b>Veilon · اعلان ها</b>\n" + line + "\n"
+	t := T("🔔 <b>Veilon · اعلان ها</b>\n") + line + "\n"
 	lines := 0
 	hidden := 0
 	for _, g := range groups {
@@ -312,7 +312,7 @@ func noticeMessage(evs []event) (string, Keyboard) {
 		}
 	}
 	if hidden > 0 {
-		t += "\n… و " + faInt(hidden) + " مورد دیگر"
+		t += T("\n… و ") + faInt(hidden) + T(" مورد دیگر")
 	}
 	// Buttons open a fresh menu below, so the notice itself stays in the chat.
 	var kb Keyboard
@@ -325,9 +325,9 @@ func noticeMessage(evs []event) (string, Keyboard) {
 			users[e.user.ID] = true
 			row := []Button{btn("👤 "+cut(e.user.Username, 18), "nx", "uv", e.user.ID)}
 			if e.user.ExpireAt != nil {
-				row = append(row, btn("➕ ۳۰ روز", "nx", "nren", e.user.ID))
+				row = append(row, btn(T("➕ ۳۰ روز"), "nx", "nren", e.user.ID))
 			} else {
-				row = append(row, btn("♻️ تمدید", "nx", "ur", e.user.ID))
+				row = append(row, btn(T("♻️ تمدید"), "nx", "ur", e.user.ID))
 			}
 			kb = append(kb, row)
 		case e.nodeID != 0 && !nodes[e.nodeID] && len(nodes) < 4:
@@ -335,7 +335,7 @@ func noticeMessage(evs []event) (string, Keyboard) {
 			kb = append(kb, []Button{btn("🌐 "+cut(e.name, 24), "nx", "nv", e.nodeID)})
 		case e.kind == nkRelease && !release:
 			release = true
-			kb = append(kb, []Button{btn("⬆️ بروزرسانی پنل", "nx", "upd")})
+			kb = append(kb, []Button{btn(T("⬆️ بروزرسانی پنل"), "nx", "upd")})
 		}
 	}
 	return t, kb
@@ -364,10 +364,10 @@ func init() {
 			r.fail(err, "home")
 			return
 		}
-		q := "۳۰ روز به زمان <b>" + esc(u.Username) + "</b> اضافه شود؟"
+		q := T("۳۰ روز به زمان <b>") + esc(u.Username) + T("</b> اضافه شود؟")
 		if u.ExpireAt != nil {
-			q += "\nانقضای فعلی: " + jdate(*u.ExpireAt, r.b.loc())
+			q += T("\nانقضای فعلی: ") + jdate(*u.ExpireAt, r.b.loc())
 		}
-		confirm(r, "تمدید "+u.Username, q, cbd("ura", id, 30), cbd("uv", id))
+		confirm(r, T("تمدید ")+u.Username, q, cbd("ura", id, 30), cbd("uv", id))
 	})
 }

@@ -37,19 +37,19 @@ type updInfo struct {
 
 // Steps of a panel update as the updater reports them.
 var updSteps = []struct{ key, label string }{
-	{"queued", "در صف"},
-	{"download", "دریافت نسخه تازه"},
-	{"verify", "بررسی checksum"},
-	{"backup", "پشتیبان از نسخه فعلی"},
-	{"install", "نصب"},
-	{"restart", "راه اندازی دوباره پنل"},
-	{"health", "بررسی سلامت"},
+	{"queued", T("در صف")},
+	{"download", T("دریافت نسخه تازه")},
+	{"verify", T("بررسی checksum")},
+	{"backup", T("پشتیبان از نسخه فعلی")},
+	{"install", T("نصب")},
+	{"restart", T("راه اندازی دوباره پنل")},
+	{"health", T("بررسی سلامت")},
 }
 
 func init() {
 	on("upd", updView)
 	on("upc", func(r *req, _ []string) {
-		r.progress("در حال بررسی نسخه تازه")
+		r.progress(T("در حال بررسی نسخه تازه"))
 		var info updInfo
 		if err := r.call("POST", "/system/update/check", nil, &info); err != nil {
 			r.fail(err, "upd")
@@ -67,15 +67,15 @@ func init() {
 			updDraw(r, &info)
 			return
 		}
-		confirm(r, "بروزرسانی پنل",
-			"پنل از "+code(info.Current)+" به "+code(info.Available.Tag)+" بروزرسانی شود؟\n\n"+
-				"پیش از نصب از برنامه و پایگاه داده پشتیبان گرفته می شود و اگر نسخه تازه سالم بالا نیاید، نسخه قبلی خودکار برمی گردد. "+
-				"پنل و این ربات چند ثانیه از دسترس خارج می شوند و اتصال کاربران لحظه ای قطع می شود.",
+		confirm(r, T("بروزرسانی پنل"),
+			T("پنل از ")+code(info.Current)+T(" به ")+code(info.Available.Tag)+T(" بروزرسانی شود؟\n\n")+
+				T("پیش از نصب از برنامه و پایگاه داده پشتیبان گرفته می شود و اگر نسخه تازه سالم بالا نیاید، نسخه قبلی خودکار برمی گردد. ")+
+				T("پنل و این ربات چند ثانیه از دسترس خارج می شوند و اتصال کاربران لحظه ای قطع می شود."),
 			cbd("upy", info.Available.Tag), "upd")
 	})
 	on("upy", func(r *req, a []string) {
 		tag := argStr(a, 0)
-		r.progress("در حال شروع بروزرسانی")
+		r.progress(T("در حال شروع بروزرسانی"))
 		if err := r.call("POST", "/system/update", map[string]any{"tag": tag}, nil); err != nil {
 			r.fail(err, "upd")
 			return
@@ -99,38 +99,38 @@ func updView(r *req, _ []string) {
 }
 
 func updDraw(r *req, info *updInfo) {
-	t := header("⬆️", "بروزرسانی پنل")
-	t += "نسخه فعلی: " + code(info.Current) + "\n"
+	t := header("⬆️", T("بروزرسانی پنل"))
+	t += T("نسخه فعلی: ") + code(info.Current) + "\n"
 	if info.CheckedAt != nil {
-		t += "آخرین بررسی: " + jdate(*info.CheckedAt, r.b.loc()) + "\n"
+		t += T("آخرین بررسی: ") + jdate(*info.CheckedAt, r.b.loc()) + "\n"
 	}
 	if st := info.Status; st != nil && !st.Running && st.Tag != "" {
 		switch st.Phase {
 		case "done":
-			t += "آخرین بروزرسانی: ✅ " + code(st.Tag) + "\n"
+			t += T("آخرین بروزرسانی: ✅ ") + code(st.Tag) + "\n"
 		case "failed", "rolled_back":
-			t += "آخرین بروزرسانی به " + code(st.Tag) + ": ⚠️ ناموفق"
+			t += T("آخرین بروزرسانی به ") + code(st.Tag) + T(": ⚠️ ناموفق")
 			if st.Phase == "rolled_back" {
-				t += " (نسخه قبلی برگشت)"
+				t += T(" (نسخه قبلی برگشت)")
 			}
 			t += "\n"
 		}
 	}
 	kb := Keyboard{}
 	if rel := info.Available; rel != nil {
-		t += "\n🆕 نسخه تازه: <b>" + esc(rel.Tag) + "</b>\n"
+		t += T("\n🆕 نسخه تازه: <b>") + esc(rel.Tag) + "</b>\n"
 		if notes := releaseNotes(rel.Notes, db.LoadSettings(r.b.DB).Language, 2500); notes != "" {
 			t += "\n" + notes + "\n"
 		}
 		if info.CanUpdate {
-			kb = append(kb, []Button{btn("⬆️ نصب "+rel.Tag, "upa")})
+			kb = append(kb, []Button{btn(T("⬆️ نصب ")+rel.Tag, "upa")})
 		} else {
-			t += "\n⚠️ بروزرساننده روی این سرور نصب نیست. یک بار روی سرور اجرا کنید: " + code("sudo veilon update")
+			t += T("\n⚠️ بروزرساننده روی این سرور نصب نیست. یک بار روی سرور اجرا کنید: ") + code("sudo veilon update")
 		}
 	} else {
-		t += "\n✅ پنل به روز است."
+		t += T("\n✅ پنل به روز است.")
 	}
-	kb = append(kb, []Button{btn("🔍 بررسی دوباره", "upc")}, nav("home"))
+	kb = append(kb, []Button{btn(T("🔍 بررسی دوباره"), "upc")}, nav("home"))
 	r.show(view{text: t, kb: kb})
 }
 
@@ -141,14 +141,14 @@ func updWatch(r *req, _ []string) {
 	r.watch(5*time.Minute, func(w *req) (view, bool) {
 		var info updInfo
 		if err := w.call("GET", "/system/update", nil, &info); err != nil {
-			return view{text: header("⚠️", "انجام نشد") + esc(errText(err)), kb: Keyboard{{btn("🔄 تازه کردن", "upw")}, nav("home")}}, true
+			return view{text: header("⚠️", T("انجام نشد")) + esc(errText(err)), kb: Keyboard{{btn(T("🔄 تازه کردن"), "upw")}, nav("home")}}, true
 		}
 		st := info.Status
-		t := header("⬆️", "بروزرسانی پنل")
+		t := header("⬆️", T("بروزرسانی پنل"))
 		if st == nil {
-			return view{text: t + "بروزرسانی ای در جریان نیست.", kb: Keyboard{nav("upd")}}, true
+			return view{text: t + T("بروزرسانی ای در جریان نیست."), kb: Keyboard{nav("upd")}}, true
 		}
-		t += "از " + code(st.From) + " به " + code(st.Tag) + "\n\n"
+		t += T("از ") + code(st.From) + T(" به ") + code(st.Tag) + "\n\n"
 		cur := -1
 		for i, s := range updSteps {
 			if s.key == st.Phase {
@@ -170,28 +170,28 @@ func updWatch(r *req, _ []string) {
 		}
 		switch {
 		case st.Phase == "done":
-			t += "\n✅ پنل با نسخه " + code(st.Tag) + " بالا آمد."
+			t += T("\n✅ پنل با نسخه ") + code(st.Tag) + T(" بالا آمد.")
 		case final:
-			t += "\n⚠️ بروزرسانی انجام نشد"
+			t += T("\n⚠️ بروزرسانی انجام نشد")
 			if st.Phase == "rolled_back" {
-				t += " و نسخه قبلی برگردانده شد"
+				t += T(" و نسخه قبلی برگردانده شد")
 			}
 			t += ".\n"
 			if st.Error != "" {
 				t += esc(cut(st.Error, 400)) + "\n"
 			}
 			if st.BackupDir != "" {
-				t += "پشتیبان: " + code(st.BackupDir) + "\n"
+				t += T("پشتیبان: ") + code(st.BackupDir) + "\n"
 			}
 		default:
 			if st.Message != "" {
 				t += "\n" + esc(cut(st.Message, 200))
 			}
-			t += "\n⏳ این صفحه خودکار تازه می شود. وقتی پنل دوباره راه اندازی شود، ربات چند ثانیه جواب نمی دهد؛ بعد «تازه کردن» را بزنید."
+			t += T("\n⏳ این صفحه خودکار تازه می شود. وقتی پنل دوباره راه اندازی شود، ربات چند ثانیه جواب نمی دهد؛ بعد «تازه کردن» را بزنید.")
 		}
 		kb := Keyboard{}
 		if !final {
-			kb = append(kb, []Button{btn("🔄 تازه کردن", "upw")})
+			kb = append(kb, []Button{btn(T("🔄 تازه کردن"), "upw")})
 		}
 		kb = append(kb, nav("upd"))
 		return view{text: t, kb: kb}, final
