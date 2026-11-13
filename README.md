@@ -31,6 +31,8 @@
 پنل مدیریت پروکسی رایگان؛ یک فایل اجرایی، نصب با یک دستور
 
 📱 [کلاینت اندروید Veilon](https://github.com/veilonhq/veilon/tree/feat/client/client)
+&nbsp;·&nbsp;
+🔍 [اسکنر DNS و IP (ScanON)](https://github.com/skylarsob/ScanON)
 
 </div>
 
@@ -350,6 +352,16 @@ veilon cert list
 
 لینک اشتراک خودکار به روز می شود؛ اگر ورودی جدیدی به کاربر بدهید، کافی است در برنامه Update subscription را بزنید.
 
+## ابزار پیشنهادی: ScanON
+
+اگر دنبال DNS یا IP تمیز هستید، [ScanON](https://github.com/skylarsob/ScanON) یک اپ اندرویدی برای کاربرهای ایران است که IP، DNS و دامنه را اسکن می کند و نتیجه واقعی و تایید شده می دهد.
+
+- اسکن DNS با UDP، TCP، DoT و DoH
+- تست TCP، HTTP، HTTPS، WebSocket، ICMP و سرعت دانلود
+- موقعیت و ASN هر IP
+
+راهنما و دانلود: https://skylarsob.github.io/ScanON/
+
 ---
 
 ## پیکربندی Xray، هاست ها، به روزرسانی و نودها
@@ -526,6 +538,8 @@ UQCr7FXmeLsKLplHAgb1HIT0rxmQJpvAh4w2pST-DBGicbi2
 Free proxy panel. One binary, one-line install.
 
 📱 [Veilon Android client](https://github.com/veilonhq/veilon/tree/feat/client/client)
+&nbsp;·&nbsp;
+🔍 [DNS & IP scanner (ScanON)](https://github.com/skylarsob/ScanON)
 
 </div>
 
@@ -754,6 +768,16 @@ veilon cert issue --ip auto --panel
 | **Streisand** | iOS, macOS | Import the subscription link or scan the QR code |
 | **AmneziaWG** | Android, iOS, Windows, macOS | For AmneziaWG inbounds: download the `.conf` file from the user page and import it |
 | **WireGuard** | All | For WireGuard inbounds: the `.conf` file or scan the QR code |
+
+## Recommended tool: ScanON
+
+Looking for a clean DNS or IP? [ScanON](https://github.com/skylarsob/ScanON) is an Android app for users in Iran that scans IPs, DNS servers and domains with verified, honest measurements.
+
+- DNS scanning over UDP, TCP, DoT and DoH
+- TCP, HTTP, HTTPS, WebSocket, ICMP and download-speed tests
+- Location and ASN for every IP
+
+Guide and download: https://skylarsob.github.io/ScanON/
 
 ## Xray config, hosts, updates and nodes
 
