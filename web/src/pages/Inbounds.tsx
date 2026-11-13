@@ -107,6 +107,11 @@ export default function InboundsPage() {
                     {eng !== 'xray' && <span className="chip chip--violet">{engineName(eng)}</span>}
                   </>
                 )}
+                {!!ib.xray_too_old?.length && (
+                  <span className="chip chip--limited" title={t('inb.xrayOldTitle', { servers: ib.xray_too_old.map((x) => (x.node_id === 0 ? t('inb.runMain') : nodeName(x.node_id) || `#${x.node_id}`)).join('، ') })}>
+                    {t('inb.xrayOldChip')}
+                  </span>
+                )}
                 {!!ib.node_ids?.length && (
                   <span className={`chip ${s.nodeChip}`} title={ib.node_ids.map(nodeName).filter(Boolean).join('، ')}>
                     {t('inb.onNodes', { names: ib.node_ids.map(nodeName).filter(Boolean).join('، ') || n(ib.node_ids.length) })}

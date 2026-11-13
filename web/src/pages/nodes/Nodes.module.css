@@ -166,6 +166,18 @@
   unicode-bidi: plaintext;
 }
 
+.xrayOld {
+  position: relative;
+  z-index: 1;
+  padding: 9px 12px;
+  border-radius: 14px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--warn-fg);
+  background: var(--warn-soft);
+  overflow-wrap: anywhere;
+}
+
 .metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

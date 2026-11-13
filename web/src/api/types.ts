@@ -495,7 +495,17 @@ export interface Inbound {
   serve_main?: boolean;
   /** read-only: the main server runs it (no nodes, or serve_main) */
   on_main?: boolean;
+  /** read-only: features that need a minimum Xray-core version */
+  xray_needs?: XrayNeed[] | null;
+  /** read-only: servers (node_id 0 = main) whose Xray-core is too old; the inbound is left out there */
+  xray_too_old?: { node_id: number; version: string; needs: XrayNeed[] }[] | null;
   created_at: string;
+}
+
+/** A feature of an inbound and the Xray-core version it needs. */
+export interface XrayNeed {
+  feature: string;
+  min: string;
 }
 
 /** A link override of an inbound: one share/subscription link per enabled host. */
@@ -514,7 +524,7 @@ export interface InboundHost {
   enabled: boolean;
 }
 
-export type InboundInput = Omit<Inbound, 'id' | 'user_count' | 'host_count' | 'created_at' | 'on_main' | 'node_ids' | 'serve_main'> & {
+export type InboundInput = Omit<Inbound, 'id' | 'user_count' | 'host_count' | 'created_at' | 'on_main' | 'node_ids' | 'serve_main' | 'xray_needs' | 'xray_too_old'> & {
   node_ids: number[];
   serve_main: boolean;
 };
@@ -630,6 +640,8 @@ export interface NodeState {
   caps?: string[] | null;
   /** inbounds the agent is too old to run (AmneziaWG / MTProto before v0.3.8) */
   needs_update?: { id: number; remark: string; protocol: Protocol }[] | null;
+  /** inbounds left out because the node's Xray-core is too old for their settings */
+  xray_too_old?: { id: number; remark: string; needs: XrayNeed[] }[] | null;
 }
 export type NodeUpdatePhase = 'downloading' | 'verifying' | 'restarting' | 'done' | 'failed';
 export interface NodeUpdate {

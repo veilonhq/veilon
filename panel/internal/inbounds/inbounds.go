@@ -83,6 +83,37 @@ type View struct {
 	// no nodes, or ServeMain.
 	OnMain    bool      `json:"on_main"`
 	CreatedAt time.Time `json:"created_at"`
+	// XrayNeeds (read-only) lists the inbound's features that need a
+	// minimum Xray-core version; XrayTooOld (read-only) the servers known
+	// to run an older one, where the inbound is left out.
+	XrayNeeds  []XrayNeed   `json:"xray_needs,omitempty"`
+	XrayTooOld []XrayTooOld `json:"xray_too_old,omitempty"`
+}
+
+// XrayTooOld is a server (node_id 0 = the main server) whose Xray-core is
+// too old for an inbound.
+type XrayTooOld struct {
+	NodeID  int64      `json:"node_id"`
+	Version string     `json:"version"`
+	Needs   []XrayNeed `json:"needs"`
+}
+
+// fillXray sets the read-only Xray version fields of v.
+func (s *Service) fillXray(v *View) {
+	v.XrayNeeds = XrayNeeds(v)
+	if len(v.XrayNeeds) == 0 || s.XrayVersion == nil {
+		return
+	}
+	servers := v.NodeIDs
+	if v.OnMain {
+		servers = append([]int64{0}, servers...)
+	}
+	for _, id := range servers {
+		ver := s.XrayVersion(id)
+		if miss := XrayMissing(v, ver); len(miss) > 0 {
+			v.XrayTooOld = append(v.XrayTooOld, XrayTooOld{NodeID: id, Version: ver, Needs: miss})
+		}
+	}
 }
 
 // Tag is the Xray inbound tag for this inbound.
@@ -532,6 +563,7 @@ func (s *Service) List() ([]View, error) {
 			v.NodeIDs = ids
 		}
 		v.OnMain = v.ServeMain || len(v.NodeIDs) == 0
+		s.fillXray(&v)
 		out = append(out, v)
 	}
 	return out, nil
@@ -553,6 +585,7 @@ func (s *Service) Get(id int64) (*View, error) {
 		v.NodeIDs = ids
 	}
 	v.OnMain = v.ServeMain || len(v.NodeIDs) == 0
+	s.fillXray(&v)
 	return &v, nil
 }
 
@@ -685,21 +718,50 @@ func (s *Service) checkCross(v *View) error {
 	return nil
 }
 
-// checkEncXray refuses VLESS Encryption on a server whose Xray-core is
-// known to be older than the first release that has it. Unknown versions
-// (a node never reached, Xray not started yet) are let through.
-func (s *Service) checkEncXray(v *View) error {
-	if s.XrayVersion == nil || !v.VLESSEnc.On() {
+// checkEncXray refuses an inbound whose features (VLESS Encryption and the
+// advanced settings, see XrayNeeds) need a newer Xray-core than the main
+// server or a chosen node is known to run. Unknown versions (a node never
+// reached, Xray not started yet) are let through; if such a server turns
+// out to be too old, the config build leaves the inbound out there instead
+// of breaking the server's other inbounds.
+//
+// On update (prev set), a need the stored inbound already had on the same
+// server is not re-checked, so an inbound left out on an old node can still
+// be edited (or moved off that node).
+func (s *Service) checkEncXray(v *View, prev *View) error {
+	if s.XrayVersion == nil || len(XrayNeeds(v)) == 0 {
 		return nil
 	}
-	servers := []int64{}
-	if v.ServeMain || len(v.NodeIDs) == 0 {
-		servers = append(servers, 0)
+	serversOf := func(x *View) []int64 {
+		l := []int64{}
+		if x.ServeMain || len(x.NodeIDs) == 0 {
+			l = append(l, 0)
+		}
+		return append(l, x.NodeIDs...)
 	}
-	servers = append(servers, v.NodeIDs...)
-	for _, id := range servers {
+	had := map[int64]bool{}
+	if prev != nil {
+		for _, id := range serversOf(prev) {
+			had[id] = true
+		}
+	}
+	for _, id := range serversOf(v) {
 		ver := s.XrayVersion(id)
-		if VersionAtLeast(ver, MinVLESSEncXray) {
+		miss := XrayMissing(v, ver)
+		if had[id] && len(miss) > 0 {
+			old := map[string]bool{}
+			for _, n := range XrayMissing(prev, ver) {
+				old[n.Feature] = true
+			}
+			kept := miss[:0]
+			for _, n := range miss {
+				if !old[n.Feature] {
+					kept = append(kept, n)
+				}
+			}
+			miss = kept
+		}
+		if len(miss) == 0 {
 			continue
 		}
 		where := "the main server"
@@ -708,7 +770,10 @@ func (s *Service) checkEncXray(v *View) error {
 			s.DB.Select("id", "name").First(&n, id)
 			where = fmt.Sprintf("node %q", n.Name)
 		}
-		return verr("VLESS Encryption needs Xray-core %s or newer; %s runs %s", MinVLESSEncXray, where, ver)
+		if len(miss) == 1 {
+			return verr("%s needs Xray-core %s or newer; %s runs %s", miss[0].Feature, miss[0].Min, where, ver)
+		}
+		return verr("%s runs Xray-core %s, too old for: %s", where, ver, XrayMissingText(miss))
 	}
 	return nil
 }
@@ -727,7 +792,7 @@ func (s *Service) Create(v *View) (*View, error) {
 	if err := s.checkNodes(v); err != nil {
 		return nil, err
 	}
-	if err := s.checkEncXray(v); err != nil {
+	if err := s.checkEncXray(v, nil); err != nil {
 		return nil, err
 	}
 	if err := s.checkUnique(v, nil); err != nil {
@@ -767,7 +832,11 @@ func (s *Service) Update(v *View) (*View, error) {
 	if err := s.checkNodes(v); err != nil {
 		return nil, err
 	}
-	if err := s.checkEncXray(v); err != nil {
+	old, err := s.Get(v.ID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.checkEncXray(v, old); err != nil {
 		return nil, err
 	}
 	if err := s.checkUnique(v, &prev); err != nil {
@@ -777,7 +846,7 @@ func (s *Service) Update(v *View) (*View, error) {
 		return nil, err
 	}
 	toModel(v, &m)
-	err := s.DB.Transaction(func(tx *gorm.DB) error {
+	err = s.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Save(&m).Error; err != nil {
 			return err
 		}

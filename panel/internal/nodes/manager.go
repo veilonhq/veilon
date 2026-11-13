@@ -66,6 +66,10 @@ type State struct {
 	// (AmneziaWG / MTProto on agents before v0.3.8); they are skipped
 	// until the agent is updated.
 	NeedsUpdate []SkippedInbound `json:"needs_update"`
+	// XrayTooOld lists the node's inbounds whose settings need a newer
+	// Xray-core than the node reported; they are left out of its config
+	// (its other inbounds keep running) until Xray is updated.
+	XrayTooOld []XrayOldInbound `json:"xray_too_old"`
 	// liveOnline: the agent lists the users with open connections
 	// (CapOnline, v0.3.6 and later).
 	liveOnline bool
@@ -76,6 +80,14 @@ type SkippedInbound struct {
 	ID       int64  `json:"id"`
 	Remark   string `json:"remark"`
 	Protocol string `json:"protocol"`
+}
+
+// XrayOldInbound is an inbound left out because the node's Xray-core is
+// too old for it.
+type XrayOldInbound struct {
+	ID     int64               `json:"id"`
+	Remark string              `json:"remark"`
+	Needs  []inbounds.XrayNeed `json:"needs"`
 }
 
 // Manager is the master side: it keeps every node's config in sync, reads
@@ -396,6 +408,9 @@ func (m *Manager) SyncNode(parent context.Context, n *db.Node) {
 	if apiPort == 0 {
 		apiPort = DefaultAPIPort
 	}
+	// Inbounds the node's Xray-core is known to be too old for are left
+	// out, so they cannot stop the node's Xray (and its other inbounds).
+	ids, st.XrayTooOld = xrayFilter(m.DB, ids, info.XrayVersion)
 	var cfg []byte
 	var skipped []string
 	var berr error
@@ -404,6 +419,9 @@ func (m *Manager) SyncNode(parent context.Context, n *db.Node) {
 	}
 	if berr == nil {
 		cfg, berr = compact(cfg)
+	}
+	for _, o := range st.XrayTooOld {
+		skipped = append(skipped, fmt.Sprintf("%s: needs Xray-core %s (node has %s)", o.Remark, inbounds.XrayMissingText(o.Needs), info.XrayVersion))
 	}
 	st.Skipped = skipped
 	pushErr := ""
@@ -894,4 +912,36 @@ func (m *Manager) sendBans(ctx context.Context, hc *http.Client, n *db.Node) {
 	m.mu.Lock()
 	m.bansSent[n.ID] = st
 	m.mu.Unlock()
+}
+
+// xrayFilter drops the inbounds whose settings need a newer Xray-core than
+// ver and returns them (ver "" = unknown: nothing is dropped).
+func xrayFilter(gdb *gorm.DB, ids []int64, ver string) ([]int64, []XrayOldInbound) {
+	if ver == "" || len(ids) == 0 {
+		return ids, nil
+	}
+	var rows []db.Inbound
+	if err := gdb.Where("id IN ?", ids).Find(&rows).Error; err != nil {
+		return ids, nil
+	}
+	old := map[int64]XrayOldInbound{}
+	for i := range rows {
+		v := inbounds.FromModel(&rows[i])
+		if miss := inbounds.XrayMissing(&v, ver); len(miss) > 0 {
+			old[v.ID] = XrayOldInbound{ID: v.ID, Remark: v.Remark, Needs: miss}
+		}
+	}
+	if len(old) == 0 {
+		return ids, nil
+	}
+	kept := make([]int64, 0, len(ids))
+	var out []XrayOldInbound
+	for _, id := range ids {
+		if o, bad := old[id]; bad {
+			out = append(out, o)
+			continue
+		}
+		kept = append(kept, id)
+	}
+	return kept, out
 }

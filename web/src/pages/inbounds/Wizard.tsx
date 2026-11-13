@@ -40,7 +40,8 @@ import {
 import { toast } from '@/store/feedback';
 import { ProtoGlyph } from './ProtoGlyph';
 import { ConnectionAdvanced, SecurityAdvanced, advErrors } from './AdvancedSections';
-import { TLS_FPS, cleanAdvanced } from '@/lib/advanced';
+import { TLS_FPS, cleanAdvanced, ltrIso, xrayNeeds, xrayNeedsIso, xrayServerWarnings } from '@/lib/advanced';
+import { useXrayInfo } from '@/api/xray';
 import s from './Inbounds.module.css';
 
 const NETWORKS: Network[] = ['tcp', 'ws', 'grpc', 'httpupgrade', 'xhttp', 'kcp'];
@@ -186,6 +187,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
   const panelSettings = useSettings();
   const nodesQ = useNodes();
   const nodes: VNode[] = nodesQ.data ?? [];
+  const mainXray = useXrayInfo(false).data?.status.version;
   // "where it runs": main server, or nodes (multi-select). Inbounds placed
   // on a node by an older version also keep the main server; that is shown
   // as a switch only for them.
@@ -488,6 +490,19 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
       {err('cert') && <span className="field__error">{err('cert')}</span>}
     </div>
   );
+
+  // Servers the inbound would run on whose Xray-core is known to be too old for its settings.
+  const xrayWarns = (() => {
+    if (engineOf(p) !== 'xray') return [];
+    const needs = xrayNeeds(toBody(d));
+    if (!needs.length) return [];
+    const placedNodes = onNodes && nodeCapable(p) ? nodes.filter((x) => d.node_ids.includes(x.id)) : [];
+    const servers = [
+      ...(!placedNodes.length || (legacyBoth && d.serve_main) ? [{ id: 0, version: mainXray }] : []),
+      ...placedNodes.map((x) => ({ id: x.id, version: x.state.xray_version })),
+    ];
+    return xrayServerWarnings(needs, servers, editing?.xray_too_old);
+  })();
 
   const reviewRows: [string, ReactNode][] = [];
   {
@@ -1314,6 +1329,30 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
                   {err('awg') ? <span className="field__error">{err('awg')}</span> : d.settings.awg && <span className="field__hint">{t('inb.awgRule')}</span>}
                 </div>
               )}
+            </div>
+          )}
+
+          {stepId !== 'protocol' && xrayWarns.length > 0 && (
+            <div className={s.xrayWarns} role="status">
+              {xrayWarns.map((w) => {
+                const server = w.id === 0 ? t('inb.runMain') : nodes.find((x) => x.id === w.id)?.name ?? `#${w.id}`;
+                return (
+                  <div key={w.id} className={s.xrayWarnList}>
+                    {w.block.length > 0 && (
+                      <p className={s.warnNote}>
+                        <AlertTriangle size={16} aria-hidden="true" />
+                        <span>{t('inb.xrayBlock', { server: ltrIso(server), ver: ltrIso(w.version), list: xrayNeedsIso(w.block) })}</span>
+                      </p>
+                    )}
+                    {w.skip.length > 0 && (
+                      <p className={s.warnNote}>
+                        <AlertTriangle size={16} aria-hidden="true" />
+                        <span>{t('inb.xraySkip', { server: ltrIso(server), ver: ltrIso(w.version), list: xrayNeedsIso(w.skip) })}</span>
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 

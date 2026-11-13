@@ -9,6 +9,7 @@ import { EmptyState, ErrorState, PageHeader, Skeleton } from '@/components/misc'
 import { formatClock, formatIsoDay, useI18n } from '@/i18n';
 import { NodeSheet, NoPanelWarning } from './nodes/NodeSheet';
 import s from './nodes/Nodes.module.css';
+import { ltrIso, xrayNeedsIso } from '@/lib/advanced';
 
 /** "2026-11-10 18:20" in the panel's zone (ISO 8601, Latin digits). */
 export const isoStamp = (v: string) => `${formatIsoDay(v)} ${formatClock(v).slice(0, 5)}`;
@@ -148,6 +149,12 @@ function NodeCard({ node: x, onOpen, onInstall, remark }: { node: VNode; onOpen:
       </span>
 
       {st.error && (st.status === 'offline' || st.status === 'degraded') && <span className={s.err}>{st.error}</span>}
+
+      {!!st.xray_too_old?.length && (
+        <span className={s.xrayOld} role="status">
+          {t('node.xrayOld', { ver: st.xray_version || '—', list: st.xray_too_old.map((o) => `${ltrIso(o.remark)}: ${xrayNeedsIso(o.needs)}`).join('؛ ') })}
+        </span>
+      )}
 
       <span className={s.metrics}>
         <span className={s.metric}>

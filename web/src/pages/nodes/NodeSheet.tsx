@@ -10,6 +10,7 @@ import { useI18n } from '@/i18n';
 import { confirmAction, toast } from '@/store/feedback';
 import u from '../users/Users.module.css';
 import s from './Nodes.module.css';
+import { ltrIso, xrayNeedsIso } from '@/lib/advanced';
 
 const HOST_RE = /^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
 const IPV4_RE = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/;
@@ -42,6 +43,9 @@ interface MoveConflict {
 
 export function NodeSheet({ open, node, onClose, inbounds, onCreated, askInstall, onInstallAsked }: Props) {
   const { t, n } = useI18n();
+  // The Xray-version warning below already names these; the server also lists them as skipped.
+  const oldXray = new Set((node?.state.xray_too_old ?? []).map((o) => o.remark));
+  const skippedOther = (node?.state.skipped ?? []).filter((x) => !(x.includes(': needs Xray-core') && oldXray.has(x.slice(0, x.indexOf(': needs Xray-core')))));
   const save = useSaveNode();
   const del = useDeleteNode();
   const reinstall = useNodeInstall();
@@ -249,11 +253,17 @@ export function NodeSheet({ open, node, onClose, inbounds, onCreated, askInstall
             <span>{node.state.error}</span>
           </div>
         )}
-        {!!node?.state.skipped?.length && (
+        {!!node?.state.xray_too_old?.length && (
+          <div className={s.stateErr} role="status">
+            <TriangleAlert size={16} aria-hidden="true" />
+            <span>{t('node.xrayOld', { ver: node.state.xray_version || '—', list: node.state.xray_too_old.map((o) => `${ltrIso(o.remark)}: ${xrayNeedsIso(o.needs)}`).join('؛ ') })}</span>
+          </div>
+        )}
+        {!!skippedOther.length && (
           <div className={s.stateErr} role="status">
             <TriangleAlert size={16} aria-hidden="true" />
             <span>
-              {t('node.skipped')} {node.state.skipped.join('، ')}
+              {t('node.skipped')} {skippedOther.join('، ')}
             </span>
           </div>
         )}

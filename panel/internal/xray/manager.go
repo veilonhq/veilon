@@ -129,6 +129,12 @@ func (m *Manager) GenerateConfig() ([]byte, error) {
 		return nil, err
 	}
 	in.BridgePort = m.opt.BridgePort
+	m.mu.Lock()
+	in.XrayVersion = m.version
+	m.mu.Unlock()
+	if in.XrayVersion == "" {
+		in.XrayVersion = detectVersion(m.opt.BinPath)
+	}
 	b, err := Build(in)
 	m.mu.Lock()
 	m.warnings = in.Skipped

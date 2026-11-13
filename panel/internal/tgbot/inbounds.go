@@ -34,6 +34,27 @@ type inbound struct {
 	NodeIDs         []int64        `json:"node_ids"`
 	ServeMain       bool           `json:"serve_main"`
 	OnMain          bool           `json:"on_main"`
+	XrayTooOld      []struct {
+		NodeID  int64      `json:"node_id"`
+		Version string     `json:"version"`
+		Needs   []xrayNeed `json:"needs"`
+	} `json:"xray_too_old"`
+}
+
+// xrayNeed is a feature that needs a minimum Xray-core version.
+type xrayNeed struct {
+	Feature string `json:"feature"`
+	Min     string `json:"min"`
+}
+
+// needsText: "Reality ML-DSA-65 ≥ 25.7.26، TLS ECH ≥ 25.7.26" (no brackets: they flip in RTL text).
+func needsText(ns []xrayNeed) string {
+	parts := make([]string, 0, len(ns))
+	for _, n := range ns {
+		// Bidi isolate: keeps the brackets and "+" in place in Persian (RTL) text.
+		parts = append(parts, "\u2066"+esc(n.Feature)+" ≥ "+esc(n.Min)+"\u2069")
+	}
+	return strings.Join(parts, T("، "))
 }
 
 var protoNames = []struct{ key, label string }{
@@ -85,6 +106,11 @@ type nodeRow struct {
 			ID     int64  `json:"id"`
 			Remark string `json:"remark"`
 		} `json:"needs_update"`
+		XrayTooOld []struct {
+			ID     int64      `json:"id"`
+			Remark string     `json:"remark"`
+			Needs  []xrayNeed `json:"needs"`
+		} `json:"xray_too_old"`
 	} `json:"state"`
 }
 
@@ -261,6 +287,13 @@ func inboundView(r *req, a []string) {
 	}
 	t += T("👥 کاربران: ") + faInt(ib.UserCount) + T(" · 🔀 هاست ها: ") + faInt(ib.HostCount) + "\n"
 	t += T("🖥 اجرا روی: ") + placeText(&ib, ns) + "\n"
+	for _, o := range ib.XrayTooOld {
+		where := T("سرور اصلی")
+		if o.NodeID != 0 {
+			where = T("نود ") + esc(nodeName(ns, o.NodeID))
+		}
+		t += "⚠️ " + where + T(" با Xray-core ") + code(o.Version) + T(" این ورودی را اجرا نمی کند؛ نیاز: ") + needsText(o.Needs) + T(". Xray آن را بروزرسانی کنید.") + "\n"
+	}
 	toggle := btn(T("⛔️ خاموش کردن"), "it", id)
 	if !ib.Enabled {
 		toggle = btn(T("✅ روشن کردن"), "it", id)
@@ -281,6 +314,15 @@ func inboundView(r *req, a []string) {
 	}
 	kb = append(kb, []Button{btn(T("🗑 حذف"), "id", id), btn(T("🔄 تازه سازی"), "iv", id)}, nav("il"))
 	r.show(view{text: t, kb: kb})
+}
+
+func nodeName(ns []nodeRow, id int64) string {
+	for _, n := range ns {
+		if n.ID == id {
+			return n.Name
+		}
+	}
+	return "#" + strconv.FormatInt(id, 10)
 }
 
 func placeText(ib *inbound, ns []nodeRow) string {

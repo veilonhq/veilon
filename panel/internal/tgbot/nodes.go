@@ -14,7 +14,7 @@ func nodeBadge(n *nodeRow) string {
 	switch {
 	case !n.Enabled || n.State.Status == "disabled":
 		return "⛔️"
-	case n.State.Status == "online" && (n.UpdateTo != "" || len(n.State.NeedsUpdate) > 0):
+	case n.State.Status == "online" && (n.UpdateTo != "" || len(n.State.NeedsUpdate) > 0 || len(n.State.XrayTooOld) > 0):
 		return "🟡"
 	case n.State.Status == "online":
 		return "🟢"
@@ -253,6 +253,13 @@ func nodeText(n *nodeRow, r *req) string {
 			names = append(names, esc(x.Remark))
 		}
 		t += T("⚠️ این ورودی ها تا بروزرسانی نود اجرا نمی شوند: ") + strings.Join(names, T("، ")) + "\n"
+	}
+	if len(n.State.XrayTooOld) > 0 {
+		var parts []string
+		for _, x := range n.State.XrayTooOld {
+			parts = append(parts, esc(x.Remark)+": "+needsText(x.Needs))
+		}
+		t += T("⚠️ Xray-core این نود برای این ورودی ها قدیمی است و آنها اینجا اجرا نمی شوند (ورودی های دیگر کار می کنند): ") + strings.Join(parts, T("؛ ")) + T(". Xray نود را بروزرسانی کنید.") + "\n"
 	}
 	if u := n.State.Update; u != nil && u.Phase != "" {
 		t += T("\nآخرین بروزرسانی: ") + code(u.Target) + " · " + nodeUpdPhase[u.Phase]

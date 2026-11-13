@@ -1341,3 +1341,18 @@
   gap: 10px;
   width: 100%;
 }
+
+/* Xray-core version warnings (servers too old for the inbound's settings) */
+.xrayWarns,
+.xrayWarnList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.xrayWarns {
+  margin-top: 14px;
+}
+.xrayWarns .warnNote > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

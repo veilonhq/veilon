@@ -31,6 +31,7 @@ type fakeCore struct {
 	reject  error
 	traffic xray.Traffic
 	running bool
+	version string // reported Xray-core version ("" = 26.10.31)
 }
 
 func (f *fakeCore) Apply(_ context.Context, cfg []byte) error {
@@ -46,6 +47,9 @@ func (f *fakeCore) Apply(_ context.Context, cfg []byte) error {
 func (f *fakeCore) Status() (bool, string, string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.version != "" {
+		return f.running, f.version, ""
+	}
 	return f.running, "26.10.31", ""
 }
 func (f *fakeCore) Collect(context.Context) (xray.Traffic, error) {

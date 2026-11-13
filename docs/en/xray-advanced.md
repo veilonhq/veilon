@@ -32,6 +32,26 @@ Links, Clash (mihomo), sing-box and the Xray JSON subscription carry what each c
 
 Advanced settings run on nodes too, through the normal config push.
 
+## Xray-core versions
+
+Some settings need a recent Xray-core on every server that runs the inbound (the main server and each chosen node):
+
+| Setting | Xray-core |
+| --- | --- |
+| WebSocket heartbeat | 24.11.30 |
+| XHTTP stream-up seconds | 25.1.30 |
+| Reality fallback rate limit | 25.6.8 |
+| Reality ML-DSA-65, TLS ECH | 25.7.26 |
+| VLESS Encryption | 25.9.5 |
+| VLESS reverse proxy | 25.9.11 |
+| Hysteria 2, fragment / noise masks | 26.3.27 |
+| mKCP | 26.6.1 |
+
+- Saving is refused when a server is known to run an older Xray-core than a setting you add needs (the error names the server and the version). Settings the inbound already had are not checked again on edit, so an inbound can still be renamed, changed or moved off an old node.
+- When a server turns out to be too old (a node reached later, or its Xray downgraded), only that inbound is left out on that server; the server's other inbounds keep working. It comes back on the next sync after Xray is updated.
+- The inbound form warns before saving, the inbound card shows **old Xray**, the node card and node sheet list the left-out inbounds and what they need, and the Telegram bot shows the same on the inbound and node screens. The API reports it as `xray_needs` / `xray_too_old` on inbounds and `state.xray_too_old` on nodes.
+- An unknown version (a node never reached, Xray not started yet) is let through.
+
 ## Telegram bot
 
 Each inbound screen has **⚙️ Advanced settings**: a list of what is in use, sniffing for routing only, PROXY protocol, TCP Fast Open, reject unknown SNI, certificate pin, ECH and ML-DSA-65 on or off (the server makes the keys), Shadowsocks UDP, the reverse proxy on or off and the bridge config as a file. Other settings are in the web panel or the full JSON edit.

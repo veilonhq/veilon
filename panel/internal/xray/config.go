@@ -47,6 +47,9 @@ type Input struct {
 	TunOK bool
 	// Skipped collects inbounds left out of the config, with the reason.
 	Skipped []string
+	// XrayVersion is the Xray-core version that runs the config ("" =
+	// unknown); inbounds whose settings need a newer one are left out.
+	XrayVersion string
 	// Policy holds the per-user routing policy (blocked IPs, torrent and
 	// ad blocking).
 	Policy Policy
@@ -283,6 +286,11 @@ func Build(in *Input) ([]byte, error) {
 	for i := range in.Inbounds {
 		ib := &in.Inbounds[i]
 		if inbounds.Engine(ib.Protocol) != inbounds.EngineXray {
+			continue
+		}
+		if miss := inbounds.XrayMissing(ib, in.XrayVersion); len(miss) > 0 {
+			slog.Warn("skipping inbound: Xray-core too old", "inbound", ib.Remark, "id", ib.ID, "xray", in.XrayVersion, "needs", inbounds.XrayMissingText(miss))
+			in.Skipped = append(in.Skipped, fmt.Sprintf("%s: needs Xray-core %s (this server has %s)", ib.Remark, inbounds.XrayMissingText(miss), in.XrayVersion))
 			continue
 		}
 		x, err := buildInbound(ib, in.Users[ib.ID], in.Peers[ib.ID], in.DataDir, in.TunOK)
