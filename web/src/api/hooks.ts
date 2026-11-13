@@ -673,7 +673,8 @@ export function useNodes() {
     queryKey: qk.nodes,
     queryFn: () => api<VNode[]>('/nodes'),
     // faster while an agent update runs, so its steps show as they happen
-    refetchInterval: (q) => (q.state.data?.some((x) => x.state.update && x.state.update.phase !== 'done' && x.state.update.phase !== 'failed') ? 3_000 : 10_000),
+    refetchInterval: (q) =>
+      q.state.data?.some((x) => [x.state.update, x.state.xray_update].some((u) => u && u.phase !== 'done' && u.phase !== 'failed')) ? 2_000 : 10_000,
   });
 }
 export function useSaveNode() {
@@ -704,6 +705,17 @@ export function useNodeUpdate() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => api<VNode>(`/nodes/${id}/update`, { method: 'POST' }),
+    onSuccess: (node) => {
+      qc.setQueryData<VNode[]>(qk.nodes, (old) => old?.map((x) => (x.id === node.id ? node : x)));
+      qc.invalidateQueries({ queryKey: qk.nodes });
+    },
+  });
+}
+/** Install an Xray-core release on a node (202: started; state.xray_update follows it). */
+export function useNodeXray() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, version }: { id: number; version: string }) => api<VNode>(`/nodes/${id}/xray`, { method: 'POST', body: { version } }),
     onSuccess: (node) => {
       qc.setQueryData<VNode[]>(qk.nodes, (old) => old?.map((x) => (x.id === node.id ? node : x)));
       qc.invalidateQueries({ queryKey: qk.nodes });

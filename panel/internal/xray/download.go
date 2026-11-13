@@ -46,13 +46,44 @@ func Download(ctx context.Context, dir, version string) error {
 		map[string]os.FileMode{"xray": 0o755, "geoip.dat": 0o644, "geosite.dat": 0o644})
 }
 
+// ReleaseBaseEnv names an optional mirror of the official Xray-core
+// releases: <base>/<tag>/<asset> (and <asset>.dgst) instead of GitHub. The
+// digest is still required for installs from the panel.
+const ReleaseBaseEnv = "VEILON_XRAY_RELEASE_BASE"
+
 // releaseBase is the download URL prefix of a release ("" or "latest" =
 // newest release).
 func releaseBase(version string) string {
+	if b := strings.TrimRight(strings.TrimSpace(os.Getenv(ReleaseBaseEnv)), "/"); b != "" {
+		if version == "" {
+			version = "latest"
+		}
+		return b + "/" + version + "/"
+	}
 	if version == "" || version == "latest" {
 		return "https://github.com/XTLS/Xray-core/releases/latest/download/"
 	}
 	return "https://github.com/XTLS/Xray-core/releases/download/" + version + "/"
+}
+
+// ValidTag reports whether v looks like an Xray-core release tag (v26.10.31).
+func ValidTag(v string) bool { return tagRe.MatchString(v) }
+
+// DetectVersion runs "bin version" and returns the version it reports
+// ("" when the binary does not run here).
+func DetectVersion(bin string) string { return detectVersion(bin) }
+
+// DownloadBinary downloads the release tag for this host into dir and
+// extracts only the xray binary. The release's SHA-256 digest (.dgst) is
+// required and must match. The geo files are left alone.
+func DownloadBinary(ctx context.Context, dir, version string) error {
+	if !tagRe.MatchString(version) {
+		return ErrBadVersion
+	}
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return err
+	}
+	return downloadRelease(ctx, httpClient(), releaseBase(version), dir, true, map[string]os.FileMode{"xray": 0o755})
 }
 
 func httpClient() *http.Client { return &http.Client{Timeout: 5 * time.Minute} }

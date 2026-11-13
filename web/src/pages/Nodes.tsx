@@ -8,6 +8,7 @@ import { canUpdate, NodeUpdateRow, updating, updateErrText } from './nodes/NodeU
 import { EmptyState, ErrorState, PageHeader, Skeleton } from '@/components/misc';
 import { formatClock, formatIsoDay, useI18n } from '@/i18n';
 import { NodeSheet, NoPanelWarning } from './nodes/NodeSheet';
+import { NodeXrayRow } from './nodes/NodeXray';
 import s from './nodes/Nodes.module.css';
 import { ltrIso, xrayNeedsIso } from '@/lib/advanced';
 
@@ -158,10 +159,6 @@ function NodeCard({ node: x, onOpen, onInstall, remark }: { node: VNode; onOpen:
 
       <span className={s.metrics}>
         <span className={s.metric}>
-          <small>{t('node.xray')}</small>
-          <b className="ltr">{st.xray_version || '—'}</b>
-        </span>
-        <span className={s.metric}>
           <small>
             <Activity size={12} aria-hidden="true" />
             {t('node.latency')}
@@ -223,6 +220,7 @@ function NodeCard({ node: x, onOpen, onInstall, remark }: { node: VNode; onOpen:
         )}
       </span>
       <NodeUpdateRow node={x} onInstall={onInstall} />
+      <NodeXrayRow node={x} />
     </div>
   );
 }

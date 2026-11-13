@@ -126,3 +126,18 @@ func TestNodeToggle(t *testing.T) {
 		t.Fatal("node still enabled")
 	}
 }
+
+// The Xray picker of a node whose agent cannot install Xray asks for a node
+// update first; a refused install is explained in the admin's language.
+func TestNodeXrayOldAgentAndRefusal(t *testing.T) {
+	r := newRig(t)
+	id := r.createNode("Tokyo")
+	r.start()
+	v := r.press(fmt.Sprintf("nv:%d", id), "Tokyo")
+	if strings.Contains(fmt.Sprint(v.p["reply_markup"]), "نسخه Xray") {
+		t.Fatalf("xray button for a node never reached: %v", v.p["reply_markup"])
+	}
+	r.press(fmt.Sprintf("nxr:%d", id), "اول نود را بروزرسانی کنید")
+	r.press(fmt.Sprintf("nxrp:%d:v26.10.31", id), "نصب شود؟")
+	r.press(fmt.Sprintf("nxry:%d:v26.10.31", id), "نود در دسترس نیست.")
+}

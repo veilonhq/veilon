@@ -99,6 +99,7 @@ func (s *Server) routes() http.Handler {
 	m.HandleFunc("DELETE /nodes/{id}", s.sudo(s.deleteNode))
 	m.HandleFunc("POST /nodes/{id}/install", s.sudo(s.nodeInstall))
 	m.HandleFunc("POST /nodes/{id}/update", s.sudo(s.nodeUpdate))
+	m.HandleFunc("POST /nodes/{id}/xray", s.sudo(s.nodeXray))
 	m.HandleFunc("POST /nodes/update-outdated", s.sudo(s.nodesUpdateOutdated))
 
 	m.HandleFunc("GET /telegram", s.sudo(s.getTelegram))

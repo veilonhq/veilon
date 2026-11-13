@@ -166,3 +166,27 @@ func (s *Server) nodesUpdateOutdated(w http.ResponseWriter, r *http.Request, a *
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"started": started, "results": res})
 }
+
+// nodeXray asks a node to install an Xray-core release ({version}; 202:
+// started; the node's state.xray_update follows it).
+func (s *Server) nodeXray(w http.ResponseWriter, r *http.Request, a *db.Admin) {
+	if !s.nodesOK(w) {
+		return
+	}
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		Version string `json:"version"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	v, err := s.Nodes.StartXrayUpdate(r.Context(), id, body.Version, a, s.clientIP(r))
+	if err != nil {
+		writeNodeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, v)
+}

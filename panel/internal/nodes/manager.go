@@ -62,6 +62,12 @@ type State struct {
 	Update *UpdateStatus `json:"update"`
 	// Caps are the capabilities the agent announced.
 	Caps []string `json:"caps"`
+	// CanUpdateXray: the agent installs a chosen Xray-core release from
+	// the panel (CapXrayInstall); older agents need an agent update first.
+	CanUpdateXray bool `json:"can_update_xray"`
+	// XrayUpdate is the last Xray-core install asked from this panel (nil =
+	// none since the panel started).
+	XrayUpdate *UpdateStatus `json:"xray_update"`
 	// NeedsUpdate lists the node's inbounds its agent is too old to run
 	// (AmneziaWG / MTProto on agents before v0.3.8); they are skipped
 	// until the agent is updated.
@@ -295,6 +301,7 @@ func (m *Manager) Status(n *db.Node) State {
 			c.Status = StateDisabled
 		}
 		c.Update = m.UpdateState(n.ID)
+		c.XrayUpdate = m.XrayUpdateState(n.ID)
 		return c
 	}
 	if !n.Enabled {
@@ -380,15 +387,17 @@ func (m *Manager) SyncNode(parent context.Context, n *db.Node) {
 			status = StateWaiting // never reached: most likely not installed yet
 		}
 		st := &State{Status: status, Error: err.Error(), Version: prev.Version, XrayVersion: prev.XrayVersion,
-			Arch: prev.Arch, CanUpdate: prev.CanUpdate, Caps: prev.Caps, NeedsUpdate: prev.NeedsUpdate}
+			Arch: prev.Arch, CanUpdate: prev.CanUpdate, Caps: prev.Caps, NeedsUpdate: prev.NeedsUpdate, CanUpdateXray: prev.CanUpdateXray}
 		m.setState(n.ID, st)
 		m.trackUpdate(n, nil)
+		m.trackXray(n, nil)
 		return
 	}
 	m.trackUpdate(n, &info)
+	m.trackXray(n, &info)
 	st := &State{Version: info.Version, XrayVersion: info.XrayVersion, XrayRunning: info.XrayRunning, Load1: info.Load1,
 		MemUsed: info.MemUsed, CPUs: info.CPUs, LatencyMS: time.Since(t0).Milliseconds(), Arch: info.Arch, CanUpdate: info.HasCap(CapUpdate),
-		liveOnline: info.HasCap(CapOnline), Caps: info.Caps}
+		liveOnline: info.HasCap(CapOnline), Caps: info.Caps, CanUpdateXray: info.HasCap(CapXrayInstall)}
 	if !info.StartedAt.IsZero() {
 		s := info.StartedAt
 		st.StartedAt = &s

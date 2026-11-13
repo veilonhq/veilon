@@ -638,6 +638,10 @@ export interface NodeState {
   update: NodeUpdate | null;
   /** capabilities the agent announced */
   caps?: string[] | null;
+  /** the agent installs a chosen Xray-core release from the panel (older agents need an agent update first) */
+  can_update_xray?: boolean;
+  /** the last Xray-core install asked from this panel (same shape as an agent update) */
+  xray_update?: NodeUpdate | null;
   /** inbounds the agent is too old to run (AmneziaWG / MTProto before v0.3.8) */
   needs_update?: { id: number; remark: string; protocol: Protocol }[] | null;
   /** inbounds left out because the node's Xray-core is too old for their settings */

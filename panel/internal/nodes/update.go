@@ -51,6 +51,10 @@ type updates struct {
 	starting map[int64]bool
 	rel      map[string]relEntry
 	relMu    sync.Mutex
+	// Xray-core installs (xrayupdate.go)
+	xstate    map[int64]*UpdateStatus
+	xlast     map[int64]time.Time
+	xstarting map[int64]bool
 }
 
 type relEntry struct {

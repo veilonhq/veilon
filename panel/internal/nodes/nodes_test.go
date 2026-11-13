@@ -89,6 +89,8 @@ type rig struct {
 	// enginePuts counts their PUT /v1/engines.
 	engines    bool
 	enginePuts atomic.Int32
+	// agentHook, when set, adjusts the next agents before they serve.
+	agentHook func(*Agent)
 }
 
 // startAgent enrolls node n and serves its agent on 127.0.0.1.
@@ -112,6 +114,9 @@ func startAgentIn(t *testing.T, r *rig, n *db.Node, dir string) (*Agent, *fakeCo
 	a := &Agent{Enrollment: e, Dir: dir, Core: c, Version: "test"}
 	if r.engines {
 		a.Engines = &cores.NodeEngines{Dir: dir, Self: "/nonexistent", MTGBin: "/nonexistent"}
+	}
+	if r.agentHook != nil {
+		r.agentHook(a)
 	}
 	h := a.Handler()
 	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, q *http.Request) {

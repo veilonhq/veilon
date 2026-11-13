@@ -37,6 +37,9 @@ type Info struct {
 	Caps []string `json:"caps,omitempty"`
 	// Update is the agent's last self-update (nil when none ran).
 	Update *UpdateStatus `json:"update,omitempty"`
+	// XrayUpdate is the agent's current or last Xray-core install (agents
+	// with CapXrayInstall; nil when none ran since the agent started).
+	XrayUpdate *UpdateStatus `json:"xray_update,omitempty"`
 	// EnginesHash is the hash of the engines spec the agent runs ("" =
 	// none; agents with CapAWG / CapMTProto only).
 	EnginesHash string `json:"engines_hash,omitempty"`

@@ -102,6 +102,14 @@ type nodeRow struct {
 			Error      string `json:"error"`
 			RolledBack bool   `json:"rolled_back"`
 		} `json:"update"`
+		CanUpdateXray bool `json:"can_update_xray"`
+		XrayUpdate    *struct {
+			Target     string `json:"target"`
+			From       string `json:"from"`
+			Phase      string `json:"phase"`
+			Error      string `json:"error"`
+			RolledBack bool   `json:"rolled_back"`
+		} `json:"xray_update"`
 		NeedsUpdate []struct {
 			ID     int64  `json:"id"`
 			Remark string `json:"remark"`

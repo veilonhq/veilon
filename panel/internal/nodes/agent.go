@@ -78,7 +78,14 @@ type Agent struct {
 	// Engines runs the AmneziaWG and MTProto inbounds (nil = the agent
 	// does not announce CapAWG / CapMTProto).
 	Engines *cores.NodeEngines
+	// XrayDownload fetches an Xray-core release binary into a directory
+	// (nil = xray.DownloadBinary; tests replace it).
+	XrayDownload func(ctx context.Context, dir, version string) error
+	// XrayVerify is how long a newly installed Xray must stay up (0 =
+	// DefaultXrayVerify).
+	XrayVerify time.Duration
 
+	xjob        xrayJob
 	mu          sync.Mutex
 	hash        string
 	enginesHash string
@@ -418,6 +425,8 @@ func (a *Agent) Handler() http.Handler {
 	m.HandleFunc("GET /v1/online", a.online)
 	m.HandleFunc("POST /v1/update", a.postUpdate)
 	m.HandleFunc("GET /v1/update", func(w http.ResponseWriter, r *http.Request) { writeJ(w, 200, a.updateStatus()) })
+	m.HandleFunc("POST /v1/xray", a.postXray)
+	m.HandleFunc("GET /v1/xray", func(w http.ResponseWriter, r *http.Request) { writeJ(w, 200, a.xjob.get()) })
 	if a.Updater == nil {
 		return m
 	}
@@ -474,6 +483,10 @@ func (a *Agent) info() Info {
 	}
 	if _, ok := a.Core.(OnlineCore); ok {
 		in.Caps = append(in.Caps, CapOnline)
+	}
+	if a.binaryCore() != nil {
+		in.Caps = append(in.Caps, CapXrayInstall)
+		in.XrayUpdate = a.xjob.get()
 	}
 	if a.Engines != nil {
 		in.Caps = append(in.Caps, CapAWG, CapMTProto)

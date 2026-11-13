@@ -11,6 +11,7 @@ import { confirmAction, toast } from '@/store/feedback';
 import u from '../users/Users.module.css';
 import s from './Nodes.module.css';
 import { ltrIso, xrayNeedsIso } from '@/lib/advanced';
+import { NodeXrayRow } from './NodeXray';
 
 const HOST_RE = /^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
 const IPV4_RE = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/;
@@ -271,6 +272,11 @@ export function NodeSheet({ open, node, onClose, inbounds, onCreated, askInstall
           <div className={s.stateErr} role="status">
             <TriangleAlert size={16} aria-hidden="true" />
             <span>{t('node.needsUpdate', { list: node.state.needs_update.map((x) => x.remark).join('، ') })}</span>
+          </div>
+        )}
+        {node && (
+          <div className={s.sheetXray}>
+            <NodeXrayRow node={node} />
           </div>
         )}
         <Field label={t('node.name')} error={touched ? (nameErr ?? undefined) : undefined}>

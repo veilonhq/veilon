@@ -261,6 +261,21 @@ func nodeText(n *nodeRow, r *req) string {
 		}
 		t += T("⚠️ Xray-core این نود برای این ورودی ها قدیمی است و آنها اینجا اجرا نمی شوند (ورودی های دیگر کار می کنند): ") + strings.Join(parts, T("؛ ")) + T(". Xray نود را بروزرسانی کنید.") + "\n"
 	}
+	if n.State.XrayVersion != "" && !n.State.CanUpdateXray && n.State.Version != "" {
+		t += T("ℹ️ برای تغییر نسخه Xray از پنل، اول نود را بروزرسانی کنید.") + "\n"
+	}
+	if u := n.State.XrayUpdate; u != nil && u.Phase != "" {
+		t += T("\nآخرین نصب Xray: ") + code(u.Target) + " · "
+		if p, ok := nodeXrayPhase[u.Phase]; ok {
+			t += p
+		} else {
+			t += nodeUpdPhase[u.Phase]
+		}
+		if u.Phase == "failed" && u.RolledBack {
+			t += T(" · نسخه قبلی برگردانده شد")
+		}
+		t += "\n"
+	}
 	if u := n.State.Update; u != nil && u.Phase != "" {
 		t += T("\nآخرین بروزرسانی: ") + code(u.Target) + " · " + nodeUpdPhase[u.Phase]
 		if u.Error != "" {
@@ -281,6 +296,13 @@ func nodeView(r *req, a []string) {
 	kb := Keyboard{}
 	if n.UpdateTo != "" && n.State.CanUpdate && n.Enabled {
 		kb = append(kb, []Button{btn(T("⬆️ بروزرسانی نود به ")+n.UpdateTo, "nu", id)})
+	}
+	if n.State.CanUpdateXray && n.Enabled && n.State.XrayVersion != "" {
+		label := T("🧩 نسخه Xray: ") + tagOf(n.State.XrayVersion)
+		if u := n.State.XrayUpdate; u != nil && xrayRunning(u.Phase) {
+			label = T("⏳ در حال نصب Xray ") + u.Target
+		}
+		kb = append(kb, []Button{btn(label, "nxr", id)})
 	}
 	toggle := btn(T("⛔️ خاموش کردن"), "nt", id)
 	if !n.Enabled {

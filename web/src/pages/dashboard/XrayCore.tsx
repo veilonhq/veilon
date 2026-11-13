@@ -74,15 +74,36 @@ export function CorePowerSwitch({ core, stoppedCores }: { core?: CoreInfo; stopp
   );
 }
 
-/** The version line as a picker: choosing a release installs it. */
-export function CoreVersionField({ core }: { core?: CoreInfo }) {
+/**
+ * The Xray version picker shared by the main server's Xray card and the
+ * nodes: the newest stable official releases plus the installed version
+ * (kept and marked current). Choosing another one asks for confirmation and
+ * calls onInstall. Returns the field and a note line (installing, GitHub rate
+ * limit, release list error) for the caller to place.
+ */
+export function XrayVersionSelect({
+  current,
+  disabled,
+  busyNote,
+  onInstall,
+  confirmTitle,
+  confirmBody,
+  className,
+}: {
+  /** installed tag ("v26.10.31") or '' when unknown */
+  current: string;
+  disabled?: boolean;
+  /** shown instead of the release notes while an install runs */
+  busyNote?: string | null;
+  onInstall: (tag: string) => void;
+  /** confirmation title (default: install Xray {v}) */
+  confirmTitle?: (tag: string) => string;
+  /** confirmation text (default: the main server's) */
+  confirmBody?: (older: boolean) => string;
+  className?: string;
+}) {
   const { t, duration } = useI18n();
   const releases = useXrayReleases();
-  const info = useXrayInfo(!!core?.busy);
-  const install = useInstallXray();
-  const current = tagOf(core?.version);
-  const job = info.data?.job;
-  const installing = (job?.running && job.kind === 'install') || core?.busy === 'install';
 
   const options = useMemo<SelectOption<string>[]>(() => {
     return versionItems(releases.data?.releases ?? [], current).map((v) => ({
@@ -97,40 +118,63 @@ export function CoreVersionField({ core }: { core?: CoreInfo }) {
     if (!tag || tag === current) return;
     const older = !!current && cmpVer(tag, current) < 0;
     const ok = await confirmAction({
-      title: t('xray.installConfirm', { v: tag }),
-      body: older ? t('xray.installOlder') : t('xray.installBody'),
+      title: confirmTitle ? confirmTitle(tag) : t('xray.installConfirm', { v: tag }),
+      body: confirmBody ? confirmBody(older) : older ? t('xray.installOlder') : t('xray.installBody'),
       confirmLabel: t('xray.install'),
       danger: older,
     });
     if (!ok) return;
-    install.mutate(tag, {
-      onSuccess: () => toast.info(t('xray.installing', { v: tag })),
-      onError: (e) => toast.error(t('common.error'), (e as Error).message),
-    });
+    onInstall(tag);
   };
 
   const limitedFor = releases.data?.rate_limited_until ? new Date(releases.data.rate_limited_until).getTime() - Date.now() : 0;
   let note: string | null = null;
-  if (installing) note = t('xray.installing', { v: job?.version ?? '' });
+  if (busyNote) note = busyNote;
   else if (limitedFor > 0) note = t('xray.rateLimited', { time: duration(limitedFor) });
   else if (releases.isError) note = t('xray.releasesError');
 
   return (
-    <div className={s.version}>
-      <span className={s.versionLabel}>{t('dash.version')}</span>
+    <>
       <Select<string>
         ltr
         mono
-        className={s.versionSelect}
+        className={className ?? s.versionSelect}
         valueHint={false}
         value={current || null}
         placeholder="—"
         onChange={choose}
         options={options}
         ariaLabel={t('xray.chooseVersion')}
-        disabled={!core || installing || install.isPending}
+        disabled={disabled}
       />
       {note && <span className={s.note}>{note}</span>}
+    </>
+  );
+}
+
+/** The version line as a picker: choosing a release installs it. */
+export function CoreVersionField({ core }: { core?: CoreInfo }) {
+  const { t } = useI18n();
+  const info = useXrayInfo(!!core?.busy);
+  const install = useInstallXray();
+  const current = tagOf(core?.version);
+  const job = info.data?.job;
+  const installing = (job?.running && job.kind === 'install') || core?.busy === 'install';
+
+  return (
+    <div className={s.version}>
+      <span className={s.versionLabel}>{t('dash.version')}</span>
+      <XrayVersionSelect
+        current={current}
+        disabled={!core || installing || install.isPending}
+        busyNote={installing ? t('xray.installing', { v: job?.version ?? '' }) : null}
+        onInstall={(tag) =>
+          install.mutate(tag, {
+            onSuccess: () => toast.info(t('xray.installing', { v: tag })),
+            onError: (e) => toast.error(t('common.error'), (e as Error).message),
+          })
+        }
+      />
     </div>
   );
 }

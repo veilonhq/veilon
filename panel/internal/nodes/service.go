@@ -131,6 +131,19 @@ func (s *Service) StartUpdate(ctx context.Context, id int64, admin *db.Admin, ip
 	return s.Get(id)
 }
 
+// StartXrayUpdate asks one node to install Xray-core release version (see
+// Manager.StartXrayUpdate).
+func (s *Service) StartXrayUpdate(ctx context.Context, id int64, version string, admin *db.Admin, ip string) (*View, error) {
+	var n db.Node
+	if err := s.DB.First(&n, id).Error; err != nil {
+		return nil, ErrNotFound
+	}
+	if _, err := s.Manager.StartXrayUpdate(ctx, &n, version, admin, ip); err != nil {
+		return nil, err
+	}
+	return s.Get(id)
+}
+
 // orphans returns the inbounds that would lose their last node and go back
 // to the main server if node id stopped running the inbounds in drop: they
 // only ran on nodes (serve_main off) and no other node runs them.
