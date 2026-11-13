@@ -129,6 +129,29 @@ func (s *Server) realityKeys(w http.ResponseWriter, r *http.Request, a *db.Admin
 	writeJSON(w, 200, k)
 }
 
+// vlessEncKeys makes a VLESS Encryption key pair ({"auth": "x25519" or
+// "mlkem768"}, default x25519) with the installed Xray-core when it can.
+func (s *Server) vlessEncKeys(w http.ResponseWriter, r *http.Request, a *db.Admin) {
+	var req struct {
+		Auth string `json:"auth"`
+	}
+	if b, _ := io.ReadAll(io.LimitReader(r.Body, 4096)); len(b) > 0 {
+		if err := json.Unmarshal(b, &req); err != nil {
+			writeErr(w, http.StatusBadRequest, "bad_request", "invalid JSON body: "+err.Error())
+			return
+		}
+	}
+	if req.Auth == "" {
+		req.Auth = inbounds.EncAuthX25519
+	}
+	k, err := inbounds.GenerateVLESSEncKeys(inbounds.XrayBinary, req.Auth)
+	if err != nil {
+		writeServiceErr(w, err)
+		return
+	}
+	writeJSON(w, 200, k)
+}
+
 func (s *Server) wireguardKeys(w http.ResponseWriter, r *http.Request, a *db.Admin) {
 	priv, pub, err := inbounds.GenerateWGKeys()
 	if err != nil {

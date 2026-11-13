@@ -48,18 +48,20 @@ type Transport struct {
 
 // View is the API / domain representation of an inbound.
 type View struct {
-	ID              int64     `json:"id"`
-	Remark          string    `json:"remark"`
-	Enabled         bool      `json:"enabled"`
-	Protocol        string    `json:"protocol"`
-	Port            int       `json:"port"`
-	Listen          string    `json:"listen"`
-	Network         string    `json:"network"`
-	Security        string    `json:"security"`
-	TLS             *TLS      `json:"tls"`
-	Reality         *Reality  `json:"reality"`
-	Transport       Transport `json:"transport"`
-	Flow            string    `json:"flow"`
+	ID        int64     `json:"id"`
+	Remark    string    `json:"remark"`
+	Enabled   bool      `json:"enabled"`
+	Protocol  string    `json:"protocol"`
+	Port      int       `json:"port"`
+	Listen    string    `json:"listen"`
+	Network   string    `json:"network"`
+	Security  string    `json:"security"`
+	TLS       *TLS      `json:"tls"`
+	Reality   *Reality  `json:"reality"`
+	Transport Transport `json:"transport"`
+	Flow      string    `json:"flow"`
+	// VLESSEnc is the VLESS Encryption setting (vless only, else null).
+	VLESSEnc        *VLESSEnc `json:"vless_encryption"`
 	SSMethod        string    `json:"ss_method"`
 	SSServerKey     string    `json:"-"`
 	Sniffing        bool      `json:"sniffing"`
@@ -184,7 +186,16 @@ func FromModel(m *db.Inbound) View {
 		_ = json.Unmarshal([]byte(m.Transport), &v.Transport)
 	}
 	if m.Settings != "" {
-		_ = json.Unmarshal([]byte(m.Settings), &v.Settings)
+		var st storedSettings
+		if json.Unmarshal([]byte(m.Settings), &st) == nil {
+			v.Settings, v.VLESSEnc = st.Settings, st.VLESSEnc
+		}
+	}
+	if v.Protocol == VLESS && v.VLESSEnc == nil {
+		v.VLESSEnc = DefaultVLESSEnc()
+	}
+	if v.Protocol != VLESS {
+		v.VLESSEnc = nil
 	}
 	fixNil(&v.Settings)
 	if v.TLS != nil && v.TLS.ALPN == nil {
@@ -209,8 +220,20 @@ func toModel(v *View, m *db.Inbound) {
 	}
 	b, _ := json.Marshal(v.Transport)
 	m.Transport = string(b)
-	b, _ = json.Marshal(v.Settings)
+	st := storedSettings{Settings: v.Settings}
+	if v.Protocol == VLESS {
+		st.VLESSEnc = v.VLESSEnc
+	}
+	b, _ = json.Marshal(st)
 	m.Settings = string(b)
+}
+
+// storedSettings is the settings column: the protocol settings plus, for
+// VLESS, the encryption setting (kept here so no schema change is needed;
+// older panels ignore the key).
+type storedSettings struct {
+	Settings
+	VLESSEnc *VLESSEnc `json:"vless_encryption,omitempty"`
 }
 
 // fixNil makes list fields render as [] instead of null.
@@ -263,12 +286,25 @@ func Normalize(v *View) error {
 		if v.Security == "reality" {
 			return verr("reality is supported for vless and trojan only")
 		}
+		v.VLESSEnc = nil
 		err := normalizeProtocol(v)
 		fixNil(&v.Settings)
 		return err
 	}
 	v.Settings = Settings{}
 	fixNil(&v.Settings)
+
+	// VLESS Encryption.
+	if v.Protocol == VLESS {
+		if v.VLESSEnc == nil {
+			v.VLESSEnc = DefaultVLESSEnc()
+		}
+		if err := normalizeVLESSEnc(v.VLESSEnc); err != nil {
+			return err
+		}
+	} else {
+		v.VLESSEnc = nil
+	}
 
 	// Protocol specifics.
 	if v.Protocol == "shadowsocks" {
@@ -393,8 +429,10 @@ func Normalize(v *View) error {
 		if v.Flow != "xtls-rprx-vision" {
 			return verr("flow must be empty or xtls-rprx-vision")
 		}
-		if v.Protocol != "vless" || v.Network != "tcp" || v.Security == "none" {
-			return verr("xtls-rprx-vision requires vless over tcp with tls or reality")
+		// VLESS Encryption carries Vision on every transport (tested with
+		// Xray 26.10.31: tcp, ws, grpc, httpupgrade, xhttp).
+		if v.Protocol != "vless" || !v.VLESSEnc.On() && (v.Network != "tcp" || v.Security == "none") {
+			return verr("xtls-rprx-vision requires vless with vless encryption, or vless over tcp with tls or reality")
 		}
 	}
 
@@ -442,6 +480,9 @@ type Service struct {
 	// NodeCaps returns what a node's agent announced (known is false when
 	// the node was never reached). nil = not checked.
 	NodeCaps func(nodeID int64) (caps []string, known bool)
+	// XrayVersion returns the Xray-core version of the main server
+	// (nodeID 0) or of a node ("" = unknown). nil = not checked.
+	XrayVersion func(nodeID int64) string
 	// OnChange is called after any mutation (triggers an Xray reload).
 	OnChange func()
 	// SelfSigned creates a self-signed certificate for domain and returns
@@ -631,6 +672,34 @@ func (s *Service) checkCross(v *View) error {
 	return nil
 }
 
+// checkEncXray refuses VLESS Encryption on a server whose Xray-core is
+// known to be older than the first release that has it. Unknown versions
+// (a node never reached, Xray not started yet) are let through.
+func (s *Service) checkEncXray(v *View) error {
+	if s.XrayVersion == nil || !v.VLESSEnc.On() {
+		return nil
+	}
+	servers := []int64{}
+	if v.ServeMain || len(v.NodeIDs) == 0 {
+		servers = append(servers, 0)
+	}
+	servers = append(servers, v.NodeIDs...)
+	for _, id := range servers {
+		ver := s.XrayVersion(id)
+		if VersionAtLeast(ver, MinVLESSEncXray) {
+			continue
+		}
+		where := "the main server"
+		if id != 0 {
+			var n db.Node
+			s.DB.Select("id", "name").First(&n, id)
+			where = fmt.Sprintf("node %q", n.Name)
+		}
+		return verr("VLESS Encryption needs Xray-core %s or newer; %s runs %s", MinVLESSEncXray, where, ver)
+	}
+	return nil
+}
+
 // Defaults returns a View pre-filled with defaults for create requests.
 func Defaults() View {
 	return View{Enabled: true, Sniffing: true, Network: "tcp", Security: "none", ServeMain: true, NodeIDs: []int64{}}
@@ -643,6 +712,9 @@ func (s *Service) Create(v *View) (*View, error) {
 		return nil, err
 	}
 	if err := s.checkNodes(v); err != nil {
+		return nil, err
+	}
+	if err := s.checkEncXray(v); err != nil {
 		return nil, err
 	}
 	if err := s.checkUnique(v, nil); err != nil {
@@ -680,6 +752,9 @@ func (s *Service) Update(v *View) (*View, error) {
 	}
 	prev := m
 	if err := s.checkNodes(v); err != nil {
+		return nil, err
+	}
+	if err := s.checkEncXray(v); err != nil {
 		return nil, err
 	}
 	if err := s.checkUnique(v, &prev); err != nil {

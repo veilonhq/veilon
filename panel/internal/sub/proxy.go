@@ -17,15 +17,17 @@ import (
 // Proxy is a client-side description of one endpoint, independent of the
 // output format.
 type Proxy struct {
-	InboundID   int64
-	Name        string
-	Protocol    string
-	Server      string
-	Port        int
-	UUID        string
-	Password    string
-	Method      string
-	Flow        string
+	InboundID int64
+	Name      string
+	Protocol  string
+	Server    string
+	Port      int
+	UUID      string
+	Password  string
+	Method    string
+	Flow      string
+	// Encryption is the VLESS client "encryption" string ("" = none).
+	Encryption  string
 	Network     string
 	Path        string
 	Host        string
@@ -147,6 +149,9 @@ func BuildProxiesX(u *db.User, ibs []inbounds.View, s db.Settings, reqHost strin
 		switch ib.Protocol {
 		case "vless", "vmess":
 			p.UUID = u.UUID
+			if ib.Protocol == "vless" && ib.VLESSEnc.On() {
+				p.Encryption = ib.VLESSEnc.ClientEncryption()
+			}
 		case "trojan":
 			p.Password = u.Password
 		case "shadowsocks":

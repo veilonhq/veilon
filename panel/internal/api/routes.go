@@ -62,6 +62,7 @@ func (s *Server) routes() http.Handler {
 	m.HandleFunc("GET /inbounds", s.anyPerm([]string{auth.PermInbounds, auth.PermUsersView, auth.PermUsersCreate, auth.PermUsersEdit, auth.PermGroups}, s.listInbounds))
 	m.HandleFunc("POST /inbounds", s.perm(auth.PermInbounds, s.createInbound))
 	m.HandleFunc("POST /inbounds/reality-keys", s.perm(auth.PermInbounds, s.realityKeys))
+	m.HandleFunc("POST /inbounds/vless-enc-keys", s.perm(auth.PermInbounds, s.vlessEncKeys))
 	m.HandleFunc("POST /inbounds/wireguard-keys", s.perm(auth.PermInbounds, s.wireguardKeys))
 	m.HandleFunc("GET /inbounds/{id}", s.perm(auth.PermInbounds, s.getInbound))
 	m.HandleFunc("PATCH /inbounds/{id}", s.perm(auth.PermInbounds, s.updateInbound))

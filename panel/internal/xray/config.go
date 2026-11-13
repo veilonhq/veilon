@@ -350,7 +350,7 @@ func buildInbound(ib *inbounds.View, us []db.User, peers map[int64]db.WGPeer, da
 			}
 			clients = append(clients, c)
 		}
-		x["settings"] = obj{"clients": clients, "decryption": "none"}
+		x["settings"] = obj{"clients": clients, "decryption": ib.VLESSEnc.Decryption()}
 	case "vmess":
 		for i := range us {
 			clients = append(clients, obj{"id": us[i].UUID, "email": Email(&us[i])})

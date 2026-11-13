@@ -1,4 +1,4 @@
-import type { EngineName, InboundInput, InboundSettings, Protocol } from '@/api/types';
+import type { EngineName, InboundInput, InboundSettings, Protocol, VlessEnc } from '@/api/types';
 
 /** Protocol groups shown in the inbound wizard (order matters). */
 export const PROTOCOL_GROUPS: { id: 'proxy' | 'quic' | 'vpn' | 'utility'; protocols: Protocol[] }[] = [
@@ -183,6 +183,12 @@ export const emptyTls = () => ({ cert_id: null, sni: '', alpn: ['h2', 'http/1.1'
 export const quicTls = (alpn = ['h3']) => ({ cert_id: null, sni: '', alpn, fingerprint: 'chrome', allow_insecure: false });
 export const emptyReality = () => ({ dest: 'www.microsoft.com:443', server_names: ['www.microsoft.com'], private_key: '', public_key: '', short_ids: [] as string[], fingerprint: 'chrome', spider_x: '/' });
 
+export const emptyVlessEnc = (): VlessEnc => ({ enabled: false, auth: 'x25519', mode: 'native', rtt: '0rtt', ticket_seconds: 600, private_key: '', public_key: '' });
+
+/** Vision (xtls-rprx-vision) can be chosen: VLESS with encryption on any transport, or VLESS over tcp with TLS/Reality. */
+export const flowAllowed = (d: Pick<InboundInput, 'protocol' | 'network' | 'security' | 'vless_encryption'>) =>
+  d.protocol === 'vless' && (!!d.vless_encryption?.enabled || (d.network === 'tcp' && d.security !== 'none'));
+
 /** The form of a fresh inbound of this protocol. The port is always empty (0). */
 export function inboundDefaults(p: Protocol): InboundInput {
   const base: InboundInput = {
@@ -207,7 +213,7 @@ export function inboundDefaults(p: Protocol): InboundInput {
   const st = (x: Partial<InboundSettings>) => ({ ...base.settings, ...x });
   switch (p) {
     case 'vless':
-      return { ...base, security: 'reality', reality: emptyReality(), flow: 'xtls-rprx-vision' };
+      return { ...base, security: 'reality', reality: emptyReality(), flow: 'xtls-rprx-vision', vless_encryption: emptyVlessEnc() };
     case 'vmess':
       return { ...base, network: 'ws', transport: { ...base.transport, path: '/ws' } };
     case 'trojan':

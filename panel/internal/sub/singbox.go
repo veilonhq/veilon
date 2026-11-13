@@ -14,7 +14,8 @@ func SingboxSupported(p *Proxy) bool {
 	case "vless", "vmess", "trojan", "shadowsocks":
 		// sing-box cannot complete a handshake with current Xray Reality
 		// servers, so Reality entries are left out of its config.
-		return p.Network != "xhttp" && p.Security != "reality"
+		// sing-box has no VLESS Encryption: such inbounds are left out too.
+		return p.Network != "xhttp" && p.Security != "reality" && p.Encryption == ""
 	case inbounds.Hysteria, inbounds.TUIC, inbounds.HTTP, inbounds.Mixed, inbounds.Socks, inbounds.WireGuard:
 		return true
 	}

@@ -16,6 +16,7 @@ require (
 
 require (
 	github.com/amnezia-vpn/amneziawg-go v0.2.12 // indirect
+	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/glebarez/go-sqlite v1.21.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect

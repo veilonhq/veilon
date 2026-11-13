@@ -98,6 +98,7 @@ export default function InboundsPage() {
                       {ib.security === 'none' ? t('common.none') : ib.security === 'tls' ? 'TLS' : 'Reality'}
                     </span>
                     {ib.flow && <span className="chip mono">vision</span>}
+                    {ib.vless_encryption?.enabled && <span className="chip mono">{ib.vless_encryption.auth === 'mlkem768' ? 'enc·pq' : 'enc'}</span>}
                   </>
                 ) : (
                   <>

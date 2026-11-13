@@ -1,13 +1,13 @@
 import { AlertTriangle, ArrowLeft, ArrowRight, Check, KeyRound, Loader2, Lock, ShieldCheck, ShieldOff, Shuffle, Sparkles } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { genRealityKeys, genWgKeys, useCerts, useInbounds, useNodes, useSaveInbound, useSettings } from '@/api/hooks';
+import { genRealityKeys, genVlessEncKeys, genWgKeys, useCerts, useInbounds, useNodes, useSaveInbound, useSettings } from '@/api/hooks';
 import { ApiError } from '@/api/client';
 import { portClash, type PortClash } from '@/lib/portConflict';
-import type { AwgParams, Inbound, InboundInput, InboundSettings, Network, Protocol, Security, VNode } from '@/api/types';
+import type { AwgParams, Inbound, InboundInput, InboundSettings, Network, Protocol, Security, VlessEnc, VNode } from '@/api/types';
 import { Sheet } from '@/components/Overlay';
 import { Select } from '@/components/Select';
-import { Field, Switch } from '@/components/misc';
+import { CopyButton, Field, Switch } from '@/components/misc';
 import { useI18n, type MessageKey } from '@/i18n';
 import {
   PROTOCOL_GROUPS,
@@ -16,6 +16,8 @@ import {
   emptyReality,
   emptySettings,
   emptyTls,
+  emptyVlessEnc,
+  flowAllowed as canFlow,
   inboundDefaults,
   nodeCapable,
   nodeTooOld,
@@ -68,7 +70,13 @@ export const realityAllowed = (d: Pick<InboundInput, 'protocol' | 'network'>) =>
 function toInput(ib: Inbound): InboundInput {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { id, user_count, created_at, on_main, host_count, ...rest } = ib;
-  return { ...rest, node_ids: rest.node_ids ?? [], serve_main: rest.serve_main ?? true, settings: withSettings(rest.settings) };
+  return {
+    ...rest,
+    node_ids: rest.node_ids ?? [],
+    serve_main: rest.serve_main ?? true,
+    settings: withSettings(rest.settings),
+    vless_encryption: rest.protocol === 'vless' ? { ...emptyVlessEnc(), ...(rest.vless_encryption ?? {}) } : null,
+  };
 }
 
 /** Strip fields that do not apply to the protocol before sending. */
@@ -78,9 +86,9 @@ function toBody(d0: InboundInput): InboundInput {
   const p = d.protocol;
   if (isV2(p)) {
     const r = d.reality && !REALITY_FPS.includes(d.reality.fingerprint) ? { ...d.reality, fingerprint: 'chrome' } : d.reality;
-    return { ...d, reality: r, settings: emptySettings() };
+    return { ...d, reality: r, settings: emptySettings(), vless_encryption: p === 'vless' ? d.vless_encryption ?? null : null };
   }
-  const b: InboundInput = { ...d, network: 'tcp', transport: { path: '', host: '', service_name: '', mode: '' }, flow: '', ss_method: '', reality: null };
+  const b: InboundInput = { ...d, network: 'tcp', transport: { path: '', host: '', service_name: '', mode: '' }, flow: '', ss_method: '', reality: null, vless_encryption: null };
   if (isQuic(p)) b.security = 'tls';
   else if (p === 'http') {
     if (b.security !== 'tls') b.tls = null;
@@ -209,7 +217,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
         next.reality = null;
         next.tls = x.tls ?? emptyTls();
       }
-      if (net !== 'tcp') next.flow = '';
+      if (!canFlow(next)) next.flow = '';
       if ((net === 'ws' || net === 'httpupgrade' || net === 'xhttp') && !x.transport.path) next.transport = { ...x.transport, path: '/' + net };
       if (net === 'grpc' && !x.transport.service_name) next.transport = { ...x.transport, service_name: 'grpc', mode: 'gun' };
       if (net === 'xhttp' && !x.transport.mode) next.transport = { ...next.transport, mode: 'auto' };
@@ -222,7 +230,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
       security: sec,
       tls: sec === 'tls' ? x.tls ?? emptyTls() : null,
       reality: sec === 'reality' ? x.reality ?? emptyReality() : null,
-      flow: x.protocol === 'vless' && x.network === 'tcp' && sec !== 'none' ? x.flow : '',
+      flow: canFlow({ ...x, security: sec }) ? x.flow : '',
     }));
   };
 
@@ -237,6 +245,30 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
     } finally {
       setGenBusy(false);
     }
+  };
+  const patchEnc = (x: Partial<VlessEnc>) =>
+    setD((v) => {
+      const enc = { ...(v.vless_encryption ?? emptyVlessEnc()), ...x };
+      const next = { ...v, vless_encryption: enc };
+      // Turning encryption off can take Vision away (non-tcp, or no TLS/Reality).
+      if (!canFlow(next)) next.flow = '';
+      return next;
+    });
+  const genEnc = async (auth: VlessEnc['auth'], quiet = false) => {
+    setGenBusy(true);
+    try {
+      const k = await genVlessEncKeys(auth);
+      patchEnc({ auth: k.auth, private_key: k.private_key, public_key: k.public_key });
+      if (!quiet) toast.success(t('inb.enc.keysDone'));
+    } catch (e) {
+      toast.error(t('common.error'), (e as Error).message);
+    } finally {
+      setGenBusy(false);
+    }
+  };
+  const setEncOn = (on: boolean) => {
+    patchEnc({ enabled: on });
+    if (on && !d.vless_encryption?.private_key) void genEnc(d.vless_encryption?.auth ?? 'x25519', true);
   };
   const genWg = async (awgOnly = false) => {
     setGenBusy(true);
@@ -329,6 +361,8 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
           if (!d.reality?.server_names.length) e.serverNames = t('form.required');
         }
         if (p === 'masque' && !d.tls?.alpn.length) e.alpn = t('form.required');
+        const ve = d.vless_encryption;
+        if (p === 'vless' && ve?.enabled && ve.rtt === '0rtt' && !between(ve.ticket_seconds, 1, 86400)) e.ticket = range(1, 86400);
       }
       if (p === 'amneziawg' && st.awg) {
         const a = st.awg;
@@ -396,7 +430,8 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
 
   const err = (k: string) => (showErr ? errors[k] : dupErrors[k]);
   const daysLeft = (iso: string) => Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
-  const flowAllowed = d.protocol === 'vless' && d.network === 'tcp' && d.security !== 'none';
+  const flowAllowed = canFlow(d);
+  const enc = p === 'vless' ? d.vless_encryption ?? emptyVlessEnc() : null;
   const rtl = typeof document !== 'undefined' && document.documentElement.dir === 'rtl';
   const BackIcon = rtl ? ArrowRight : ArrowLeft;
   const NextIcon = rtl ? ArrowLeft : ArrowRight;
@@ -458,6 +493,13 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
     if (isV2(p)) {
       reviewRows.push([t('inb.step.transport'), `${d.network}${d.transport.path ? ` · ${d.transport.path}` : ''}${d.transport.service_name ? ` · ${d.transport.service_name}` : ''}`]);
       reviewRows.push([t('inb.step.security'), `${d.security}${d.tls?.sni ? ` · ${d.tls.sni}` : ''}${d.reality?.server_names[0] ? ` · ${d.reality.server_names[0]}` : ''}`]);
+      if (p === 'vless') {
+        const e = d.vless_encryption;
+        reviewRows.push([
+          t('inb.enc.title'),
+          e?.enabled ? `${e.auth === 'mlkem768' ? 'ML-KEM-768' : 'X25519'} · ${e.mode} · ${e.rtt === '0rtt' ? `0-RTT ${e.ticket_seconds}s` : '1-RTT'}` : t('inb.enc.off'),
+        ]);
+      }
       if (d.flow) reviewRows.push([t('inb.flow'), d.flow]);
       if (d.ss_method) reviewRows.push([t('inb.ssMethod'), d.ss_method]);
     }
@@ -987,8 +1029,109 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
                 </>
               )}
 
+              {enc && (
+                <div className={`${s.span2} ${s.keyBox}`} data-section="vless-encryption">
+                  <div className={s.encHead}>
+                    <span>
+                      <span className={s.encTitle}>
+                        <KeyRound size={15} /> {t('inb.enc.title')}
+                      </span>
+                      <small className="field__hint" style={{ display: 'block' }}>
+                        {t('inb.enc.hint')}
+                      </small>
+                    </span>
+                    <Switch checked={enc.enabled} onChange={setEncOn} label={t('inb.enc.title')} />
+                  </div>
+                  {enc.enabled && (
+                    <>
+                      <div>
+                        <span className="field__label">{t('inb.enc.auth')}</span>
+                        <div className="seg" role="radiogroup" aria-label={t('inb.enc.auth')}>
+                          {(['x25519', 'mlkem768'] as const).map((a) => (
+                            <button
+                              key={a}
+                              type="button"
+                              role="radio"
+                              aria-checked={enc.auth === a}
+                              onClick={() => {
+                                if (enc.auth === a) return;
+                                patchEnc({ auth: a, private_key: '', public_key: '' });
+                                void genEnc(a, true);
+                              }}
+                            >
+                              <span className="ltr">{a === 'x25519' ? 'X25519' : 'ML-KEM-768'}</span>
+                            </button>
+                          ))}
+                        </div>
+                        <span className={`field__hint ${s.encHint}`}>{t(enc.auth === 'mlkem768' ? 'inb.enc.authPq' : 'inb.enc.authX')}</span>
+                      </div>
+                      <Field label={t('inb.enc.mode')} hint={t(`inb.enc.mode.${enc.mode}` as MessageKey)}>
+                        <Select<string>
+                          ltr
+                          mono
+                          value={enc.mode}
+                          onChange={(v) => patchEnc({ mode: v as VlessEnc['mode'] })}
+                          ariaLabel={t('inb.enc.mode')}
+                          options={['native', 'xorpub', 'random'].map((m) => ({ value: m, label: m }))}
+                        />
+                      </Field>
+                      <div>
+                        <span className="field__label">{t('inb.enc.rtt')}</span>
+                        <div className="seg" role="radiogroup" aria-label={t('inb.enc.rtt')}>
+                          {(['0rtt', '1rtt'] as const).map((r) => (
+                            <button key={r} type="button" role="radio" aria-checked={enc.rtt === r} onClick={() => patchEnc({ rtt: r, ticket_seconds: r === '0rtt' ? enc.ticket_seconds || 600 : 0 })}>
+                              <span className="ltr">{r === '0rtt' ? '0-RTT' : '1-RTT'}</span>
+                            </button>
+                          ))}
+                        </div>
+                        <span className={`field__hint ${s.encHint}`}>{t(enc.rtt === '0rtt' ? 'inb.enc.rtt0' : 'inb.enc.rtt1')}</span>
+                      </div>
+                      {enc.rtt === '0rtt' && (
+                        <Field label={t('inb.enc.ticket')} hint={t('inb.enc.ticketHint')} error={err('ticket')}>
+                          <NumInput value={enc.ticket_seconds} onChange={(v) => patchEnc({ ticket_seconds: v })} min={1} max={86400} invalid={!!err('ticket')} />
+                        </Field>
+                      )}
+                      <div className={s.keyHead}>
+                        <span className="field__label">{t('inb.enc.keys')}</span>
+                        <button type="button" className="btn btn--sm btn--primary" onClick={() => genEnc(enc.auth)} disabled={genBusy}>
+                          {genBusy ? <Loader2 size={15} className="spin" /> : <Sparkles size={15} />}
+                          {t('inb.genKeys')}
+                        </button>
+                      </div>
+                      <div className={s.keys}>
+                        <label>
+                          <small>{t('inb.enc.serverKey')}</small>
+                          <input
+                            className="input ltr mono"
+                            value={enc.private_key}
+                            onChange={(e) => patchEnc({ private_key: e.target.value.trim(), public_key: '' })}
+                            placeholder={t('common.auto')}
+                            spellCheck={false}
+                            autoComplete="off"
+                            autoCapitalize="none"
+                          />
+                        </label>
+                        <label>
+                          <small>{t('inb.enc.clientKey')}</small>
+                          <code className="mono ltr">
+                            <span className={s.keyClip}>{enc.public_key || '—'}</span>
+                          </code>
+                        </label>
+                        {enc.public_key && (
+                          <span className={s.keyBtns}>
+                            <CopyButton text={enc.public_key} label={t('inb.enc.copyClient')} />
+                          </span>
+                        )}
+                      </div>
+                      <span className="field__hint">{t('inb.enc.keysHint')}</span>
+                      <p className={s.note}>{t('inb.enc.clients')}</p>
+                    </>
+                  )}
+                </div>
+              )}
+
               {flowAllowed && (
-                <Field label={t('inb.flow')}>
+                <Field label={t('inb.flow')} hint={enc?.enabled ? t('inb.enc.flowHint') : undefined}>
                   <Select<string>
                     ltr
                     mono

@@ -10,6 +10,13 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/inbounds"
 )
 
+func orNone(s string) string {
+	if s == "" {
+		return "none"
+	}
+	return s
+}
+
 // fragment escapes a remark for use after '#'.
 func fragment(s string) string { return url.PathEscape(s) }
 
@@ -78,7 +85,7 @@ func URI(p *Proxy) string {
 	switch p.Protocol {
 	case "vless":
 		q := url.Values{}
-		q.Set("encryption", "none")
+		q.Set("encryption", orNone(p.Encryption))
 		streamQuery(p, q)
 		if p.Flow != "" {
 			q.Set("flow", p.Flow)

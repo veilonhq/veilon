@@ -134,7 +134,15 @@ func cmdServe(args []string) error {
 			return []int{srv.Settings().PanelPort, apiPort, sbPort}
 		},
 		NodeCaps: nodeMgr.Caps,
+		XrayVersion: func(nodeID int64) string {
+			if nodeID == 0 {
+				return xcore.Status().Version
+			}
+			return nodeMgr.XrayVersion(nodeID)
+		},
 	}
+	// VLESS Encryption keys come from the installed Xray-core when it is there.
+	inbounds.XrayBinary = cfg.XrayBin
 	sampler := &stats.Sampler{DiskPath: cfg.DataDir}
 	// Loopback health URL of this panel, for the updater's health check.
 	var healthURL atomic.Value

@@ -22,6 +22,8 @@ import type {
   Paged,
   PublicIP,
   RealityKeys,
+  VlessEnc,
+  VlessEncKeys,
   Settings,
   SystemStats,
   TrafficPoint,
@@ -503,6 +505,7 @@ export function useSaveHosts() {
   });
 }
 export const genRealityKeys = () => api<RealityKeys>('/inbounds/reality-keys', { method: 'POST' });
+export const genVlessEncKeys = (auth: VlessEnc['auth']) => api<VlessEncKeys>('/inbounds/vless-enc-keys', { method: 'POST', body: { auth } });
 export const genWgKeys = () => api<WgKeys>('/inbounds/wireguard-keys', { method: 'POST' });
 
 /* ---------- certs ---------- */

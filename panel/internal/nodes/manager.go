@@ -785,6 +785,18 @@ func (m *Manager) Caps(id int64) (caps []string, known bool) {
 	return append([]string(nil), st.Caps...), true
 }
 
+// XrayVersion returns the Xray-core version a node last reported ("" =
+// never reached).
+func (m *Manager) XrayVersion(id int64) string {
+	m.init()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if st := m.states[id]; st != nil {
+		return st.XrayVersion
+	}
+	return ""
+}
+
 // InboundIDs returns each node's inbound ids.
 func InboundIDs(gdb *gorm.DB) map[int64][]int64 {
 	var rows []db.NodeInbound

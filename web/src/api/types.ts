@@ -346,6 +346,31 @@ export interface RealitySettings {
   spider_x: string;
 }
 
+/** VLESS Encryption (Xray decryption/encryption). The server keeps the private key; clients get the public one. */
+export interface VlessEnc {
+  enabled: boolean;
+  /** server authentication key: X25519, or ML-KEM-768 (post-quantum) */
+  auth: 'x25519' | 'mlkem768';
+  mode: 'native' | 'xorpub' | 'random';
+  /** 0rtt: clients may resume with a ticket; 1rtt: full handshake every time */
+  rtt: '0rtt' | '1rtt';
+  /** ticket lifetime for 0rtt (seconds) */
+  ticket_seconds: number;
+  /** X25519 private key or ML-KEM-768 seed; '' = generated on save */
+  private_key: string;
+  /** read-only: the client key */
+  public_key: string;
+  /** read-only: the client "encryption" string ('' while off) */
+  encryption?: string;
+}
+
+export interface VlessEncKeys {
+  auth: VlessEnc['auth'];
+  private_key: string;
+  public_key: string;
+  source: 'xray' | 'go';
+}
+
 export interface Transport {
   path: string;
   host: string;
@@ -366,6 +391,8 @@ export interface Inbound {
   reality: RealitySettings | null;
   transport: Transport;
   flow: '' | 'xtls-rprx-vision';
+  /** vless only (null for other protocols) */
+  vless_encryption?: VlessEnc | null;
   ss_method: string;
   sniffing: boolean;
   address_override: string;

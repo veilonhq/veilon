@@ -37,6 +37,7 @@ type clashProxy struct {
 	ServerName        string         `yaml:"servername,omitempty"`
 	SNI               string         `yaml:"sni,omitempty"`
 	Flow              string         `yaml:"flow,omitempty"`
+	Encryption        string         `yaml:"encryption,omitempty"`
 	ALPN              []string       `yaml:"alpn,omitempty"`
 	ClientFingerprint string         `yaml:"client-fingerprint,omitempty"`
 	SkipCertVerify    bool           `yaml:"skip-cert-verify,omitempty"`
@@ -137,7 +138,8 @@ func clashOf(p *Proxy) clashProxy {
 	c := clashProxy{Name: p.Name, Server: p.Server, Port: p.Port, UDP: true}
 	switch p.Protocol {
 	case "vless":
-		c.Type, c.UUID, c.Flow = "vless", p.UUID, p.Flow
+		// mihomo reads VLESS Encryption from "encryption" (same string).
+		c.Type, c.UUID, c.Flow, c.Encryption = "vless", p.UUID, p.Flow, p.Encryption
 	case "vmess":
 		zero := 0
 		c.Type, c.UUID, c.AlterID, c.Cipher = "vmess", p.UUID, &zero, "auto"

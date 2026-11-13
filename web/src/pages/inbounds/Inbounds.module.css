@@ -1225,3 +1225,28 @@
   color: var(--info-fg);
   background: var(--info-soft);
 }
+
+/* VLESS Encryption section */
+.encHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.encTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 14px;
+}
+.keyClip {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.encHint {
+  display: block;
+  margin-top: 6px;
+}

@@ -83,7 +83,7 @@ func xrayOutbound(p *Proxy) obj {
 	o := obj{"tag": "proxy", "protocol": p.Protocol}
 	switch p.Protocol {
 	case "vless":
-		u := obj{"id": p.UUID, "encryption": "none"}
+		u := obj{"id": p.UUID, "encryption": orNone(p.Encryption)}
 		if p.Flow != "" {
 			u["flow"] = p.Flow
 		}
