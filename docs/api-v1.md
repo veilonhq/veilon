@@ -31,12 +31,13 @@ User object:
 { id, username, status: "active"|"disabled"|"limited"|"expired"|"on_hold",
   data_limit, used_traffic, up, down, expire_at|null, on_hold_days|null,
   reset_strategy: "no_reset"|"day"|"week"|"month",
-  note, inbound_ids:[int], uuid, password, sub_token, sub_url,
+  note, inbound_ids:[int], uuid, password, proxy_username, proxy_password, sub_token, sub_url,
   online: bool, last_online_at|null, created_at, updated_at }
 ```
 - `GET /users?search=&status=&page=1&per_page=20&sort=-created_at` → `{items:[User], total}`
   (`search` matches username or note; `status` also accepts `online`; `sort` fields: `created_at`, `username`, `used_traffic`, `data_limit`, `expire_at`, `last_online_at`, `id`, prefix `-` for descending; `per_page` max 500)
 - `POST /users` `{username, data_limit, expire_at|null, on_hold_days|null, reset_strategy, note, inbound_ids}` → `201` User
+  (`proxy_username` / `proxy_password` (optional, both kinds of request): a custom login for HTTP, Mixed and SOCKS inbounds; `""` = automatic (`<id>.<username>` and `password`). Username 3-32 of letters, digits, `. _ -`, not starting with digits and a dot, unique across users case-insensitively (`409` with `field:"proxy_username"`); password 8-64 of letters, digits and `. _ - ~ ! @ # $ % ^ & * + =`.)
   (`on_hold_days` with no `expire_at` creates an `on_hold` user whose period starts at first connection; if both are given, `expire_at` wins)
 - `GET /users/{id}`, `PATCH /users/{id}` (same fields + status active/disabled; only fields present are changed, `null` clears nullable fields), `DELETE /users/{id}` → `{ok}`
 - `POST /users/{id}/reset-traffic`, `POST /users/{id}/revoke-sub` (new sub_token + new uuid/password)
@@ -49,7 +50,7 @@ Inbound object:
 ```
 { id, remark, enabled,
   protocol: "vless"|"vmess"|"trojan"|"shadowsocks"|"hysteria"|"tuic"|"wireguard"|"amneziawg"
-           |"http"|"mixed"|"tunnel"|"tun"|"mtproto"|"masque",
+           |"http"|"mixed"|"socks"|"tunnel"|"tun"|"mtproto"|"masque",
   port, listen, network, security: "none"|"tls"|"reality",
   tls: { cert_id|null, sni, alpn:[], fingerprint, allow_insecure:false } | null,
   reality: { dest, server_names:[], private_key, public_key, short_ids:[], fingerprint, spider_x } | null,
@@ -63,14 +64,15 @@ Settings (protocol-specific; fields that do not apply are reset to zero values):
   congestion,                                   // tuic: bbr|cubic|new_reno
   private_key, public_key, address, dns:[], keepalive, awg|null,   // wireguard / amneziawg
   mtu,                                          // wireguard, amneziawg, masque, tun
-  udp,                                          // mixed: allow SOCKS5 UDP
+  udp,                                          // mixed, socks: allow SOCKS5 UDP
+  no_auth,                                      // socks: no authentication (traffic not counted per user)
   target_address, target_port, tunnel_network,  // tunnel: tcp|udp|tcp,udp
   tun_name, gateway:[], routes:[],              // tun
   faketls_domain,                               // mtproto
   pool:[], path }                               // masque
 awg = { jc, jmin, jmax, s1, s2, h1, h2, h3, h4 }
 ```
-Engines: Xray-core serves vless, vmess, trojan, shadowsocks, hysteria (Hysteria 2), wireguard, http, mixed, tunnel, tun and masque; sing-box serves tuic; mtg-multi serves mtproto (one process per inbound); the built-in AmneziaWG sidecar (`veilon awg-run`, amneziawg-go) serves amneziawg. sing-box and mtg-multi are downloaded from their official GitHub releases into the data dir on first use (`VEILON_SINGBOX_VERSION`, default `1.14.4`; `VEILON_MTG_VERSION`, default `1.15.0`; `latest` is allowed).
+Engines: Xray-core serves vless, vmess, trojan, shadowsocks, hysteria (Hysteria 2), wireguard, http, mixed, socks, tunnel, tun and masque; sing-box serves tuic; mtg-multi serves mtproto (one process per inbound); the built-in AmneziaWG sidecar (`veilon awg-run`, amneziawg-go) serves amneziawg. sing-box and mtg-multi are downloaded from their official GitHub releases into the data dir on first use (`VEILON_SINGBOX_VERSION`, default `1.14.4`; `VEILON_MTG_VERSION`, default `1.15.0`; `latest` is allowed).
 
 - `GET /inbounds` → `[Inbound]`, `POST /inbounds` → `201` Inbound, `GET|PATCH|DELETE /inbounds/{id}`
   - PATCH merges the body onto the stored inbound field by field (nested `tls`/`reality`/`transport`/`settings` objects merge too; `null` clears `tls`/`reality`).
@@ -144,7 +146,7 @@ Renewed certificates are hot-reloaded: the panel and running inbounds pick them 
 
 ## Subscription (public, no auth)
 - `GET /<sub_path>/{sub_token}` → base64 v2ray links by default; `?format=singbox|clash|v2ray|json` or detect by User-Agent.
-  (`json` = array of complete Xray client configs, one per link. User-Agent: clash/mihomo/stash → clash; sing-box/SFA/SFI/SFM/SFT → singbox; anything else → v2ray. Per-format support: v2ray links — every protocol with a share-link standard (vless, vmess, trojan, ss, `hysteria2://`, `tuic://`, `wireguard://`, `http(s)://`, `socks://` for mixed, `tg://proxy` for mtproto); singbox — vless/vmess/trojan/ss (not xhttp), hysteria2, tuic, http, socks, wireguard (as an endpoint); clash — the same plus amneziawg (`amnezia-wg-option`), without trojan over plain TCP; json (Xray) — everything except tuic, amneziawg and mtproto, plus masque, which only exists here. Unsupported entries are skipped per format.)
+  (`json` = array of complete Xray client configs, one per link. User-Agent: clash/mihomo/stash → clash; sing-box/SFA/SFI/SFM/SFT → singbox; anything else → v2ray. Per-format support: v2ray links — every protocol with a share-link standard (vless, vmess, trojan, ss, `hysteria2://`, `tuic://`, `wireguard://`, `http(s)://`, `socks://` for mixed and socks, `tg://proxy` for mtproto); singbox — vless/vmess/trojan/ss (not xhttp), hysteria2, tuic, http, socks, wireguard (as an endpoint); clash — the same plus amneziawg (`amnezia-wg-option`), without trojan over plain TCP; json (Xray) — everything except tuic, amneziawg and mtproto, plus masque, which only exists here. Unsupported entries are skipped per format.)
   Headers: `subscription-userinfo: upload=..; download=..; total=..; expire=<unix>`, `profile-title: base64:<b64>`, `profile-update-interval: <hours>`, `content-disposition`.
 - **Browser page.** The same URL opened in a web browser shows the user's subscription page (usage, days left, expiry, last online, the subscription link with copy and QR, every config with copy and QR, "copy all", the refresh interval), dark or light, Persian (RTL, Persian calendar, panel time zone) or English. A request gets the page only when its `Accept` contains `text/html` **and** its User-Agent starts with `Mozilla/` and names no known client or tool (v2rayNG, v2rayN, v2rayTun, V2Box, Hiddify, Streisand, Shadowrocket, sing-box/SFA/SFI/SFM/SFT, clash/mihomo/Stash, Happ, NekoBox/NekoRay, Karing, FoxRay, Quantumult, Surge, Loon, curl, wget, okhttp, Go-http-client, python, HTTPie, Postman). Every other request gets the subscription exactly as before (same body and headers). The page has no `subscription-userinfo`/`profile-*` headers; it sends `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, `Vary: Accept, User-Agent`. Disabled, expired, limited and on-hold users see the page with their status. Without a web build (placeholder UI) browsers get the subscription.
   - `?format=raw` → the subscription even in a browser (the format then follows the User-Agent, as for any client); an explicit `?format=v2ray|clash|singbox|json` also always returns that format.

@@ -92,7 +92,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer
 
 ## امکانات
 
-- 🧩 **پروتکل ها:** VLESS، VMess، Trojan، Shadowsocks (شامل 2022)، Hysteria2، TUIC، WireGuard، AmneziaWG، HTTP، Mixed (HTTP + SOCKS)، Tunnel، TUN، MTProto و MASQUE
+- 🧩 **پروتکل ها:** VLESS، VMess، Trojan، Shadowsocks (شامل 2022)، Hysteria2، TUIC، WireGuard، AmneziaWG، HTTP، Mixed (HTTP + SOCKS)، SOCKS، Tunnel، TUN، MTProto و MASQUE
 - 🛡️ **امنیت اتصال:** Reality و TLS، انتقال TCP، WebSocket، gRPC، HTTPUpgrade و XHTTP
 - 🔒 **گواهی رایگان Let's Encrypt:** برای دامنه (۹۰ روزه) یا مستقیم برای IP سرور (کوتاه مدت)، با تمدید خودکار
 - 👥 **مدیریت کاربران:** سقف حجم، تاریخ انقضا، شروع انقضا از اولین اتصال، ریست دوره ای حجم (روزانه، هفتگی، ماهانه)، وضعیت آنلاین و آخرین اتصال، عملیات گروهی
@@ -121,7 +121,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer
 | 🛡️ **پراکسی** | VLESS، VMess، Trojan، Shadowsocks (شامل 2022) | پروتکل های پایه با TLS یا Reality |
 | ⚡ **UDP و QUIC** | Hysteria2، TUIC، MASQUE | سریع روی شبکه های پرتلفات |
 | 🌐 **VPN** | WireGuard، AmneziaWG، TUN | تونل کامل لایه شبکه |
-| 🔧 **ابزاری** | HTTP، Mixed (HTTP + SOCKS)، Tunnel، MTProto | پراکسی ساده، پورت فوروارد و تلگرام |
+| 🔧 **ابزاری** | HTTP، Mixed (HTTP + SOCKS)، SOCKS، Tunnel، MTProto | پراکسی ساده، پورت فوروارد و تلگرام |
 
 **امنیت:** Reality و TLS &nbsp;·&nbsp; **انتقال:** TCP، WebSocket، gRPC، HTTPUpgrade و XHTTP
 
@@ -373,6 +373,7 @@ veilon cert list
 - **به روزرسانی از داخل پنل:** وقتی نسخه تازه بیاید، بالای پنل اعلان نمایش داده می شود و با **نصب به روزرسانی** نصب می شود. سرورهایی که نسخه v0.2.2 یا قدیمی تر دارند باید یک بار دستور نصب را دوباره روی سرور اجرا کنند (اطلاعات می ماند). [راهنما](docs/fa/self-update.md)
 - **نودها (اختیاری):** برای پنل فقط یک VPS لازم است. اگر سرور دیگری دارید، در **بیشتر ← نودها ← افزودن نود** آن را اضافه کنید و دستوری را که پنل نشان می دهد روی سرور نود اجرا کنید (به شکل `install.sh node --token ...`). [راهنما](docs/fa/nodes.md)
 - **ربات تلگرام (اختیاری):** در **بیشتر ← ربات تلگرام** توکن ربات را از @BotFather و شناسه عددی مدیران را وارد کنید تا پنل را از تلگرام مدیریت کنید و اعلان حجم و انقضای کاربران، قطع شدن نودها و نسخه تازه را بگیرید. [راهنما](docs/fa/telegram-bot.md)
+- **SOCKS و ورود پراکسی دلخواه:** ورودی SOCKS5 تنها (با رمز یا بدون احراز هویت)، و برای هر کاربر نام کاربری و رمز دلخواه روی ورودی های HTTP، Mixed و SOCKS در فرم کاربر. [راهنما](docs/fa/socks-proxy-login.md)
   - **محل اجرا:** در فرم هر ورودی گزینه **محل اجرا** را می بینید: سرور اصلی یا یک یا چند نود. ورودی ای که روی نود است فقط روی همان نودها اجرا می شود و لینک کاربران به آدرس نود اشاره می کند. ورودی هایی که در نسخه های قبل به نود داده شده بودند روی سرور اصلی هم اجرا می مانند تا کاربران قطع نشوند (گزینه **روی سرور اصلی هم اجرا شود**).
   - **محدودیت IP روی همه سرورها:** IP های هر کاربر روی سرور اصلی و همه نودها با هم شمرده می شوند و IP های اضافه روی همه سرورها مسدود می شوند. برای این کار نودها باید برنامه نود را به روز کنند (در صفحه نودها **دستور نصب تازه** را بزنید و روی سرور نود اجرا کنید).
   - **ترافیک به تفکیک سرور:** داشبورد و صفحه نودها سهم هر سرور از ترافیک کاربران را نشان می دهند.
@@ -574,7 +575,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer
 
 ## Features
 
-- 🧩 **Protocols:** VLESS, VMess, Trojan, Shadowsocks (incl. 2022), Hysteria2, TUIC, WireGuard, AmneziaWG, HTTP, Mixed (HTTP + SOCKS), Tunnel, TUN, MTProto and MASQUE
+- 🧩 **Protocols:** VLESS, VMess, Trojan, Shadowsocks (incl. 2022), Hysteria2, TUIC, WireGuard, AmneziaWG, HTTP, Mixed (HTTP + SOCKS), SOCKS, Tunnel, TUN, MTProto and MASQUE
 - 🛡️ **Security and transports:** Reality and TLS; TCP, WebSocket, gRPC, HTTPUpgrade and XHTTP
 - 🔒 **Free Let's Encrypt certificates:** For a domain (90 days) or directly for the server IP (short-lived), renewed automatically
 - 👥 **Users:** Data cap, expiry, expiry starting at first connection, periodic data reset (daily, weekly, monthly), online status and last connection, bulk actions
@@ -603,7 +604,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/veilonhq/veilon/main/installer
 | 🛡️ **Proxies** | VLESS, VMess, Trojan, Shadowsocks (incl. 2022) | Core protocols with TLS or Reality |
 | ⚡ **UDP / QUIC** | Hysteria2, TUIC, MASQUE | Fast on lossy networks |
 | 🌐 **VPN** | WireGuard, AmneziaWG, TUN | Full network-layer tunnels |
-| 🔧 **Utility** | HTTP, Mixed (HTTP + SOCKS), Tunnel, MTProto | Plain proxies, port forwarding and Telegram |
+| 🔧 **Utility** | HTTP, Mixed (HTTP + SOCKS), SOCKS, Tunnel, MTProto | Plain proxies, port forwarding and Telegram |
 
 **Security:** Reality and TLS &nbsp;·&nbsp; **Transports:** TCP, WebSocket, gRPC, HTTPUpgrade and XHTTP
 
@@ -790,6 +791,7 @@ Guide and download: https://skylarsob.github.io/ScanON/
 - **In-panel updates:** a banner appears when a new release is out; **Install update** installs it. Servers on v0.2.2 or older need to run the install command on the server once first (data is kept). [Guide](docs/en/self-update.md)
 - **Nodes (optional):** the panel needs only one VPS. To add another server, open **More → Nodes → Add node** and run the command the panel shows on the node server (in the form `install.sh node --token ...`). [Guide](docs/en/nodes.md)
 - **Telegram bot (optional):** open **More → Telegram bot**, enter the token from @BotFather and the admins' numeric ids to run the panel from Telegram and get notifications for user data and expiry, nodes going offline and new releases. [Guide](docs/en/telegram-bot.md)
+- **SOCKS and custom proxy login:** a plain SOCKS5 inbound (with a password or no authentication), and a per-user custom username and password for HTTP, Mixed and SOCKS inbounds in the user form. [Guide](docs/en/socks-proxy-login.md)
   - **Runs on:** the inbound form has a **Runs on** choice: the main server, or one or more nodes. An inbound on nodes runs only there and users' links point at the node address. Inbounds assigned to a node by an earlier version keep running on the main server too so users are not cut off (**Also run on the main server**).
   - **IP limits across nodes:** a user's IPs on the main server and all nodes are counted together, and IPs over the limit are blocked on every server. Nodes need an updated node agent for this (on the Nodes page choose **New install command** and run it on the node server).
   - **Traffic by server:** the Dashboard and the Nodes page show each server's share of users' traffic.

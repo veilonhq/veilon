@@ -2,6 +2,20 @@
 
 Each release's notes, Persian first. Older releases: https://github.com/veilonhq/veilon/releases
 
+## Unreleased
+
+### فارسی
+
+- ورودی تازه **SOCKS** (پراکسی SOCKS5 تنها، موتور Xray): ورود با نام کاربری و رمز یا بدون احراز هویت و کلید UDP. روی سرور اصلی و نودها اجرا می شود و لینک `socks://`، Clash (`socks5`)، sing-box و اشتراک JSON دارد. بدون احراز هویت مصرف کاربران جدا شمرده نمی شود و محدودیت های کاربران روی آن کار نمی کند (هشدار در فرم ورودی). [راهنما](docs/fa/socks-proxy-login.md)
+- ورود پراکسی دلخواه برای هر کاربر: نام کاربری و رمز اختیاری برای ورودی های HTTP، Mixed و SOCKS در فرم کاربر (فقط وقتی یکی از این ورودی ها انتخاب شده باشد نشان داده می شود)، در API (`proxy_username` و `proxy_password`) و ربات تلگرام. خالی یعنی همان ورود خودکار قبلی. نام کاربری بین کاربران یکتا است و مصرف، آنلاین بودن و محدودیت های IP و سرعت همچنان به همان کاربر نسبت داده می شوند. روی نودها برنامه نود همین نسخه لازم است
+- مهاجرت پایگاه داده: schema 12 (ستون های users.proxy_username و users.proxy_password و ایندکس یکتای نام های غیر خالی)، فقط افزودنی
+
+### English
+
+- New **SOCKS** inbound (plain SOCKS5 proxy on Xray): sign in with username and password or no authentication, plus a UDP switch. Runs on the main server and on nodes, with `socks://` links, Clash (`socks5`), sing-box and JSON subscription entries. Without authentication users cannot be counted individually and their limits do not apply (the inbound form warns about it). [Guide](docs/en/socks-proxy-login.md)
+- Custom proxy login per user: an optional username and password for HTTP, Mixed and SOCKS inbounds in the user form (shown only while one of these inbounds is selected), in the API (`proxy_username`, `proxy_password`) and in the Telegram bot. Empty keeps the previous automatic login. The username is unique across users, and traffic, online state and IP and speed limits still belong to the same user. Nodes need this release's node agent
+- Database migration: schema 12 (users.proxy_username and users.proxy_password columns and a unique index on non-empty names), additive only
+
 ## v0.3.10 (2026-11-13)
 
 ### فارسی
