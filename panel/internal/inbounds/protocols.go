@@ -239,8 +239,19 @@ func Transports(v *View) (tcp, udp bool) {
 	case VLESS, VMess, Trojan:
 		tcp = true
 		udp = v.Network == "xhttp" && v.TLS != nil && containsStr(v.TLS.ALPN, "h3")
+		if v.Network == "kcp" {
+			tcp, udp = false, true
+		}
 	case Shadowsocks:
-		tcp, udp = true, true
+		// RAW also listens on UDP unless switched off; other transports
+		// carry everything in their own stream.
+		tcp, udp = true, (v.Network == "tcp" || v.Network == "") && !(v.Advanced != nil && v.Advanced.SS != nil && v.Advanced.SS.NoUDP)
+		if v.Network == "kcp" {
+			tcp, udp = false, true
+		}
+		if v.Network == "xhttp" && v.TLS != nil && containsStr(v.TLS.ALPN, "h3") {
+			udp = true
+		}
 	case Hysteria, TUIC, WireGuard, AmneziaWG:
 		udp = true
 	case Masque:

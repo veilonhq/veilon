@@ -36,13 +36,36 @@ func streamQuery(p *Proxy, q url.Values) {
 		if p.Mode != "" {
 			q.Set("mode", p.Mode)
 		}
+		if ex := xhttpLinkExtra(p); ex != "" {
+			q.Set("extra", ex)
+		}
 	case "grpc":
 		q.Set("serviceName", p.ServiceName)
 		if p.Mode != "" {
 			q.Set("mode", p.Mode)
 		}
 	case "tcp":
+		if h := p.TCPHeader; h != nil {
+			q.Set("headerType", "http")
+			if len(h.Host) > 0 {
+				q.Set("host", strings.Join(h.Host, ","))
+			}
+			if len(h.Path) > 0 {
+				q.Set("path", strings.Join(h.Path, ","))
+			}
+		} else {
+			q.Set("headerType", "none")
+		}
+	case "kcp":
 		q.Set("headerType", "none")
+		if k := p.KCP; k != nil {
+			if k.Header != "" {
+				q.Set("headerType", k.Header)
+			}
+			if k.Seed != "" {
+				q.Set("seed", k.Seed)
+			}
+		}
 	}
 	switch p.Security {
 	case "tls":
@@ -61,6 +84,11 @@ func streamQuery(p *Proxy, q url.Values) {
 			if p.PinSHA256 != "" {
 				q.Set("pcs", p.PinSHA256)
 			}
+		} else if p.PinAlways && p.PinSHA256 != "" {
+			q.Set("pcs", p.PinSHA256)
+		}
+		if p.ECHConfig != "" {
+			q.Set("ech", p.ECHConfig)
 		}
 	case "reality":
 		q.Set("security", "reality")
@@ -74,6 +102,9 @@ func streamQuery(p *Proxy, q url.Values) {
 		q.Set("fp", p.Fingerprint)
 		if p.SpiderX != "" {
 			q.Set("spx", p.SpiderX)
+		}
+		if p.PQV != "" {
+			q.Set("pqv", p.PQV)
 		}
 	default:
 		q.Set("security", "none")
@@ -106,6 +137,12 @@ func URI(p *Proxy) string {
 			// SIP002: URL-safe base64 of method:password.
 			userinfo = base64.RawURLEncoding.EncodeToString([]byte(p.Method + ":" + p.Password))
 		}
+		if p.Network != "" && p.Network != "tcp" || p.Security == "tls" || p.TCPHeader != nil {
+			// Shadowsocks over an Xray transport: the same query as VLESS.
+			q := url.Values{}
+			streamQuery(p, q)
+			return "ss://" + userinfo + "@" + hostPort(p.Server, p.Port) + "?" + q.Encode() + "#" + fragment(p.Name)
+		}
 		return "ss://" + userinfo + "@" + hostPort(p.Server, p.Port) + "#" + fragment(p.Name)
 	}
 	return extraURI(p)
@@ -127,6 +164,17 @@ func vmessURI(p *Proxy) string {
 	case "grpc":
 		m["path"] = p.ServiceName
 		m["type"] = p.Mode
+	case "tcp":
+		if h := p.TCPHeader; h != nil {
+			m["type"], m["host"], m["path"] = "http", strings.Join(h.Host, ","), strings.Join(h.Path, ",")
+		}
+	case "kcp":
+		if k := p.KCP; k != nil {
+			if k.Header != "" {
+				m["type"] = k.Header
+			}
+			m["path"] = k.Seed
+		}
 	}
 	if p.Security == "tls" {
 		m["tls"] = "tls"
@@ -142,6 +190,11 @@ func vmessURI(p *Proxy) string {
 			if p.PinSHA256 != "" {
 				m["pcs"] = p.PinSHA256
 			}
+		} else if p.PinAlways && p.PinSHA256 != "" {
+			m["pcs"] = p.PinSHA256
+		}
+		if p.ECHConfig != "" {
+			m["ech"] = p.ECHConfig
 		}
 	}
 	b, _ := json.Marshal(m)

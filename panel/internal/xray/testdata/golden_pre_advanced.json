@@ -1,0 +1,484 @@
+{
+  "api": {
+    "services": [
+      "StatsService"
+    ],
+    "tag": "api"
+  },
+  "inbounds": [
+    {
+      "listen": "127.0.0.1",
+      "port": 41099,
+      "protocol": "dokodemo-door",
+      "settings": {
+        "address": "127.0.0.1"
+      },
+      "tag": "api"
+    },
+    {
+      "listen": "0.0.0.0",
+      "port": 41001,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "email": "7.alice",
+            "flow": "xtls-rprx-vision",
+            "id": "11111111-2222-4333-8444-555555555555"
+          }
+        ],
+        "decryption": "none"
+      },
+      "sniffing": {
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ],
+        "enabled": true
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "realitySettings": {
+          "dest": "www.example.com:443",
+          "privateKey": "SDmCRAdbBnOV4lqtd25MsJfY5rR2e_AJrJs-nEBeFkU",
+          "serverNames": [
+            "www.example.com"
+          ],
+          "shortIds": [
+            "0123456789abcdef"
+          ],
+          "show": false,
+          "xver": 0
+        },
+        "security": "reality"
+      },
+      "tag": "inbound-1"
+    },
+    {
+      "listen": "0.0.0.0",
+      "port": 41002,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "email": "7.alice",
+            "id": "11111111-2222-4333-8444-555555555555"
+          }
+        ],
+        "decryption": "none"
+      },
+      "sniffing": {
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ],
+        "enabled": true
+      },
+      "streamSettings": {
+        "network": "ws",
+        "security": "tls",
+        "tlsSettings": {
+          "alpn": [
+            "http/1.1"
+          ],
+          "certificates": [
+            {
+              "certificateFile": "@DIR@/certs/1/fullchain.pem",
+              "keyFile": "@DIR@/certs/1/privkey.pem"
+            }
+          ],
+          "serverName": "g.example.com"
+        },
+        "wsSettings": {
+          "host": "h.example.com",
+          "path": "/ws"
+        }
+      },
+      "tag": "inbound-2"
+    },
+    {
+      "listen": "0.0.0.0",
+      "port": 41003,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "email": "7.alice",
+            "id": "11111111-2222-4333-8444-555555555555"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "xhttp",
+        "security": "tls",
+        "tlsSettings": {
+          "alpn": [
+            "h2",
+            "http/1.1"
+          ],
+          "certificates": [
+            {
+              "certificateFile": "@DIR@/certs/1/fullchain.pem",
+              "keyFile": "@DIR@/certs/1/privkey.pem"
+            }
+          ],
+          "serverName": "g.example.com"
+        },
+        "xhttpSettings": {
+          "mode": "auto",
+          "path": "/x"
+        }
+      },
+      "tag": "inbound-3"
+    },
+    {
+      "listen": "0.0.0.0",
+      "port": 41004,
+      "protocol": "vmess",
+      "settings": {
+        "clients": [
+          {
+            "email": "7.alice",
+            "id": "11111111-2222-4333-8444-555555555555"
+          }
+        ]
+      },
+      "sniffing": {
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ],
+        "enabled": true
+      },
+      "streamSettings": {
+        "grpcSettings": {
+          "multiMode": true,
+          "serviceName": "gs"
+        },
+        "network": "grpc",
+        "security": "tls",
+        "tlsSettings": {
+          "certificates": [
+            {
+              "certificateFile": "@DIR@/certs/1/fullchain.pem",
+              "keyFile": "@DIR@/certs/1/privkey.pem"
+            }
+          ],
+          "serverName": "g.example.com"
+        }
+      },
+      "tag": "inbound-4"
+    },
+    {
+      "listen": "0.0.0.0",
+      "port": 41005,
+      "protocol": "trojan",
+      "settings": {
+        "clients": [
+          {
+            "email": "7.alice",
+            "password": "pw7"
+          }
+        ]
+      },
+      "sniffing": {
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ],
+        "enabled": true
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "tls",
+        "tlsSettings": {
+          "alpn": [
+            "h2"
+          ],
+          "certificates": [
+            {
+              "certificateFile": "@DIR@/certs/1/fullchain.pem",
+              "keyFile": "@DIR@/certs/1/privkey.pem"
+            }
+          ],
+          "serverName": "g.example.com"
+        }
+      },
+      "tag": "inbound-5"
+    },
+    {
+      "listen": "0.0.0.0",
+      "port": 41006,
+      "protocol": "shadowsocks",
+      "settings": {
+        "clients": [
+          {
+            "email": "7.alice",
+            "password": "NOQI20A7cBmnBE0YO9X/qQ=="
+          }
+        ],
+        "method": "2022-blake3-aes-128-gcm",
+        "network": "tcp,udp",
+        "password": "AAAAAAAAAAAAAAAAAAAAAA=="
+      },
+      "sniffing": {
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ],
+        "enabled": true
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "none"
+      },
+      "tag": "inbound-6"
+    },
+    {
+      "listen": "0.0.0.0",
+      "port": 41007,
+      "protocol": "shadowsocks",
+      "settings": {
+        "clients": [
+          {
+            "email": "7.alice",
+            "method": "chacha20-ietf-poly1305",
+            "password": "pw7"
+          }
+        ],
+        "method": "chacha20-ietf-poly1305",
+        "network": "tcp,udp"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "none"
+      },
+      "tag": "inbound-7"
+    },
+    {
+      "listen": "0.0.0.0",
+      "port": 41008,
+      "protocol": "vmess",
+      "settings": {
+        "clients": [
+          {
+            "email": "7.alice",
+            "id": "11111111-2222-4333-8444-555555555555"
+          }
+        ]
+      },
+      "streamSettings": {
+        "httpupgradeSettings": {
+          "path": "/hu"
+        },
+        "network": "httpupgrade",
+        "security": "none"
+      },
+      "tag": "inbound-8"
+    },
+    {
+      "listen": "0.0.0.0",
+      "port": 41009,
+      "protocol": "trojan",
+      "settings": {
+        "clients": [
+          {
+            "email": "7.alice",
+            "password": "pw7"
+          }
+        ]
+      },
+      "streamSettings": {
+        "grpcSettings": {
+          "multiMode": false,
+          "serviceName": "grpc"
+        },
+        "network": "grpc",
+        "realitySettings": {
+          "dest": "www.example.com:443",
+          "privateKey": "SDmCRAdbBnOV4lqtd25MsJfY5rR2e_AJrJs-nEBeFkU",
+          "serverNames": [
+            "www.example.com"
+          ],
+          "shortIds": [
+            "0123456789abcdef"
+          ],
+          "show": false,
+          "xver": 0
+        },
+        "security": "reality"
+      },
+      "tag": "inbound-9"
+    },
+    {
+      "listen": "0.0.0.0",
+      "port": 41010,
+      "protocol": "hysteria",
+      "settings": {
+        "clients": [
+          {
+            "auth": "pw7",
+            "email": "7.alice"
+          }
+        ],
+        "version": 2
+      },
+      "sniffing": {
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ],
+        "enabled": true
+      },
+      "streamSettings": {
+        "finalmask": {
+          "udp": [
+            {
+              "settings": {
+                "password": "ob"
+              },
+              "type": "salamander"
+            }
+          ]
+        },
+        "hysteriaSettings": {
+          "version": 2
+        },
+        "network": "hysteria",
+        "security": "tls",
+        "tlsSettings": {
+          "alpn": [
+            "h3"
+          ],
+          "certificates": [
+            {
+              "certificateFile": "@DIR@/certs/1/fullchain.pem",
+              "keyFile": "@DIR@/certs/1/privkey.pem"
+            }
+          ],
+          "serverName": "g.example.com"
+        }
+      },
+      "tag": "inbound-10"
+    },
+    {
+      "listen": "0.0.0.0",
+      "port": 41011,
+      "protocol": "mixed",
+      "settings": {
+        "accounts": [
+          {
+            "pass": "pw7",
+            "user": "7.alice"
+          }
+        ],
+        "auth": "password",
+        "udp": true
+      },
+      "sniffing": {
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ],
+        "enabled": true
+      },
+      "tag": "inbound-11"
+    },
+    {
+      "listen": "0.0.0.0",
+      "port": 41012,
+      "protocol": "socks",
+      "settings": {
+        "accounts": [
+          {
+            "pass": "pw7",
+            "user": "7.alice"
+          }
+        ],
+        "auth": "password",
+        "udp": true
+      },
+      "tag": "inbound-12"
+    },
+    {
+      "listen": "0.0.0.0",
+      "port": 41013,
+      "protocol": "mixed",
+      "settings": {
+        "accounts": [
+          {
+            "pass": "pw7",
+            "user": "7.alice"
+          }
+        ],
+        "auth": "password",
+        "udp": false
+      },
+      "streamSettings": {
+        "network": "raw",
+        "security": "tls",
+        "tlsSettings": {
+          "certificates": [
+            {
+              "certificateFile": "@DIR@/certs/1/fullchain.pem",
+              "keyFile": "@DIR@/certs/1/privkey.pem"
+            }
+          ],
+          "serverName": "g.example.com"
+        }
+      },
+      "tag": "inbound-13"
+    }
+  ],
+  "log": {
+    "loglevel": "warning"
+  },
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "settings": {},
+      "tag": "direct"
+    },
+    {
+      "protocol": "blackhole",
+      "settings": {},
+      "tag": "blocked"
+    }
+  ],
+  "policy": {
+    "levels": {
+      "0": {
+        "statsUserDownlink": true,
+        "statsUserOnline": true,
+        "statsUserUplink": true
+      }
+    },
+    "system": {
+      "statsInboundDownlink": true,
+      "statsInboundUplink": true,
+      "statsOutboundDownlink": true,
+      "statsOutboundUplink": true
+    }
+  },
+  "routing": {
+    "domainStrategy": "AsIs",
+    "rules": [
+      {
+        "inboundTag": [
+          "api"
+        ],
+        "outboundTag": "api",
+        "type": "field"
+      }
+    ]
+  },
+  "stats": {}
+}

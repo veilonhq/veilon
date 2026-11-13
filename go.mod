@@ -3,8 +3,11 @@ module github.com/veilonhq/veilon
 go 1.23
 
 require (
+	github.com/amnezia-vpn/amneziawg-go v0.2.12
+	github.com/cloudflare/circl v1.6.1
 	github.com/glebarez/sqlite v1.11.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
+	github.com/google/uuid v1.6.0
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	golang.org/x/crypto v0.31.0
 	google.golang.org/grpc v1.68.1
@@ -15,11 +18,8 @@ require (
 )
 
 require (
-	github.com/amnezia-vpn/amneziawg-go v0.2.12 // indirect
-	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/glebarez/go-sqlite v1.21.2 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
 	github.com/jackc/pgx/v5 v5.5.5 // indirect

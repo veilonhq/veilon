@@ -13,9 +13,12 @@ func ClashSupported(p *Proxy) bool {
 	switch p.Protocol {
 	case "trojan":
 		// Clash Meta's trojan always speaks TLS.
-		return p.Network != "xhttp" && p.Security != "none"
-	case "vless", "vmess", "shadowsocks":
-		return p.Network != "xhttp"
+		return p.Network != "xhttp" && p.Network != "kcp" && p.Security != "none"
+	case "vless", "vmess":
+		return p.Network != "xhttp" && p.Network != "kcp" && p.TCPHeader == nil
+	case "shadowsocks":
+		// mihomo's ss has no Xray transports (only its own plugins).
+		return (p.Network == "tcp" || p.Network == "") && p.Security == "none" && p.TCPHeader == nil
 	case inbounds.Hysteria, inbounds.TUIC, inbounds.HTTP, inbounds.Mixed, inbounds.Socks, inbounds.WireGuard, inbounds.AmneziaWG:
 		return true
 	}
@@ -60,6 +63,9 @@ type clashProxy struct {
 	MTU                  int            `yaml:"mtu,omitempty"`
 	DNS                  []string       `yaml:"dns,omitempty"`
 	AmneziaWGOption      map[string]any `yaml:"amnezia-wg-option,omitempty"`
+	ECHOpts              map[string]any `yaml:"ech-opts,omitempty"`
+	ReduceRTT            bool           `yaml:"reduce-rtt,omitempty"`
+	HeartbeatInterval    int            `yaml:"heartbeat-interval,omitempty"`
 }
 
 type clashGroup struct {
@@ -105,6 +111,13 @@ func clashExtra(p *Proxy) clashProxy {
 	case inbounds.TUIC:
 		c.Type, c.UUID, c.Password = "tuic", p.UUID, p.Password
 		c.CongestionController, c.UDPRelayMode = p.Congestion, "native"
+		if t := p.TUIC; t != nil {
+			c.ReduceRTT = t.ZeroRTT
+			c.HeartbeatInterval = t.Heartbeat * 1000
+			if t.UDPRelayMode != "" {
+				c.UDPRelayMode = t.UDPRelayMode
+			}
+		}
 		tls([]string{"h3"})
 	case inbounds.HTTP:
 		c.Type, c.Username, c.Password, c.UDP = "http", p.Username, p.Password, false
@@ -152,14 +165,14 @@ func clashOf(p *Proxy) clashProxy {
 	case "ws":
 		c.Network = "ws"
 		c.WSOpts = map[string]any{"path": p.Path}
-		if p.Host != "" {
-			c.WSOpts["headers"] = map[string]string{"Host": p.Host}
+		if h := clashHeaders(p); h != nil {
+			c.WSOpts["headers"] = h
 		}
 	case "httpupgrade":
 		c.Network = "ws"
 		c.WSOpts = map[string]any{"path": p.Path, "v2ray-http-upgrade": true}
-		if p.Host != "" {
-			c.WSOpts["headers"] = map[string]string{"Host": p.Host}
+		if h := clashHeaders(p); h != nil {
+			c.WSOpts["headers"] = h
 		}
 	case "grpc":
 		c.Network = "grpc"
@@ -179,6 +192,14 @@ func clashOf(p *Proxy) clashProxy {
 		c.ALPN = p.ALPN
 		c.ClientFingerprint = p.Fingerprint
 		c.SkipCertVerify = p.Insecure
+		if p.Security == "tls" {
+			if p.PinAlways && p.PinSHA256 != "" {
+				c.SkipCertVerify, c.Fingerprint = false, p.PinSHA256
+			}
+			if p.ECHConfig != "" {
+				c.ECHOpts = map[string]any{"enable": true, "config": p.ECHConfig}
+			}
+		}
 	}
 	if p.Security == "reality" {
 		// Current Xray Reality servers negotiate the post-quantum
@@ -188,6 +209,23 @@ func clashOf(p *Proxy) clashProxy {
 		c.ClientFingerprint = "chrome"
 	}
 	return c
+}
+
+// clashHeaders: the WebSocket request headers (custom ones plus Host).
+func clashHeaders(p *Proxy) map[string]string {
+	h := map[string]string{}
+	if p.WS != nil {
+		for k, v := range p.WS.Headers {
+			h[k] = v
+		}
+	}
+	if p.Host != "" {
+		h["Host"] = p.Host
+	}
+	if len(h) == 0 {
+		return nil
+	}
+	return h
 }
 
 // Clash renders a Clash Meta (mihomo) YAML configuration.

@@ -10,6 +10,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/audit"
 	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/inbounds"
+	"github.com/veilonhq/veilon/panel/internal/sub"
 )
 
 func (s *Server) listInbounds(w http.ResponseWriter, r *http.Request, a *db.Admin) {
@@ -86,6 +87,13 @@ func (s *Server) updateInbound(w http.ResponseWriter, r *http.Request, a *db.Adm
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_request", "cannot read body")
 		return
+	}
+	// "advanced" is replaced whole (header maps would otherwise merge).
+	var keys map[string]json.RawMessage
+	if json.Unmarshal(body, &keys) == nil {
+		if _, ok := keys["advanced"]; ok {
+			cur.Advanced = nil
+		}
 	}
 	if err := json.Unmarshal(body, cur); err != nil {
 		writeErr(w, http.StatusBadRequest, "bad_request", "invalid JSON body: "+err.Error())
@@ -194,4 +202,87 @@ func (s *Server) setInboundHosts(w http.ResponseWriter, r *http.Request, a *db.A
 	}
 	audit.Log(s.DB, a, "inbound.hosts", strconv.FormatInt(id, 10), s.clientIP(r))
 	writeJSON(w, 200, hs)
+}
+
+// mldsa65Keys makes a Reality ML-DSA-65 pair (server seed, client verify).
+func (s *Server) mldsa65Keys(w http.ResponseWriter, r *http.Request, a *db.Admin) {
+	k, err := inbounds.GenerateMLDSA65(inbounds.XrayBinary)
+	if err != nil {
+		writeServiceErr(w, err)
+		return
+	}
+	writeJSON(w, 200, k)
+}
+
+// echKeys makes TLS ECH server keys and the client config list
+// ({"server_name": public name}, default cloudflare-ech.com).
+func (s *Server) echKeys(w http.ResponseWriter, r *http.Request, a *db.Admin) {
+	var req struct {
+		ServerName string `json:"server_name"`
+	}
+	if b, _ := io.ReadAll(io.LimitReader(r.Body, 4096)); len(b) > 0 {
+		if err := json.Unmarshal(b, &req); err != nil {
+			writeErr(w, http.StatusBadRequest, "bad_request", "invalid JSON body: "+err.Error())
+			return
+		}
+	}
+	k, err := inbounds.GenerateECH(inbounds.XrayBinary, req.ServerName)
+	if err != nil {
+		writeServiceErr(w, err)
+		return
+	}
+	writeJSON(w, 200, k)
+}
+
+// reverseBridge returns the Xray config a reverse-proxy bridge runs
+// (?node=<id> picks the node's address; default the first address).
+func (s *Server) reverseBridge(w http.ResponseWriter, r *http.Request, a *db.Admin) {
+	id, ok := pathID(w, r)
+	if !ok {
+		return
+	}
+	ib, err := s.Inbounds.Get(id)
+	if err != nil {
+		writeServiceErr(w, err)
+		return
+	}
+	if !ib.ReverseOn() {
+		writeErr(w, http.StatusConflict, "no_reverse", "the inbound has no reverse proxy")
+		return
+	}
+	ex := sub.Extras{Pins: sub.CertPinsFull(s.DB), Nodes: inbounds.NodeTargets(s.DB, []int64{id}),
+		NodeOnly: inbounds.NodeOnly(s.DB), Placed: inbounds.Placed(s.DB)}
+	ps, err := sub.ReverseBridgeTargets(ib, db.LoadSettings(s.DB), r.Host, ex)
+	if err != nil {
+		writeErr(w, http.StatusConflict, "no_reverse", err.Error())
+		return
+	}
+	p := &ps[0]
+	if nid, _ := strconv.ParseInt(r.URL.Query().Get("node"), 10, 64); nid > 0 {
+		found := false
+		for _, n := range ex.Nodes[id] {
+			if n.ID != nid {
+				continue
+			}
+			for i := range ps {
+				if ps[i].Server == n.Address {
+					p, found = &ps[i], true
+					break
+				}
+			}
+		}
+		if !found {
+			writeErr(w, http.StatusNotFound, "not_found", "the inbound does not run on that node")
+			return
+		}
+	}
+	b, err := sub.ReverseBridgeConfig(p)
+	if err != nil {
+		writeServiceErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="veilon-bridge-%d.json"`, id))
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write(b)
 }

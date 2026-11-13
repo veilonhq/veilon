@@ -1,0 +1,1437 @@
+vless://11111111-2222-4333-8444-555555555555@srv.example.com:41001?encryption=none&flow=xtls-rprx-vision&fp=chrome&headerType=none&pbk=PUBKEY&security=reality&sid=0123456789abcdef&sni=www.example.com&spx=%2F&type=tcp#vless-reality
+vless://11111111-2222-4333-8444-555555555555@srv.example.com:41002?alpn=http%2F1.1&encryption=none&fp=chrome&host=h.example.com&path=%2Fws&security=tls&sni=g.example.com&type=ws#vless-tls-ws
+vless://11111111-2222-4333-8444-555555555555@srv.example.com:41003?allowInsecure=1&alpn=h2&encryption=none&fp=chrome&mode=auto&path=%2Fx&pcs=ab&security=tls&sni=g.example.com&type=xhttp#vless-xhttp
+vmess://eyJhZGQiOiJzcnYuZXhhbXBsZS5jb20iLCJhaWQiOiIwIiwiYWxsb3dJbnNlY3VyZSI6IjEiLCJmcCI6ImNocm9tZSIsImhvc3QiOiIiLCJpZCI6IjExMTExMTExLTIyMjItNDMzMy04NDQ0LTU1NTU1NTU1NTU1NSIsIm5ldCI6ImdycGMiLCJwYXRoIjoiZ3MiLCJwY3MiOiJhYiIsInBvcnQiOiI0MTAwNCIsInBzIjoidm1lc3MtZ3JwYyIsInNjeSI6ImF1dG8iLCJzbmkiOiJnLmV4YW1wbGUuY29tIiwidGxzIjoidGxzIiwidHlwZSI6Im11bHRpIiwidiI6IjIifQ==
+trojan://trojanpass@srv.example.com:41005?alpn=h2&fp=chrome&headerType=none&security=tls&sni=g.example.com&type=tcp#trojan-tcp
+ss://2022-blake3-aes-128-gcm:AAAAAAAAAAAAAAAAAAAAAA%3D%3D:UXcEPwVt0utp5TZDaseXUg%3D%3D@srv.example.com:41006#ss-2022
+ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTp0cm9qYW5wYXNz@srv.example.com:41007#ss-aead
+vmess://eyJhZGQiOiJzcnYuZXhhbXBsZS5jb20iLCJhaWQiOiIwIiwiaG9zdCI6Imh1LmV4YW1wbGUuY29tIiwiaWQiOiIxMTExMTExMS0yMjIyLTQzMzMtODQ0NC01NTU1NTU1NTU1NTUiLCJuZXQiOiJodHRwdXBncmFkZSIsInBhdGgiOiIvaHUiLCJwb3J0IjoiNDEwMDgiLCJwcyI6InZtZXNzLWh1Iiwic2N5IjoiYXV0byIsInRscyI6IiIsInR5cGUiOiJub25lIiwidiI6IjIifQ==
+trojan://trojanpass@srv.example.com:41009?fp=chrome&mode=gun&pbk=PUBKEY&security=reality&serviceName=grpc&sid=0123456789abcdef&sni=www.example.com&spx=%2F&type=grpc#trojan-reality-grpc
+hysteria2://trojanpass@srv.example.com:41010/?insecure=1&obfs=salamander&obfs-password=ob&pinSHA256=ab&sni=g.example.com#hy2
+tuic://11111111-2222-4333-8444-555555555555:trojanpass@srv.example.com:41011?alpn=h3&congestion_control=bbr&sni=g.example.com&udp_relay_mode=native#tuic
+socks://Ny5hbGljZTp0cm9qYW5wYXNz@srv.example.com:41012#socks
+----
+mixed-port: 7890
+allow-lan: false
+mode: rule
+log-level: info
+ipv6: true
+proxies:
+    - name: vless-reality
+      type: vless
+      server: srv.example.com
+      port: 41001
+      uuid: 11111111-2222-4333-8444-555555555555
+      udp: true
+      network: tcp
+      tls: true
+      servername: www.example.com
+      flow: xtls-rprx-vision
+      client-fingerprint: chrome
+      reality-opts:
+        public-key: PUBKEY
+        short-id: 0123456789abcdef
+        support-x25519mlkem768: true
+    - name: vless-tls-ws
+      type: vless
+      server: srv.example.com
+      port: 41002
+      uuid: 11111111-2222-4333-8444-555555555555
+      udp: true
+      network: ws
+      tls: true
+      servername: g.example.com
+      alpn:
+        - http/1.1
+      client-fingerprint: chrome
+      ws-opts:
+        headers:
+            Host: h.example.com
+        path: /ws
+    - name: vmess-grpc
+      type: vmess
+      server: srv.example.com
+      port: 41004
+      uuid: 11111111-2222-4333-8444-555555555555
+      alterId: 0
+      cipher: auto
+      udp: true
+      network: grpc
+      tls: true
+      servername: g.example.com
+      client-fingerprint: chrome
+      skip-cert-verify: true
+      grpc-opts:
+        grpc-service-name: gs
+    - name: trojan-tcp
+      type: trojan
+      server: srv.example.com
+      port: 41005
+      password: trojanpass
+      udp: true
+      network: tcp
+      sni: g.example.com
+      alpn:
+        - h2
+      client-fingerprint: chrome
+    - name: ss-2022
+      type: ss
+      server: srv.example.com
+      port: 41006
+      cipher: 2022-blake3-aes-128-gcm
+      password: AAAAAAAAAAAAAAAAAAAAAA==:UXcEPwVt0utp5TZDaseXUg==
+      udp: true
+    - name: ss-aead
+      type: ss
+      server: srv.example.com
+      port: 41007
+      cipher: chacha20-ietf-poly1305
+      password: trojanpass
+      udp: true
+    - name: vmess-hu
+      type: vmess
+      server: srv.example.com
+      port: 41008
+      uuid: 11111111-2222-4333-8444-555555555555
+      alterId: 0
+      cipher: auto
+      udp: true
+      network: ws
+      ws-opts:
+        headers:
+            Host: hu.example.com
+        path: /hu
+        v2ray-http-upgrade: true
+    - name: trojan-reality-grpc
+      type: trojan
+      server: srv.example.com
+      port: 41009
+      password: trojanpass
+      udp: true
+      network: grpc
+      sni: www.example.com
+      client-fingerprint: chrome
+      reality-opts:
+        public-key: PUBKEY
+        short-id: 0123456789abcdef
+        support-x25519mlkem768: true
+      grpc-opts:
+        grpc-service-name: grpc
+    - name: hy2
+      type: hysteria2
+      server: srv.example.com
+      port: 41010
+      password: trojanpass
+      udp: true
+      sni: g.example.com
+      alpn:
+        - h3
+      fingerprint: ab
+      obfs: salamander
+      obfs-password: ob
+      up: 50 Mbps
+      down: 100 Mbps
+    - name: tuic
+      type: tuic
+      server: srv.example.com
+      port: 41011
+      uuid: 11111111-2222-4333-8444-555555555555
+      password: trojanpass
+      udp: true
+      sni: g.example.com
+      alpn:
+        - h3
+      congestion-controller: bbr
+      udp-relay-mode: native
+    - name: socks
+      type: socks5
+      server: srv.example.com
+      port: 41012
+      password: trojanpass
+      udp: true
+      username: 7.alice
+proxy-groups:
+    - name: Proxy
+      type: select
+      proxies:
+        - Auto
+        - vless-reality
+        - vless-tls-ws
+        - vmess-grpc
+        - trojan-tcp
+        - ss-2022
+        - ss-aead
+        - vmess-hu
+        - trojan-reality-grpc
+        - hy2
+        - tuic
+        - socks
+    - name: Auto
+      type: url-test
+      proxies:
+        - vless-reality
+        - vless-tls-ws
+        - vmess-grpc
+        - trojan-tcp
+        - ss-2022
+        - ss-aead
+        - vmess-hu
+        - trojan-reality-grpc
+        - hy2
+        - tuic
+        - socks
+      url: https://www.gstatic.com/generate_204
+      interval: 300
+rules:
+    - IP-CIDR,127.0.0.0/8,DIRECT,no-resolve
+    - IP-CIDR,10.0.0.0/8,DIRECT,no-resolve
+    - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
+    - MATCH,Proxy
+----
+{
+  "dns": {
+    "final": "remote",
+    "servers": [
+      {
+        "detour": "proxy",
+        "server": "1.1.1.1",
+        "tag": "remote",
+        "type": "https"
+      },
+      {
+        "tag": "local",
+        "type": "local"
+      }
+    ]
+  },
+  "inbounds": [
+    {
+      "address": [
+        "172.19.0.1/30",
+        "fdfe:dcba:9876::1/126"
+      ],
+      "auto_route": true,
+      "stack": "mixed",
+      "strict_route": true,
+      "tag": "tun-in",
+      "type": "tun"
+    },
+    {
+      "listen": "127.0.0.1",
+      "listen_port": 2080,
+      "tag": "mixed-in",
+      "type": "mixed"
+    }
+  ],
+  "log": {
+    "level": "warn",
+    "timestamp": true
+  },
+  "outbounds": [
+    {
+      "default": "auto",
+      "outbounds": [
+        "auto",
+        "vless-tls-ws",
+        "vmess-grpc",
+        "trojan-tcp",
+        "ss-2022",
+        "ss-aead",
+        "vmess-hu",
+        "hy2",
+        "tuic",
+        "socks"
+      ],
+      "tag": "proxy",
+      "type": "selector"
+    },
+    {
+      "interval": "10m",
+      "outbounds": [
+        "vless-tls-ws",
+        "vmess-grpc",
+        "trojan-tcp",
+        "ss-2022",
+        "ss-aead",
+        "vmess-hu",
+        "hy2",
+        "tuic",
+        "socks"
+      ],
+      "tag": "auto",
+      "type": "urltest",
+      "url": "https://www.gstatic.com/generate_204"
+    },
+    {
+      "packet_encoding": "xudp",
+      "server": "srv.example.com",
+      "server_port": 41002,
+      "tag": "vless-tls-ws",
+      "tls": {
+        "alpn": [
+          "http/1.1"
+        ],
+        "enabled": true,
+        "insecure": false,
+        "server_name": "g.example.com",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "headers": {
+          "Host": "h.example.com"
+        },
+        "path": "/ws",
+        "type": "ws"
+      },
+      "type": "vless",
+      "uuid": "11111111-2222-4333-8444-555555555555"
+    },
+    {
+      "alter_id": 0,
+      "security": "auto",
+      "server": "srv.example.com",
+      "server_port": 41004,
+      "tag": "vmess-grpc",
+      "tls": {
+        "enabled": true,
+        "insecure": true,
+        "server_name": "g.example.com",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "transport": {
+        "service_name": "gs",
+        "type": "grpc"
+      },
+      "type": "vmess",
+      "uuid": "11111111-2222-4333-8444-555555555555"
+    },
+    {
+      "password": "trojanpass",
+      "server": "srv.example.com",
+      "server_port": 41005,
+      "tag": "trojan-tcp",
+      "tls": {
+        "alpn": [
+          "h2"
+        ],
+        "enabled": true,
+        "insecure": false,
+        "server_name": "g.example.com",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "type": "trojan"
+    },
+    {
+      "method": "2022-blake3-aes-128-gcm",
+      "password": "AAAAAAAAAAAAAAAAAAAAAA==:UXcEPwVt0utp5TZDaseXUg==",
+      "server": "srv.example.com",
+      "server_port": 41006,
+      "tag": "ss-2022",
+      "type": "shadowsocks"
+    },
+    {
+      "method": "chacha20-ietf-poly1305",
+      "password": "trojanpass",
+      "server": "srv.example.com",
+      "server_port": 41007,
+      "tag": "ss-aead",
+      "type": "shadowsocks"
+    },
+    {
+      "alter_id": 0,
+      "security": "auto",
+      "server": "srv.example.com",
+      "server_port": 41008,
+      "tag": "vmess-hu",
+      "transport": {
+        "host": "hu.example.com",
+        "path": "/hu",
+        "type": "httpupgrade"
+      },
+      "type": "vmess",
+      "uuid": "11111111-2222-4333-8444-555555555555"
+    },
+    {
+      "down_mbps": 100,
+      "obfs": {
+        "password": "ob",
+        "type": "salamander"
+      },
+      "password": "trojanpass",
+      "server": "srv.example.com",
+      "server_port": 41010,
+      "tag": "hy2",
+      "tls": {
+        "alpn": [
+          "h3"
+        ],
+        "certificate_public_key_sha256": [
+          "cd"
+        ],
+        "enabled": true,
+        "server_name": "g.example.com"
+      },
+      "type": "hysteria2",
+      "up_mbps": 50
+    },
+    {
+      "congestion_control": "bbr",
+      "password": "trojanpass",
+      "server": "srv.example.com",
+      "server_port": 41011,
+      "tag": "tuic",
+      "tls": {
+        "alpn": [
+          "h3"
+        ],
+        "enabled": true,
+        "server_name": "g.example.com"
+      },
+      "type": "tuic",
+      "udp_relay_mode": "native",
+      "uuid": "11111111-2222-4333-8444-555555555555"
+    },
+    {
+      "password": "trojanpass",
+      "server": "srv.example.com",
+      "server_port": 41012,
+      "tag": "socks",
+      "type": "socks",
+      "username": "7.alice",
+      "version": "5"
+    },
+    {
+      "tag": "direct",
+      "type": "direct"
+    }
+  ],
+  "route": {
+    "auto_detect_interface": true,
+    "default_domain_resolver": "local",
+    "final": "proxy",
+    "rules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "action": "hijack-dns",
+        "protocol": "dns"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "direct"
+      }
+    ]
+  }
+}
+----
+[
+  {
+    "dns": {
+      "servers": [
+        "1.1.1.1",
+        "8.8.8.8"
+      ]
+    },
+    "inbounds": [
+      {
+        "listen": "127.0.0.1",
+        "port": 10808,
+        "protocol": "socks",
+        "settings": {
+          "udp": true
+        },
+        "sniffing": {
+          "destOverride": [
+            "http",
+            "tls"
+          ],
+          "enabled": true
+        },
+        "tag": "socks"
+      },
+      {
+        "listen": "127.0.0.1",
+        "port": 10809,
+        "protocol": "http",
+        "settings": {},
+        "tag": "http"
+      }
+    ],
+    "log": {
+      "loglevel": "warning"
+    },
+    "outbounds": [
+      {
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "srv.example.com",
+              "port": 41001,
+              "users": [
+                {
+                  "encryption": "none",
+                  "flow": "xtls-rprx-vision",
+                  "id": "11111111-2222-4333-8444-555555555555"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "realitySettings": {
+            "fingerprint": "chrome",
+            "publicKey": "PUBKEY",
+            "serverName": "www.example.com",
+            "shortId": "0123456789abcdef",
+            "spiderX": "/"
+          },
+          "security": "reality"
+        },
+        "tag": "proxy"
+      },
+      {
+        "protocol": "freedom",
+        "settings": {},
+        "tag": "direct"
+      },
+      {
+        "protocol": "blackhole",
+        "settings": {},
+        "tag": "block"
+      }
+    ],
+    "remarks": "vless-reality",
+    "routing": {
+      "domainStrategy": "AsIs",
+      "rules": [
+        {
+          "ip": [
+            "127.0.0.0/8",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16"
+          ],
+          "outboundTag": "direct",
+          "type": "field"
+        }
+      ]
+    }
+  },
+  {
+    "dns": {
+      "servers": [
+        "1.1.1.1",
+        "8.8.8.8"
+      ]
+    },
+    "inbounds": [
+      {
+        "listen": "127.0.0.1",
+        "port": 10808,
+        "protocol": "socks",
+        "settings": {
+          "udp": true
+        },
+        "sniffing": {
+          "destOverride": [
+            "http",
+            "tls"
+          ],
+          "enabled": true
+        },
+        "tag": "socks"
+      },
+      {
+        "listen": "127.0.0.1",
+        "port": 10809,
+        "protocol": "http",
+        "settings": {},
+        "tag": "http"
+      }
+    ],
+    "log": {
+      "loglevel": "warning"
+    },
+    "outbounds": [
+      {
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "srv.example.com",
+              "port": 41002,
+              "users": [
+                {
+                  "encryption": "none",
+                  "id": "11111111-2222-4333-8444-555555555555"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "ws",
+          "security": "tls",
+          "tlsSettings": {
+            "alpn": [
+              "http/1.1"
+            ],
+            "fingerprint": "chrome",
+            "serverName": "g.example.com"
+          },
+          "wsSettings": {
+            "host": "h.example.com",
+            "path": "/ws"
+          }
+        },
+        "tag": "proxy"
+      },
+      {
+        "protocol": "freedom",
+        "settings": {},
+        "tag": "direct"
+      },
+      {
+        "protocol": "blackhole",
+        "settings": {},
+        "tag": "block"
+      }
+    ],
+    "remarks": "vless-tls-ws",
+    "routing": {
+      "domainStrategy": "AsIs",
+      "rules": [
+        {
+          "ip": [
+            "127.0.0.0/8",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16"
+          ],
+          "outboundTag": "direct",
+          "type": "field"
+        }
+      ]
+    }
+  },
+  {
+    "dns": {
+      "servers": [
+        "1.1.1.1",
+        "8.8.8.8"
+      ]
+    },
+    "inbounds": [
+      {
+        "listen": "127.0.0.1",
+        "port": 10808,
+        "protocol": "socks",
+        "settings": {
+          "udp": true
+        },
+        "sniffing": {
+          "destOverride": [
+            "http",
+            "tls"
+          ],
+          "enabled": true
+        },
+        "tag": "socks"
+      },
+      {
+        "listen": "127.0.0.1",
+        "port": 10809,
+        "protocol": "http",
+        "settings": {},
+        "tag": "http"
+      }
+    ],
+    "log": {
+      "loglevel": "warning"
+    },
+    "outbounds": [
+      {
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "srv.example.com",
+              "port": 41003,
+              "users": [
+                {
+                  "encryption": "none",
+                  "id": "11111111-2222-4333-8444-555555555555"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "xhttp",
+          "security": "tls",
+          "tlsSettings": {
+            "alpn": [
+              "h2"
+            ],
+            "fingerprint": "chrome",
+            "pinnedPeerCertSha256": "ab",
+            "serverName": "g.example.com"
+          },
+          "xhttpSettings": {
+            "host": "",
+            "mode": "auto",
+            "path": "/x"
+          }
+        },
+        "tag": "proxy"
+      },
+      {
+        "protocol": "freedom",
+        "settings": {},
+        "tag": "direct"
+      },
+      {
+        "protocol": "blackhole",
+        "settings": {},
+        "tag": "block"
+      }
+    ],
+    "remarks": "vless-xhttp",
+    "routing": {
+      "domainStrategy": "AsIs",
+      "rules": [
+        {
+          "ip": [
+            "127.0.0.0/8",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16"
+          ],
+          "outboundTag": "direct",
+          "type": "field"
+        }
+      ]
+    }
+  },
+  {
+    "dns": {
+      "servers": [
+        "1.1.1.1",
+        "8.8.8.8"
+      ]
+    },
+    "inbounds": [
+      {
+        "listen": "127.0.0.1",
+        "port": 10808,
+        "protocol": "socks",
+        "settings": {
+          "udp": true
+        },
+        "sniffing": {
+          "destOverride": [
+            "http",
+            "tls"
+          ],
+          "enabled": true
+        },
+        "tag": "socks"
+      },
+      {
+        "listen": "127.0.0.1",
+        "port": 10809,
+        "protocol": "http",
+        "settings": {},
+        "tag": "http"
+      }
+    ],
+    "log": {
+      "loglevel": "warning"
+    },
+    "outbounds": [
+      {
+        "protocol": "vmess",
+        "settings": {
+          "vnext": [
+            {
+              "address": "srv.example.com",
+              "port": 41004,
+              "users": [
+                {
+                  "id": "11111111-2222-4333-8444-555555555555",
+                  "security": "auto"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "grpcSettings": {
+            "multiMode": true,
+            "serviceName": "gs"
+          },
+          "network": "grpc",
+          "security": "tls",
+          "tlsSettings": {
+            "fingerprint": "chrome",
+            "pinnedPeerCertSha256": "ab",
+            "serverName": "g.example.com"
+          }
+        },
+        "tag": "proxy"
+      },
+      {
+        "protocol": "freedom",
+        "settings": {},
+        "tag": "direct"
+      },
+      {
+        "protocol": "blackhole",
+        "settings": {},
+        "tag": "block"
+      }
+    ],
+    "remarks": "vmess-grpc",
+    "routing": {
+      "domainStrategy": "AsIs",
+      "rules": [
+        {
+          "ip": [
+            "127.0.0.0/8",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16"
+          ],
+          "outboundTag": "direct",
+          "type": "field"
+        }
+      ]
+    }
+  },
+  {
+    "dns": {
+      "servers": [
+        "1.1.1.1",
+        "8.8.8.8"
+      ]
+    },
+    "inbounds": [
+      {
+        "listen": "127.0.0.1",
+        "port": 10808,
+        "protocol": "socks",
+        "settings": {
+          "udp": true
+        },
+        "sniffing": {
+          "destOverride": [
+            "http",
+            "tls"
+          ],
+          "enabled": true
+        },
+        "tag": "socks"
+      },
+      {
+        "listen": "127.0.0.1",
+        "port": 10809,
+        "protocol": "http",
+        "settings": {},
+        "tag": "http"
+      }
+    ],
+    "log": {
+      "loglevel": "warning"
+    },
+    "outbounds": [
+      {
+        "protocol": "trojan",
+        "settings": {
+          "servers": [
+            {
+              "address": "srv.example.com",
+              "password": "trojanpass",
+              "port": 41005
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "security": "tls",
+          "tlsSettings": {
+            "alpn": [
+              "h2"
+            ],
+            "fingerprint": "chrome",
+            "serverName": "g.example.com"
+          }
+        },
+        "tag": "proxy"
+      },
+      {
+        "protocol": "freedom",
+        "settings": {},
+        "tag": "direct"
+      },
+      {
+        "protocol": "blackhole",
+        "settings": {},
+        "tag": "block"
+      }
+    ],
+    "remarks": "trojan-tcp",
+    "routing": {
+      "domainStrategy": "AsIs",
+      "rules": [
+        {
+          "ip": [
+            "127.0.0.0/8",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16"
+          ],
+          "outboundTag": "direct",
+          "type": "field"
+        }
+      ]
+    }
+  },
+  {
+    "dns": {
+      "servers": [
+        "1.1.1.1",
+        "8.8.8.8"
+      ]
+    },
+    "inbounds": [
+      {
+        "listen": "127.0.0.1",
+        "port": 10808,
+        "protocol": "socks",
+        "settings": {
+          "udp": true
+        },
+        "sniffing": {
+          "destOverride": [
+            "http",
+            "tls"
+          ],
+          "enabled": true
+        },
+        "tag": "socks"
+      },
+      {
+        "listen": "127.0.0.1",
+        "port": 10809,
+        "protocol": "http",
+        "settings": {},
+        "tag": "http"
+      }
+    ],
+    "log": {
+      "loglevel": "warning"
+    },
+    "outbounds": [
+      {
+        "protocol": "shadowsocks",
+        "settings": {
+          "servers": [
+            {
+              "address": "srv.example.com",
+              "method": "2022-blake3-aes-128-gcm",
+              "password": "AAAAAAAAAAAAAAAAAAAAAA==:UXcEPwVt0utp5TZDaseXUg==",
+              "port": 41006
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "security": "none"
+        },
+        "tag": "proxy"
+      },
+      {
+        "protocol": "freedom",
+        "settings": {},
+        "tag": "direct"
+      },
+      {
+        "protocol": "blackhole",
+        "settings": {},
+        "tag": "block"
+      }
+    ],
+    "remarks": "ss-2022",
+    "routing": {
+      "domainStrategy": "AsIs",
+      "rules": [
+        {
+          "ip": [
+            "127.0.0.0/8",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16"
+          ],
+          "outboundTag": "direct",
+          "type": "field"
+        }
+      ]
+    }
+  },
+  {
+    "dns": {
+      "servers": [
+        "1.1.1.1",
+        "8.8.8.8"
+      ]
+    },
+    "inbounds": [
+      {
+        "listen": "127.0.0.1",
+        "port": 10808,
+        "protocol": "socks",
+        "settings": {
+          "udp": true
+        },
+        "sniffing": {
+          "destOverride": [
+            "http",
+            "tls"
+          ],
+          "enabled": true
+        },
+        "tag": "socks"
+      },
+      {
+        "listen": "127.0.0.1",
+        "port": 10809,
+        "protocol": "http",
+        "settings": {},
+        "tag": "http"
+      }
+    ],
+    "log": {
+      "loglevel": "warning"
+    },
+    "outbounds": [
+      {
+        "protocol": "shadowsocks",
+        "settings": {
+          "servers": [
+            {
+              "address": "srv.example.com",
+              "method": "chacha20-ietf-poly1305",
+              "password": "trojanpass",
+              "port": 41007
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "security": "none"
+        },
+        "tag": "proxy"
+      },
+      {
+        "protocol": "freedom",
+        "settings": {},
+        "tag": "direct"
+      },
+      {
+        "protocol": "blackhole",
+        "settings": {},
+        "tag": "block"
+      }
+    ],
+    "remarks": "ss-aead",
+    "routing": {
+      "domainStrategy": "AsIs",
+      "rules": [
+        {
+          "ip": [
+            "127.0.0.0/8",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16"
+          ],
+          "outboundTag": "direct",
+          "type": "field"
+        }
+      ]
+    }
+  },
+  {
+    "dns": {
+      "servers": [
+        "1.1.1.1",
+        "8.8.8.8"
+      ]
+    },
+    "inbounds": [
+      {
+        "listen": "127.0.0.1",
+        "port": 10808,
+        "protocol": "socks",
+        "settings": {
+          "udp": true
+        },
+        "sniffing": {
+          "destOverride": [
+            "http",
+            "tls"
+          ],
+          "enabled": true
+        },
+        "tag": "socks"
+      },
+      {
+        "listen": "127.0.0.1",
+        "port": 10809,
+        "protocol": "http",
+        "settings": {},
+        "tag": "http"
+      }
+    ],
+    "log": {
+      "loglevel": "warning"
+    },
+    "outbounds": [
+      {
+        "protocol": "vmess",
+        "settings": {
+          "vnext": [
+            {
+              "address": "srv.example.com",
+              "port": 41008,
+              "users": [
+                {
+                  "id": "11111111-2222-4333-8444-555555555555",
+                  "security": "auto"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "httpupgradeSettings": {
+            "host": "hu.example.com",
+            "path": "/hu"
+          },
+          "network": "httpupgrade",
+          "security": "none"
+        },
+        "tag": "proxy"
+      },
+      {
+        "protocol": "freedom",
+        "settings": {},
+        "tag": "direct"
+      },
+      {
+        "protocol": "blackhole",
+        "settings": {},
+        "tag": "block"
+      }
+    ],
+    "remarks": "vmess-hu",
+    "routing": {
+      "domainStrategy": "AsIs",
+      "rules": [
+        {
+          "ip": [
+            "127.0.0.0/8",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16"
+          ],
+          "outboundTag": "direct",
+          "type": "field"
+        }
+      ]
+    }
+  },
+  {
+    "dns": {
+      "servers": [
+        "1.1.1.1",
+        "8.8.8.8"
+      ]
+    },
+    "inbounds": [
+      {
+        "listen": "127.0.0.1",
+        "port": 10808,
+        "protocol": "socks",
+        "settings": {
+          "udp": true
+        },
+        "sniffing": {
+          "destOverride": [
+            "http",
+            "tls"
+          ],
+          "enabled": true
+        },
+        "tag": "socks"
+      },
+      {
+        "listen": "127.0.0.1",
+        "port": 10809,
+        "protocol": "http",
+        "settings": {},
+        "tag": "http"
+      }
+    ],
+    "log": {
+      "loglevel": "warning"
+    },
+    "outbounds": [
+      {
+        "protocol": "trojan",
+        "settings": {
+          "servers": [
+            {
+              "address": "srv.example.com",
+              "password": "trojanpass",
+              "port": 41009
+            }
+          ]
+        },
+        "streamSettings": {
+          "grpcSettings": {
+            "multiMode": false,
+            "serviceName": "grpc"
+          },
+          "network": "grpc",
+          "realitySettings": {
+            "fingerprint": "chrome",
+            "publicKey": "PUBKEY",
+            "serverName": "www.example.com",
+            "shortId": "0123456789abcdef",
+            "spiderX": "/"
+          },
+          "security": "reality"
+        },
+        "tag": "proxy"
+      },
+      {
+        "protocol": "freedom",
+        "settings": {},
+        "tag": "direct"
+      },
+      {
+        "protocol": "blackhole",
+        "settings": {},
+        "tag": "block"
+      }
+    ],
+    "remarks": "trojan-reality-grpc",
+    "routing": {
+      "domainStrategy": "AsIs",
+      "rules": [
+        {
+          "ip": [
+            "127.0.0.0/8",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16"
+          ],
+          "outboundTag": "direct",
+          "type": "field"
+        }
+      ]
+    }
+  },
+  {
+    "dns": {
+      "servers": [
+        "1.1.1.1",
+        "8.8.8.8"
+      ]
+    },
+    "inbounds": [
+      {
+        "listen": "127.0.0.1",
+        "port": 10808,
+        "protocol": "socks",
+        "settings": {
+          "udp": true
+        },
+        "sniffing": {
+          "destOverride": [
+            "http",
+            "tls"
+          ],
+          "enabled": true
+        },
+        "tag": "socks"
+      },
+      {
+        "listen": "127.0.0.1",
+        "port": 10809,
+        "protocol": "http",
+        "settings": {},
+        "tag": "http"
+      }
+    ],
+    "log": {
+      "loglevel": "warning"
+    },
+    "outbounds": [
+      {
+        "protocol": "hysteria",
+        "settings": {
+          "address": "srv.example.com",
+          "port": 41010,
+          "version": 2
+        },
+        "streamSettings": {
+          "finalmask": {
+            "udp": [
+              {
+                "settings": {
+                  "password": "ob"
+                },
+                "type": "salamander"
+              }
+            ]
+          },
+          "hysteriaSettings": {
+            "auth": "trojanpass",
+            "version": 2
+          },
+          "network": "hysteria",
+          "security": "tls",
+          "tlsSettings": {
+            "alpn": [
+              "h3"
+            ],
+            "pinnedPeerCertSha256": "ab",
+            "serverName": "g.example.com"
+          }
+        },
+        "tag": "proxy"
+      },
+      {
+        "protocol": "freedom",
+        "settings": {},
+        "tag": "direct"
+      },
+      {
+        "protocol": "blackhole",
+        "settings": {},
+        "tag": "block"
+      }
+    ],
+    "remarks": "hy2",
+    "routing": {
+      "domainStrategy": "AsIs",
+      "rules": [
+        {
+          "ip": [
+            "127.0.0.0/8",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16"
+          ],
+          "outboundTag": "direct",
+          "type": "field"
+        }
+      ]
+    }
+  },
+  {
+    "dns": {
+      "servers": [
+        "1.1.1.1",
+        "8.8.8.8"
+      ]
+    },
+    "inbounds": [
+      {
+        "listen": "127.0.0.1",
+        "port": 10808,
+        "protocol": "socks",
+        "settings": {
+          "udp": true
+        },
+        "sniffing": {
+          "destOverride": [
+            "http",
+            "tls"
+          ],
+          "enabled": true
+        },
+        "tag": "socks"
+      },
+      {
+        "listen": "127.0.0.1",
+        "port": 10809,
+        "protocol": "http",
+        "settings": {},
+        "tag": "http"
+      }
+    ],
+    "log": {
+      "loglevel": "warning"
+    },
+    "outbounds": [
+      {
+        "protocol": "socks",
+        "settings": {
+          "servers": [
+            {
+              "address": "srv.example.com",
+              "port": 41012,
+              "users": [
+                {
+                  "pass": "trojanpass",
+                  "user": "7.alice"
+                }
+              ]
+            }
+          ]
+        },
+        "tag": "proxy"
+      },
+      {
+        "protocol": "freedom",
+        "settings": {},
+        "tag": "direct"
+      },
+      {
+        "protocol": "blackhole",
+        "settings": {},
+        "tag": "block"
+      }
+    ],
+    "remarks": "socks",
+    "routing": {
+      "domainStrategy": "AsIs",
+      "rules": [
+        {
+          "ip": [
+            "127.0.0.0/8",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16"
+          ],
+          "outboundTag": "direct",
+          "type": "field"
+        }
+      ]
+    }
+  }
+]

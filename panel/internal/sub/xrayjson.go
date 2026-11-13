@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/veilonhq/veilon/panel/internal/inbounds"
+	"github.com/veilonhq/veilon/panel/internal/xray"
 )
 
 // XraySupported reports whether an Xray client config can express the proxy.
@@ -95,22 +96,75 @@ func xrayOutbound(p *Proxy) obj {
 	case "shadowsocks":
 		o["settings"] = obj{"servers": []any{obj{"address": p.Server, "port": p.Port, "method": p.Method, "password": p.Password}}}
 	}
+	o["streamSettings"] = xrayStream(p, true)
+	return o
+}
+
+// xrayStream renders a client's streamSettings. withDownload adds the
+// XHTTP download split (not inside the download settings themselves).
+func xrayStream(p *Proxy, withDownload bool) obj {
 	ss := obj{"network": p.Network, "security": p.Security}
 	switch p.Network {
 	case "ws":
-		ss["wsSettings"] = obj{"path": p.Path, "host": p.Host}
+		w := obj{"path": p.Path, "host": p.Host}
+		if x := p.WS; x != nil {
+			if len(x.Headers) > 0 {
+				w["headers"] = x.Headers
+			}
+			if x.HeartbeatPeriod > 0 {
+				w["heartbeatPeriod"] = x.HeartbeatPeriod
+			}
+		}
+		ss["wsSettings"] = w
 	case "httpupgrade":
-		ss["httpupgradeSettings"] = obj{"path": p.Path, "host": p.Host}
+		h := obj{"path": p.Path, "host": p.Host}
+		if x := p.WS; x != nil && len(x.Headers) > 0 {
+			h["headers"] = x.Headers
+		}
+		ss["httpupgradeSettings"] = h
 	case "xhttp":
-		ss["xhttpSettings"] = obj{"path": p.Path, "host": p.Host, "mode": p.Mode}
+		h := obj{"path": p.Path, "host": p.Host, "mode": p.Mode}
+		for k, v := range xhttpClientExtra(p, withDownload) {
+			h[k] = v
+		}
+		ss["xhttpSettings"] = h
 	case "grpc":
-		ss["grpcSettings"] = obj{"serviceName": p.ServiceName, "multiMode": p.Mode == "multi"}
+		g := obj{"serviceName": p.ServiceName, "multiMode": p.Mode == "multi"}
+		if x := p.GRPC; x != nil {
+			if x.UserAgent != "" {
+				g["user_agent"] = x.UserAgent
+			}
+			if x.IdleTimeout > 0 {
+				g["idle_timeout"] = x.IdleTimeout
+			}
+			if x.HealthCheckTimeout > 0 {
+				g["health_check_timeout"] = x.HealthCheckTimeout
+			}
+			if x.PermitWithoutStream {
+				g["permit_without_stream"] = true
+			}
+			if x.InitialWindowsSize > 0 {
+				g["initial_windows_size"] = x.InitialWindowsSize
+			}
+		}
+		ss["grpcSettings"] = g
+	case "tcp":
+		if p.TCPHeader != nil {
+			ss["rawSettings"] = obj{"header": xray.TCPHeaderJSON(p.TCPHeader)}
+		}
+	case "kcp":
+		if k := xray.KCPSettings(p.KCP); k != nil {
+			ss["kcpSettings"] = k
+		}
+		if m := xray.KCPMasks(p.KCP); len(m) > 0 {
+			ss["finalmask"] = obj{"udp": m}
+		}
 	}
 	switch p.Security {
 	case "tls":
 		// Current Xray-core rejects allowInsecure; pin the certificate instead.
 		t := obj{"serverName": p.SNI}
-		if p.Insecure && p.PinSHA256 != "" {
+		if (p.Insecure || p.PinAlways) && p.PinSHA256 != "" {
 			t["pinnedPeerCertSha256"] = p.PinSHA256
 		}
 		if len(p.ALPN) > 0 {
@@ -119,12 +173,78 @@ func xrayOutbound(p *Proxy) obj {
 		if p.Fingerprint != "" {
 			t["fingerprint"] = p.Fingerprint
 		}
+		if p.ECHConfig != "" {
+			t["echConfigList"] = p.ECHConfig
+		}
 		ss["tlsSettings"] = t
 	case "reality":
-		ss["realitySettings"] = obj{"serverName": p.SNI, "fingerprint": p.Fingerprint, "publicKey": p.PublicKey, "shortId": p.ShortID, "spiderX": p.SpiderX}
+		r := obj{"serverName": p.SNI, "fingerprint": p.Fingerprint, "publicKey": p.PublicKey, "shortId": p.ShortID, "spiderX": p.SpiderX}
+		if p.PQV != "" {
+			r["mldsa65Verify"] = p.PQV
+		}
+		ss["realitySettings"] = r
 	}
-	o["streamSettings"] = ss
+	return ss
+}
+
+// xhttpClientExtra returns the client-side XHTTP options (padding, POST
+// size, xmux, download split) as xhttpSettings keys.
+func xhttpClientExtra(p *Proxy, withDownload bool) obj {
+	x := p.XHTTP
+	if x == nil {
+		return nil
+	}
+	o := obj{}
+	if x.XPaddingBytes != "" {
+		o["xPaddingBytes"] = x.XPaddingBytes
+	}
+	if x.ScMaxEachPostBytes != "" {
+		o["scMaxEachPostBytes"] = x.ScMaxEachPostBytes
+	}
+	if m := x.Xmux; m != nil {
+		xm := obj{}
+		for k, v := range map[string]string{"maxConcurrency": m.MaxConcurrency, "maxConnections": m.MaxConnections,
+			"cMaxReuseTimes": m.CMaxReuseTimes, "hMaxRequestTimes": m.HMaxRequestTimes, "hMaxReusableSecs": m.HMaxReusableSecs} {
+			if v != "" {
+				xm[k] = v
+			}
+		}
+		if m.HKeepAlivePeriod > 0 {
+			xm["hKeepAlivePeriod"] = m.HKeepAlivePeriod
+		}
+		if len(xm) > 0 {
+			o["xmux"] = xm
+		}
+	}
+	if d := x.Download; d != nil && withDownload {
+		dp := *p
+		dp.Server = d.Address
+		if d.Port > 0 {
+			dp.Port = d.Port
+		}
+		if d.SNI != "" {
+			dp.SNI = d.SNI
+		}
+		if d.Host != "" {
+			dp.Host = d.Host
+		}
+		ds := xrayStream(&dp, false)
+		ds["address"] = dp.Server
+		ds["port"] = dp.Port
+		o["downloadSettings"] = ds
+	}
 	return o
+}
+
+// xhttpLinkExtra is the share link "extra" parameter: the client-side
+// XHTTP options as JSON ("" when none).
+func xhttpLinkExtra(p *Proxy) string {
+	o := xhttpClientExtra(p, true)
+	if len(o) == 0 {
+		return ""
+	}
+	b, _ := json.Marshal(o)
+	return string(b)
 }
 
 // XrayJSON renders an array of complete Xray client configs, one per proxy.

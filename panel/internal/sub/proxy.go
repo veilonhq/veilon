@@ -66,6 +66,20 @@ type Proxy struct {
 	Secret string
 	// MASQUE URI template path.
 	MasquePath string
+
+	// Advanced settings clients need (zero = none).
+	// PinAlways: carry the certificate pin even for a CA certificate.
+	PinAlways bool
+	// ECHConfig is the base64 ECH config list (TLS).
+	ECHConfig string
+	// PQV is the Reality ML-DSA-65 verify key.
+	PQV       string
+	TCPHeader *inbounds.TCPHeader
+	WS        *inbounds.WSExtra
+	GRPC      *inbounds.GRPCExtra
+	XHTTP     *inbounds.XHTTPExtra
+	KCP       *inbounds.KCPExtra
+	TUIC      *inbounds.TUICExtra
 }
 
 // WGClient is the client half of a WireGuard / AmneziaWG peer.
@@ -190,6 +204,7 @@ func BuildProxiesX(u *db.User, ibs []inbounds.View, s db.Settings, reqHost strin
 		if ib.Network == "grpc" && p.Mode == "" {
 			p.Mode = "gun"
 		}
+		clientAdvanced(&p, ib)
 		switch ib.Security {
 		case "tls":
 			if ib.TLS != nil {
@@ -197,7 +212,7 @@ func BuildProxiesX(u *db.User, ibs []inbounds.View, s db.Settings, reqHost strin
 				p.ALPN = ib.TLS.ALPN
 				p.Fingerprint = ib.TLS.Fingerprint
 				p.Insecure = ib.TLS.AllowInsecure
-				if p.Insecure && ib.TLS.CertID != nil {
+				if (p.Insecure || p.PinAlways) && ib.TLS.CertID != nil {
 					p.PinSHA256 = ex.Pins[*ib.TLS.CertID].CertSHA256
 					p.PinSPKI = ex.Pins[*ib.TLS.CertID].SPKISHA256
 				}
@@ -303,6 +318,23 @@ func withHosts(p Proxy, ib *inbounds.View, hosts []db.Host) []Proxy {
 		out = append(out, v)
 	}
 	return out
+}
+
+// clientAdvanced copies the client-side parts of an inbound's advanced
+// settings into the proxy.
+func clientAdvanced(p *Proxy, ib *inbounds.View) {
+	a := ib.Advanced
+	if a == nil {
+		return
+	}
+	if t := a.TLS; t != nil && ib.Security == "tls" {
+		p.PinAlways = t.PinCert
+		p.ECHConfig = t.ECHConfigList
+	}
+	if r := a.Reality; r != nil && ib.Security == "reality" {
+		p.PQV = r.MLDSA65Verify
+	}
+	p.TCPHeader, p.WS, p.GRPC, p.XHTTP, p.KCP, p.TUIC = a.TCP, a.WS, a.GRPC, a.XHTTP, a.KCP, a.TUIC
 }
 
 // xrayEmail mirrors xray.Email (the identity Xray reports in statistics).

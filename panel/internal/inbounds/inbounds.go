@@ -61,7 +61,10 @@ type View struct {
 	Transport Transport `json:"transport"`
 	Flow      string    `json:"flow"`
 	// VLESSEnc is the VLESS Encryption setting (vless only, else null).
-	VLESSEnc        *VLESSEnc `json:"vless_encryption"`
+	VLESSEnc *VLESSEnc `json:"vless_encryption"`
+	// Advanced holds optional security/transport settings (null = none,
+	// the config older panels wrote).
+	Advanced        *Advanced `json:"advanced"`
 	SSMethod        string    `json:"ss_method"`
 	SSServerKey     string    `json:"-"`
 	Sniffing        bool      `json:"sniffing"`
@@ -88,7 +91,7 @@ func (v *View) Tag() string { return fmt.Sprintf("inbound-%d", v.ID) }
 // Allowed values.
 var (
 	Protocols  = []string{VLESS, VMess, Trojan, Shadowsocks, Hysteria, TUIC, WireGuard, AmneziaWG, HTTP, Mixed, Socks, Tunnel, TUN, MTProto, Masque}
-	Networks   = []string{"tcp", "ws", "grpc", "httpupgrade", "xhttp"}
+	Networks   = []string{"tcp", "ws", "grpc", "httpupgrade", "xhttp", "kcp"}
 	Securities = []string{"none", "tls", "reality"}
 	SSMethods  = []string{"aes-128-gcm", "aes-256-gcm", "chacha20-ietf-poly1305", "2022-blake3-aes-128-gcm", "2022-blake3-aes-256-gcm"}
 	XHTTPModes = []string{"auto", "packet-up", "stream-up", "stream-one"}
@@ -133,7 +136,9 @@ func (e *NodeAgentError) Error() string { return e.Msg }
 
 func verr(format string, a ...any) error { return &ValidationError{Msg: fmt.Sprintf(format, a...)} }
 
-// RealityFingerprints are the client fingerprints that work with Reality.
+// RealityFingerprints are the client fingerprints that work with Reality
+// (checked with Xray 26.10.31: the others, and random choices among them,
+// do not complete the post-quantum key share Reality servers use).
 var RealityFingerprints = []string{"chrome", "firefox", "safari"}
 
 func in(s string, list []string) bool {
@@ -188,7 +193,7 @@ func FromModel(m *db.Inbound) View {
 	if m.Settings != "" {
 		var st storedSettings
 		if json.Unmarshal([]byte(m.Settings), &st) == nil {
-			v.Settings, v.VLESSEnc = st.Settings, st.VLESSEnc
+			v.Settings, v.VLESSEnc, v.Advanced = st.Settings, st.VLESSEnc, st.Advanced
 		}
 	}
 	if v.Protocol == VLESS && v.VLESSEnc == nil {
@@ -220,7 +225,7 @@ func toModel(v *View, m *db.Inbound) {
 	}
 	b, _ := json.Marshal(v.Transport)
 	m.Transport = string(b)
-	st := storedSettings{Settings: v.Settings}
+	st := storedSettings{Settings: v.Settings, Advanced: v.Advanced}
 	if v.Protocol == VLESS {
 		st.VLESSEnc = v.VLESSEnc
 	}
@@ -234,6 +239,7 @@ func toModel(v *View, m *db.Inbound) {
 type storedSettings struct {
 	Settings
 	VLESSEnc *VLESSEnc `json:"vless_encryption,omitempty"`
+	Advanced *Advanced `json:"advanced,omitempty"`
 }
 
 // fixNil makes list fields render as [] instead of null.
@@ -289,7 +295,10 @@ func Normalize(v *View) error {
 		v.VLESSEnc = nil
 		err := normalizeProtocol(v)
 		fixNil(&v.Settings)
-		return err
+		if err != nil {
+			return err
+		}
+		return normalizeAdvanced(v)
 	}
 	v.Settings = Settings{}
 	fixNil(&v.Settings)
@@ -308,11 +317,8 @@ func Normalize(v *View) error {
 
 	// Protocol specifics.
 	if v.Protocol == "shadowsocks" {
-		if v.Security != "none" {
-			return verr("shadowsocks inbounds do not support tls/reality")
-		}
-		if v.Network != "tcp" {
-			return verr("shadowsocks inbounds support network tcp only")
+		if v.Security == "reality" {
+			return verr("shadowsocks inbounds do not support reality")
 		}
 		if v.SSMethod == "" {
 			v.SSMethod = "chacha20-ietf-poly1305"
@@ -440,7 +446,7 @@ func Normalize(v *View) error {
 	t := &v.Transport
 	t.Path, t.Host, t.ServiceName, t.Mode = strings.TrimSpace(t.Path), strings.TrimSpace(t.Host), strings.TrimSpace(t.ServiceName), strings.TrimSpace(t.Mode)
 	switch v.Network {
-	case "tcp":
+	case "tcp", "kcp":
 		*t = Transport{}
 	case "ws", "httpupgrade", "xhttp":
 		if t.Path == "" {
@@ -469,7 +475,7 @@ func Normalize(v *View) error {
 			return verr("grpc transport.mode must be gun or multi")
 		}
 	}
-	return nil
+	return normalizeAdvanced(v)
 }
 
 // Service provides CRUD for inbounds.
@@ -656,6 +662,13 @@ func (s *Service) checkCross(v *View) error {
 			// Clients can only connect to a self-signed certificate with
 			// verification off; links pin the certificate instead.
 			v.TLS.AllowInsecure = true
+		}
+	}
+	if v.ReverseOn() {
+		var n int64
+		s.DB.Model(&db.User{}).Where("LOWER(uuid) = ?", v.Advanced.Reverse.UUID).Count(&n)
+		if n > 0 {
+			return verr("reverse.uuid is a user's UUID; use another one")
 		}
 	}
 	if IsWG(v.Protocol) {

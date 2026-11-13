@@ -2,6 +2,7 @@ package sub
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/veilonhq/veilon/panel/internal/inbounds"
 )
@@ -15,6 +16,12 @@ func SingboxSupported(p *Proxy) bool {
 		// sing-box cannot complete a handshake with current Xray Reality
 		// servers, so Reality entries are left out of its config.
 		// sing-box has no VLESS Encryption: such inbounds are left out too.
+		if p.Network == "kcp" || p.TCPHeader != nil {
+			return false
+		}
+		if p.Protocol == "shadowsocks" && ((p.Network != "tcp" && p.Network != "") || p.Security != "none") {
+			return false // sing-box's shadowsocks has no Xray transports
+		}
 		return p.Network != "xhttp" && p.Security != "reality" && p.Encryption == ""
 	case inbounds.Hysteria, inbounds.TUIC, inbounds.HTTP, inbounds.Mixed, inbounds.Socks, inbounds.WireGuard:
 		return true
@@ -65,6 +72,17 @@ func singboxExtra(p *Proxy) (o obj, isEndpoint bool) {
 		o["password"] = p.Password
 		o["congestion_control"] = p.Congestion
 		o["udp_relay_mode"] = "native"
+		if t := p.TUIC; t != nil {
+			if t.UDPRelayMode != "" {
+				o["udp_relay_mode"] = t.UDPRelayMode
+			}
+			if t.ZeroRTT {
+				o["zero_rtt_handshake"] = true
+			}
+			if t.Heartbeat > 0 {
+				o["heartbeat"] = fmt.Sprintf("%ds", t.Heartbeat)
+			}
+		}
 		o["tls"] = singboxTLS(p, []string{"h3"})
 	case inbounds.HTTP:
 		o["type"] = "http"
@@ -133,8 +151,8 @@ func singboxOutbound(p *Proxy) obj {
 	switch p.Network {
 	case "ws":
 		t := obj{"type": "ws", "path": p.Path}
-		if p.Host != "" {
-			t["headers"] = obj{"Host": p.Host}
+		if h := clashHeaders(p); h != nil {
+			t["headers"] = h
 		}
 		o["transport"] = t
 	case "httpupgrade":
@@ -142,9 +160,24 @@ func singboxOutbound(p *Proxy) obj {
 		if p.Host != "" {
 			t["host"] = p.Host
 		}
+		if p.WS != nil && len(p.WS.Headers) > 0 {
+			t["headers"] = p.WS.Headers
+		}
 		o["transport"] = t
 	case "grpc":
-		o["transport"] = obj{"type": "grpc", "service_name": p.ServiceName}
+		t := obj{"type": "grpc", "service_name": p.ServiceName}
+		if g := p.GRPC; g != nil {
+			if g.IdleTimeout > 0 {
+				t["idle_timeout"] = fmt.Sprintf("%ds", g.IdleTimeout)
+			}
+			if g.HealthCheckTimeout > 0 {
+				t["ping_timeout"] = fmt.Sprintf("%ds", g.HealthCheckTimeout)
+			}
+			if g.PermitWithoutStream {
+				t["permit_without_stream"] = true
+			}
+		}
+		o["transport"] = t
 	}
 	switch p.Security {
 	case "tls":
@@ -158,6 +191,12 @@ func singboxOutbound(p *Proxy) obj {
 		if p.Fingerprint != "" {
 			t["utls"] = obj{"enabled": true, "fingerprint": p.Fingerprint}
 		}
+		if p.PinAlways && p.PinSPKI != "" {
+			t["certificate_public_key_sha256"] = []string{p.PinSPKI}
+		}
+		if p.ECHConfig != "" {
+			t["ech"] = obj{"enabled": true, "config": echPEM(p.ECHConfig)}
+		}
 		o["tls"] = t
 	case "reality":
 		o["tls"] = obj{
@@ -168,6 +207,19 @@ func singboxOutbound(p *Proxy) obj {
 		}
 	}
 	return o
+}
+
+// echPEM wraps a base64 ECH config list as the PEM lines sing-box reads.
+func echPEM(list string) []string {
+	out := []string{"-----BEGIN ECH CONFIGS-----"}
+	for len(list) > 64 {
+		out = append(out, list[:64])
+		list = list[64:]
+	}
+	if list != "" {
+		out = append(out, list)
+	}
+	return append(out, "-----END ECH CONFIGS-----")
 }
 
 // Singbox renders a complete sing-box client configuration.

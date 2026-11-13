@@ -309,6 +309,9 @@ func Build(in *Input) ([]byte, error) {
 	if t.BlocksPrivate() && fileExists(filepath.Join(in.AssetDir, "geoip.dat")) {
 		rules = append(rules, obj{"type": "field", "ip": []string{"geoip:private"}, "outboundTag": TagBlocked})
 	}
+	// Reverse proxies: after the private-network block, before the
+	// admin's rules (their users always leave through the bridge).
+	rules = append(rules, reverseRules(in.Inbounds)...)
 	cfg := obj{
 		"api":   obj{"tag": "api", "services": []string{"StatsService"}},
 		"stats": obj{},
@@ -350,7 +353,13 @@ func buildInbound(ib *inbounds.View, us []db.User, peers map[int64]db.WGPeer, da
 			}
 			clients = append(clients, c)
 		}
+		if rc := reverseClient(ib); rc != nil {
+			clients = append(clients, rc)
+		}
 		x["settings"] = obj{"clients": clients, "decryption": ib.VLESSEnc.Decryption()}
+		if fb := fallbacksJSON(ib); fb != nil {
+			x["settings"].(obj)["fallbacks"] = fb
+		}
 	case "vmess":
 		for i := range us {
 			clients = append(clients, obj{"id": us[i].UUID, "email": Email(&us[i])})
@@ -361,11 +370,19 @@ func buildInbound(ib *inbounds.View, us []db.User, peers map[int64]db.WGPeer, da
 			clients = append(clients, obj{"password": us[i].Password, "email": Email(&us[i])})
 		}
 		x["settings"] = obj{"clients": clients}
+		if fb := fallbacksJSON(ib); fb != nil {
+			x["settings"].(obj)["fallbacks"] = fb
+		}
 	case "shadowsocks":
 		if len(us) == 0 {
 			return nil, fmt.Errorf("shadowsocks inbound has no users")
 		}
 		s := obj{"method": ib.SSMethod, "network": "tcp,udp"}
+		// Shadowsocks itself listens on UDP over RAW only (unless switched
+		// off); other transports carry TCP and UDP in their own stream.
+		if ib.Network != "tcp" || (ib.Advanced != nil && ib.Advanced.SS != nil && ib.Advanced.SS.NoUDP) {
+			s["network"] = "tcp"
+		}
 		if inbounds.IsSS2022(ib.SSMethod) {
 			s["password"] = ib.SSServerKey
 			for i := range us {
@@ -420,16 +437,19 @@ func buildInbound(ib *inbounds.View, us []db.User, peers map[int64]db.WGPeer, da
 			return nil, fmt.Errorf("reality settings missing")
 		}
 		ss["security"] = "reality"
-		ss["realitySettings"] = obj{
+		rs := obj{
 			"show": false, "dest": r.Dest, "xver": 0,
 			"serverNames": r.ServerNames, "privateKey": r.PrivateKey, "shortIds": r.ShortIDs,
 		}
+		realityExtra(ib, rs)
+		ss["realitySettings"] = rs
 	default:
 		ss["security"] = "none"
 	}
+	streamAdvanced(ib, ss)
 	x["streamSettings"] = ss
-	if ib.Sniffing {
-		x["sniffing"] = obj{"enabled": true, "destOverride": []string{"http", "tls", "quic"}}
+	if sn := sniffObj(ib); sn != nil {
+		x["sniffing"] = sn
 	}
 	return x, nil
 }
@@ -450,6 +470,7 @@ func tlsSettings(ib *inbounds.View, dataDir string) (obj, error) {
 	if ib.TLS.SNI != "" {
 		ts["serverName"] = ib.TLS.SNI
 	}
+	tlsExtra(ib, ts)
 	return ts, nil
 }
 
@@ -499,6 +520,7 @@ func buildExtraInbound(ib *inbounds.View, us []db.User, peers map[int64]db.WGPee
 		if err != nil {
 			return nil, err
 		}
+		hysteriaExtra(ib, ss)
 		x["streamSettings"] = ss
 	case inbounds.Masque:
 		cl := []any{}
@@ -563,8 +585,8 @@ func buildExtraInbound(ib *inbounds.View, us []db.User, peers map[int64]db.WGPee
 	default:
 		return nil, fmt.Errorf("protocol %q is not served by xray", ib.Protocol)
 	}
-	if ib.Sniffing {
-		x["sniffing"] = obj{"enabled": true, "destOverride": []string{"http", "tls", "quic"}}
+	if sn := sniffObj(ib); sn != nil {
+		x["sniffing"] = sn
 	}
 	return x, nil
 }

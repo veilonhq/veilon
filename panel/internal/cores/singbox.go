@@ -88,10 +88,19 @@ func SingboxConfig(in *xray.Input, bridgePort int) ([]byte, error) {
 		if ib.TLS.SNI != "" {
 			tls["server_name"] = ib.TLS.SNI
 		}
-		ibs = append(ibs, obj{
+		t := obj{
 			"type": "tuic", "tag": ib.Tag(), "listen": listen, "listen_port": ib.Port,
 			"users": users, "congestion_control": ib.Settings.Congestion, "tls": tls,
-		})
+		}
+		if a := ib.Advanced; a != nil && a.TUIC != nil {
+			if a.TUIC.ZeroRTT {
+				t["zero_rtt_handshake"] = true
+			}
+			if a.TUIC.Heartbeat > 0 {
+				t["heartbeat"] = fmt.Sprintf("%ds", a.TUIC.Heartbeat)
+			}
+		}
+		ibs = append(ibs, t)
 	}
 	if len(ibs) == 0 {
 		return nil, nil
