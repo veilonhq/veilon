@@ -1,4 +1,4 @@
-import type { EngineName, InboundInput, InboundSettings, Protocol, VlessEnc } from '@/api/types';
+import type { EngineName, InboundInput, InboundSettings, Network, Protocol, Security, VlessEnc } from '@/api/types';
 
 /** Protocol groups shown in the inbound wizard (order matters). */
 export const PROTOCOL_GROUPS: { id: 'proxy' | 'stealth' | 'quic' | 'vpn' | 'utility'; protocols: Protocol[] }[] = [
@@ -213,6 +213,37 @@ export const quicTls = (alpn = ['h3']) => ({ cert_id: null, sni: '', alpn, finge
 export const emptyReality = () => ({ dest: 'www.microsoft.com:443', server_names: ['www.microsoft.com'], private_key: '', public_key: '', short_ids: [] as string[], fingerprint: 'chrome', spider_x: '/' });
 
 export const emptyVlessEnc = (): VlessEnc => ({ enabled: false, auth: 'x25519', mode: 'native', rtt: '0rtt', ticket_seconds: 600, private_key: '', public_key: '' });
+
+/*
+ * Wizard choices. The Go side (panel/internal/inbounds/rules.go) has the same
+ * table; tests/wizardRules.test.ts checks both against
+ * panel/internal/inbounds/testdata/wizard_rules.json.
+ */
+export const NETWORKS: Network[] = ['tcp', 'ws', 'grpc', 'httpupgrade', 'xhttp', 'kcp'];
+/** Transports Reality can carry. */
+export const REALITY_NETWORKS: Network[] = ['tcp', 'grpc', 'xhttp'];
+export const TLS_ALPNS = ['h3', 'h2', 'http/1.1'];
+export const MASQUE_ALPNS = ['h3', 'h2'];
+export const XHTTP_MODES = ['auto', 'packet-up', 'stream-up', 'stream-one'];
+export const GRPC_MODES = ['gun', 'multi'];
+export const TUIC_CONGESTIONS = ['bbr', 'cubic', 'new_reno'];
+export const TUNNEL_NETWORKS = ['tcp', 'udp', 'tcp,udp'];
+// Reality only works with these client fingerprints (checked with Xray 26.10.31).
+export const REALITY_FPS = ['chrome', 'firefox', 'safari'];
+export const ENC_AUTHS: VlessEnc['auth'][] = ['x25519', 'mlkem768'];
+export const ENC_MODES: VlessEnc['mode'][] = ['native', 'xorpub', 'random'];
+export const ENC_RTTS: VlessEnc['rtt'][] = ['0rtt', '1rtt'];
+/** Transports the admin can pick for a protocol ([] = no choice). */
+export const networksOf = (p: Protocol): Network[] => (isV2(p) ? NETWORKS : []);
+/** Reality: VLESS or Trojan over RAW (tcp), gRPC or XHTTP. */
+export const realityAllowed = (d: Pick<InboundInput, 'protocol' | 'network'>) => (d.protocol === 'vless' || d.protocol === 'trojan') && (REALITY_NETWORKS as string[]).includes(d.network);
+/** Securities the admin can pick for a protocol over a transport. */
+export function securitiesOf(p: Protocol, network: InboundInput['network'] | ''): Security[] {
+  if (isV2(p)) return network !== '' && realityAllowed({ protocol: p, network }) ? ['none', 'tls', 'reality'] : ['none', 'tls'];
+  if (p === 'http') return ['none', 'tls'];
+  if (tlsRequired(p)) return ['tls'];
+  return ['none'];
+}
 
 /** Vision (xtls-rprx-vision) can be chosen: VLESS with encryption on any transport, or VLESS over tcp with TLS/Reality. */
 export const flowAllowed = (d: Pick<InboundInput, 'protocol' | 'network' | 'security' | 'vless_encryption'>) =>

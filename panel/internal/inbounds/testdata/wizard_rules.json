@@ -1,0 +1,481 @@
+{
+  "protocols": [
+    "vless",
+    "vmess",
+    "trojan",
+    "shadowsocks",
+    "hysteria",
+    "tuic",
+    "wireguard",
+    "amneziawg",
+    "http",
+    "mixed",
+    "socks",
+    "tunnel",
+    "tun",
+    "mtproto",
+    "masque",
+    "shadowtls",
+    "anytls",
+    "naive"
+  ],
+  "per": {
+    "amneziawg": {
+      "networks": [],
+      "securities": {
+        "": [
+          "none"
+        ]
+      },
+      "flow": [],
+      "sniffing": false,
+      "port": true,
+      "node_capable": true,
+      "tls_required": false
+    },
+    "anytls": {
+      "networks": [],
+      "securities": {
+        "": [
+          "tls"
+        ]
+      },
+      "flow": [],
+      "sniffing": true,
+      "port": true,
+      "node_capable": false,
+      "tls_required": true
+    },
+    "http": {
+      "networks": [],
+      "securities": {
+        "": [
+          "none",
+          "tls"
+        ]
+      },
+      "flow": [],
+      "sniffing": true,
+      "port": true,
+      "node_capable": true,
+      "tls_required": false
+    },
+    "hysteria": {
+      "networks": [],
+      "securities": {
+        "": [
+          "tls"
+        ]
+      },
+      "flow": [],
+      "sniffing": true,
+      "port": true,
+      "node_capable": true,
+      "tls_required": true
+    },
+    "masque": {
+      "networks": [],
+      "securities": {
+        "": [
+          "tls"
+        ]
+      },
+      "flow": [],
+      "sniffing": true,
+      "port": true,
+      "node_capable": true,
+      "tls_required": true
+    },
+    "mixed": {
+      "networks": [],
+      "securities": {
+        "": [
+          "none"
+        ]
+      },
+      "flow": [],
+      "sniffing": true,
+      "port": true,
+      "node_capable": true,
+      "tls_required": false
+    },
+    "mtproto": {
+      "networks": [],
+      "securities": {
+        "": [
+          "none"
+        ]
+      },
+      "flow": [],
+      "sniffing": false,
+      "port": true,
+      "node_capable": true,
+      "tls_required": false
+    },
+    "naive": {
+      "networks": [],
+      "securities": {
+        "": [
+          "tls"
+        ]
+      },
+      "flow": [],
+      "sniffing": true,
+      "port": true,
+      "node_capable": false,
+      "tls_required": true
+    },
+    "shadowsocks": {
+      "networks": [
+        "tcp",
+        "ws",
+        "grpc",
+        "httpupgrade",
+        "xhttp",
+        "kcp"
+      ],
+      "securities": {
+        "grpc": [
+          "none",
+          "tls"
+        ],
+        "httpupgrade": [
+          "none",
+          "tls"
+        ],
+        "kcp": [
+          "none",
+          "tls"
+        ],
+        "tcp": [
+          "none",
+          "tls"
+        ],
+        "ws": [
+          "none",
+          "tls"
+        ],
+        "xhttp": [
+          "none",
+          "tls"
+        ]
+      },
+      "flow": [],
+      "sniffing": true,
+      "port": true,
+      "node_capable": true,
+      "tls_required": false
+    },
+    "shadowtls": {
+      "networks": [],
+      "securities": {
+        "": [
+          "none"
+        ]
+      },
+      "flow": [],
+      "sniffing": true,
+      "port": true,
+      "node_capable": false,
+      "tls_required": false
+    },
+    "socks": {
+      "networks": [],
+      "securities": {
+        "": [
+          "none"
+        ]
+      },
+      "flow": [],
+      "sniffing": true,
+      "port": true,
+      "node_capable": true,
+      "tls_required": false
+    },
+    "trojan": {
+      "networks": [
+        "tcp",
+        "ws",
+        "grpc",
+        "httpupgrade",
+        "xhttp",
+        "kcp"
+      ],
+      "securities": {
+        "grpc": [
+          "none",
+          "tls",
+          "reality"
+        ],
+        "httpupgrade": [
+          "none",
+          "tls"
+        ],
+        "kcp": [
+          "none",
+          "tls"
+        ],
+        "tcp": [
+          "none",
+          "tls",
+          "reality"
+        ],
+        "ws": [
+          "none",
+          "tls"
+        ],
+        "xhttp": [
+          "none",
+          "tls",
+          "reality"
+        ]
+      },
+      "flow": [],
+      "sniffing": true,
+      "port": true,
+      "node_capable": true,
+      "tls_required": false
+    },
+    "tuic": {
+      "networks": [],
+      "securities": {
+        "": [
+          "tls"
+        ]
+      },
+      "flow": [],
+      "sniffing": true,
+      "port": true,
+      "node_capable": false,
+      "tls_required": true
+    },
+    "tun": {
+      "networks": [],
+      "securities": {
+        "": [
+          "none"
+        ]
+      },
+      "flow": [],
+      "sniffing": false,
+      "port": false,
+      "node_capable": false,
+      "tls_required": false
+    },
+    "tunnel": {
+      "networks": [],
+      "securities": {
+        "": [
+          "none"
+        ]
+      },
+      "flow": [],
+      "sniffing": false,
+      "port": true,
+      "node_capable": true,
+      "tls_required": false
+    },
+    "vless": {
+      "networks": [
+        "tcp",
+        "ws",
+        "grpc",
+        "httpupgrade",
+        "xhttp",
+        "kcp"
+      ],
+      "securities": {
+        "grpc": [
+          "none",
+          "tls",
+          "reality"
+        ],
+        "httpupgrade": [
+          "none",
+          "tls"
+        ],
+        "kcp": [
+          "none",
+          "tls"
+        ],
+        "tcp": [
+          "none",
+          "tls",
+          "reality"
+        ],
+        "ws": [
+          "none",
+          "tls"
+        ],
+        "xhttp": [
+          "none",
+          "tls",
+          "reality"
+        ]
+      },
+      "flow": [
+        "tcp/none/enc",
+        "tcp/tls",
+        "tcp/tls/enc",
+        "tcp/reality",
+        "tcp/reality/enc",
+        "ws/none/enc",
+        "ws/tls/enc",
+        "grpc/none/enc",
+        "grpc/tls/enc",
+        "grpc/reality/enc",
+        "httpupgrade/none/enc",
+        "httpupgrade/tls/enc",
+        "xhttp/none/enc",
+        "xhttp/tls/enc",
+        "xhttp/reality/enc",
+        "kcp/none/enc",
+        "kcp/tls/enc"
+      ],
+      "sniffing": true,
+      "port": true,
+      "node_capable": true,
+      "tls_required": false
+    },
+    "vmess": {
+      "networks": [
+        "tcp",
+        "ws",
+        "grpc",
+        "httpupgrade",
+        "xhttp",
+        "kcp"
+      ],
+      "securities": {
+        "grpc": [
+          "none",
+          "tls"
+        ],
+        "httpupgrade": [
+          "none",
+          "tls"
+        ],
+        "kcp": [
+          "none",
+          "tls"
+        ],
+        "tcp": [
+          "none",
+          "tls"
+        ],
+        "ws": [
+          "none",
+          "tls"
+        ],
+        "xhttp": [
+          "none",
+          "tls"
+        ]
+      },
+      "flow": [],
+      "sniffing": true,
+      "port": true,
+      "node_capable": true,
+      "tls_required": false
+    },
+    "wireguard": {
+      "networks": [],
+      "securities": {
+        "": [
+          "none"
+        ]
+      },
+      "flow": [],
+      "sniffing": true,
+      "port": true,
+      "node_capable": true,
+      "tls_required": false
+    }
+  },
+  "options": {
+    "enc_auths": [
+      "x25519",
+      "mlkem768"
+    ],
+    "enc_modes": [
+      "native",
+      "xorpub",
+      "random"
+    ],
+    "enc_rtts": [
+      "0rtt",
+      "1rtt"
+    ],
+    "grpc_modes": [
+      "gun",
+      "multi"
+    ],
+    "masque_alpn": [
+      "h3",
+      "h2"
+    ],
+    "networks": [
+      "tcp",
+      "ws",
+      "grpc",
+      "httpupgrade",
+      "xhttp",
+      "kcp"
+    ],
+    "reality_fps": [
+      "chrome",
+      "firefox",
+      "safari"
+    ],
+    "reality_networks": [
+      "tcp",
+      "grpc",
+      "xhttp"
+    ],
+    "shadowtls_ss": [
+      "2022-blake3-aes-128-gcm",
+      "2022-blake3-aes-256-gcm"
+    ],
+    "ss_methods": [
+      "aes-128-gcm",
+      "aes-256-gcm",
+      "chacha20-ietf-poly1305",
+      "2022-blake3-aes-128-gcm",
+      "2022-blake3-aes-256-gcm"
+    ],
+    "tls_alpn": [
+      "h3",
+      "h2",
+      "http/1.1"
+    ],
+    "tls_fingerprints": [
+      "chrome",
+      "firefox",
+      "safari",
+      "ios",
+      "android",
+      "edge",
+      "360",
+      "qq",
+      "random",
+      "randomized",
+      "randomizednoalpn"
+    ],
+    "tuic_congestion": [
+      "bbr",
+      "cubic",
+      "new_reno"
+    ],
+    "tunnel_networks": [
+      "tcp",
+      "udp",
+      "tcp,udp"
+    ],
+    "xhttp_modes": [
+      "auto",
+      "packet-up",
+      "stream-up",
+      "stream-one"
+    ]
+  }
+}

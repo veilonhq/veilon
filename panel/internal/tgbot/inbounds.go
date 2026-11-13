@@ -3,9 +3,10 @@ package tgbot
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand/v2"
 	"strconv"
 	"strings"
+
+	"github.com/veilonhq/veilon/panel/internal/inbounds"
 )
 
 // inbound is the part of the API inbound the bot reads.
@@ -237,41 +238,6 @@ func init() {
 		kb := chunk(bs, 3)
 		r.show(view{text: header("➕", T("ورودی جدید")) + T("پروتکل را انتخاب کنید:"), kb: append(kb, nav("il"))})
 	})
-	on("inp", func(r *req, a []string) {
-		r.st.draft = map[string]string{"proto": argStr(a, 0)}
-		r.ask("inremark", nil, T("ورودی جدید · ")+protoLabel(argStr(a, 0)), T("یک نام برای ورودی بفرستید:"), "in")
-	})
-	onInput("inremark", func(r *req, _ []string, text string, _ *Document) {
-		r.st.draft["remark"] = text
-		inboundAskPort(r, "")
-	})
-	on("inrp", func(r *req, a []string) {
-		r.st.draft["port"] = argStr(a, 0)
-		inboundAskExtra(r)
-	})
-	onInput("inport", func(r *req, _ []string, text string, _ *Document) {
-		n, ok := parseInt(text)
-		if !ok || n < 1 || n > 65535 {
-			inboundAskPort(r, T("⚠️ پورت باید عددی از ۱ تا ۶۵۵۳۵ باشد.\n"))
-			return
-		}
-		r.st.draft["port"] = strconv.FormatInt(n, 10)
-		inboundAskExtra(r)
-	})
-	onInput("inextra", func(r *req, _ []string, text string, _ *Document) {
-		r.st.draft["extra"] = strings.TrimSpace(text)
-		inboundAskPlace(r, nil)
-	})
-	on("inx", func(r *req, _ []string) {
-		r.st.draft["extra"] = ""
-		inboundAskPlace(r, nil)
-	})
-	on("inxc", func(r *req, a []string) {
-		r.st.draft["extra"], r.st.draft["cert"] = "", argStr(a, 0)
-		inboundAskPlace(r, nil)
-	})
-	on("inpl", inboundAskPlace)
-	on("inok", inboundCreate)
 }
 
 func inboundsList(r *req, _ []string) {
@@ -366,6 +332,9 @@ func inboundView(r *req, a []string) {
 	}
 	if ib.Protocol == "shadowtls" {
 		kb = append(kb, []Button{btn(T("🤝 سرور دست دهی"), "ie", id, "hs")})
+	}
+	if inbounds.IsV2(ib.Protocol) || ib.Protocol == inbounds.HTTP || inbounds.TLSRequired(ib.Protocol) {
+		kb = append(kb, []Button{btn(T("🔧 امنیت و انتقال"), "wze", id)})
 	}
 	if advApplies(&ib) {
 		kb = append(kb, []Button{btn(T("⚙️ تنظیمات پیشرفته"), "xv", id)})
@@ -514,209 +483,4 @@ func joinSet(m map[string]bool) string {
 		}
 	}
 	return strings.Join(out, ",")
-}
-
-func inboundAskPort(r *req, warn string) {
-	p := 10000 + rand.IntN(50000)
-	r.ask("inport", nil, T("ورودی جدید · ")+protoLabel(r.st.draft["proto"]), warn+T("پورت را بفرستید:"), "in",
-		[]Button{btn(T("🎲 پورت تصادفی ")+fa(strconv.Itoa(p)), "inrp", p), btn(T("۴۴۳"), "inrp", 443)})
-}
-
-// inboundAskExtra asks the one protocol-specific value the bot needs.
-func inboundAskExtra(r *req) {
-	p := r.st.draft["proto"]
-	title := T("ورودی جدید · ") + protoLabel(p)
-	switch p {
-	case "vless":
-		r.ask("inextra", nil, title, T("دامنه مقصد Reality را بفرستید (مثلا www.microsoft.com):"), "in",
-			[]Button{btn(T("پیش فرض: www.microsoft.com"), "inx")})
-	case "trojan", "hysteria", "tuic", "masque":
-		r.ask("inextra", nil, title, T("SNI یا دامنه را بفرستید. بدون دامنه، یک گواهی خودامضا ساخته می شود."), "in",
-			[]Button{btn(T("بدون دامنه (خودامضا)"), "inx")})
-	case "anytls":
-		r.ask("inextra", nil, title, T("SNI یا دامنه را بفرستید. بدون دامنه، یک گواهی خودامضا ساخته می شود."), "in",
-			[]Button{btn(T("بدون دامنه (خودامضا)"), "inx")})
-	case "shadowtls":
-		r.ask("inextra", nil, title, T("سرور دست دهی را بفرستید: دامنه یک سایت واقعی با TLS 1.3 که ناظر ها می بینند (مثلا www.microsoft.com):"), "in",
-			[]Button{btn(T("پیش فرض: www.microsoft.com"), "inx")})
-	case "naive":
-		inboundAskCert(r)
-	case "tunnel":
-		r.ask("inextra", nil, title, T("مقصد تونل را به شکل address:port بفرستید (مثلا 1.1.1.1:53):"), "in")
-	case "mtproto":
-		r.ask("inextra", nil, title, T("دامنه FakeTLS را بفرستید:"), "in", []Button{btn(T("پیش فرض: www.cloudflare.com"), "inx")})
-	default:
-		r.st.draft["extra"] = ""
-		inboundAskPlace(r, nil)
-	}
-}
-
-// inboundAskCert lets the admin pick the certificate of a NaiveProxy
-// inbound: its clients accept only a certificate from a real CA.
-func inboundAskCert(r *req) {
-	var list []struct {
-		ID     int64  `json:"id"`
-		Domain string `json:"domain"`
-		Source string `json:"source"`
-	}
-	if err := r.call("GET", "/certs", nil, &list); err != nil {
-		r.fail(err, "in")
-		return
-	}
-	var kb Keyboard
-	for _, c := range list {
-		if c.Source != "self" {
-			kb = append(kb, []Button{btn("🔒 "+cut(c.Domain, 32), "inxc", c.ID)})
-		}
-	}
-	title := header("🔒", T("ورودی جدید · NaiveProxy"))
-	if len(kb) == 0 {
-		r.show(view{text: title + T("کلاینت های NaiveProxy گواهی خودامضا را نمی پذیرند. اول در پنل وب، بخش گواهی ها، یک گواهی Let's Encrypt (برای دامنه یا IP سرور) بگیرید."), kb: Keyboard{nav("in")}})
-		return
-	}
-	kb = append(kb, []Button{btn(T("✖️ انصراف"), "in")})
-	r.show(view{text: title + T("گواهی را انتخاب کنید (کلاینت های NaiveProxy گواهی خودامضا را نمی پذیرند):"), kb: kb})
-}
-
-func inboundAskPlace(r *req, a []string) {
-	ns := r.nodes()
-	if singboxProto(r.st.draft["proto"]) {
-		ns = nil // sing-box protocols run on the main server only
-	}
-	if len(ns) == 0 {
-		r.st.draft["place"] = "0"
-		inboundCreate(r, nil)
-		return
-	}
-	if _, ok := r.st.draft["place"]; !ok {
-		r.st.draft["place"] = "0"
-	}
-	sel := setOf(r.st.draft["place"])
-	if len(a) > 0 {
-		sel[a[0]] = !sel[a[0]]
-		r.st.draft["place"] = joinSet(sel)
-	}
-	kb := Keyboard{{btn(onOff(sel["0"])+T(" سرور اصلی"), "inpl", 0)}}
-	for _, n := range ns {
-		k := strconv.FormatInt(n.ID, 10)
-		kb = append(kb, []Button{btn(onOff(sel[k])+T(" نود ")+cut(n.Name, 20), "inpl", n.ID)})
-	}
-	kb = append(kb, []Button{btn(T("✅ ساختن ورودی"), "inok")}, []Button{btn(T("✖️ انصراف"), "il")})
-	r.show(view{text: header("🖥", T("ورودی جدید · محل اجرا")) + T("این ورودی روی کدام سرور ها اجرا شود؟"), kb: kb})
-}
-
-// inboundBody builds a new inbound the way the web wizard does.
-func inboundBody(d map[string]string) (map[string]any, error) {
-	p := d["proto"]
-	port, _ := strconv.Atoi(d["port"])
-	extra := d["extra"]
-	settings := map[string]any{}
-	b := map[string]any{"remark": d["remark"], "enabled": true, "protocol": p, "port": port, "network": "tcp", "security": "none",
-		"transport": map[string]any{"path": "", "host": "", "service_name": "", "mode": ""}, "sniffing": true}
-	tls := func(alpn []string) map[string]any {
-		return map[string]any{"cert_id": nil, "sni": extra, "alpn": alpn, "fingerprint": "chrome", "allow_insecure": false}
-	}
-	switch p {
-	case "vless":
-		dest := extra
-		if dest == "" {
-			dest = "www.microsoft.com"
-		}
-		host := strings.TrimSuffix(dest, ":443")
-		b["security"], b["flow"] = "reality", "xtls-rprx-vision"
-		b["reality"] = map[string]any{"dest": host + ":443", "server_names": []string{host}, "private_key": "", "public_key": "",
-			"short_ids": []string{}, "fingerprint": "chrome", "spider_x": "/"}
-	case "vmess":
-		b["network"] = "ws"
-		b["transport"] = map[string]any{"path": "/ws", "host": "", "service_name": "", "mode": ""}
-	case "trojan":
-		b["security"], b["tls"] = "tls", tls([]string{"h2", "http/1.1"})
-	case "shadowsocks":
-		b["ss_method"] = "2022-blake3-aes-128-gcm"
-	case "hysteria":
-		b["security"], b["tls"] = "tls", tls([]string{"h3"})
-	case "tuic":
-		b["security"], b["tls"] = "tls", tls([]string{"h3"})
-		settings["congestion"] = "bbr"
-	case "anytls":
-		b["security"], b["tls"] = "tls", tls([]string{})
-	case "naive":
-		cid, err := strconv.ParseInt(d["cert"], 10, 64)
-		if err != nil || cid <= 0 {
-			return nil, fmt.Errorf("NaiveProxy needs a certificate")
-		}
-		t := tls([]string{"h2", "http/1.1"})
-		t["cert_id"] = cid
-		b["security"], b["tls"] = "tls", t
-	case "shadowtls":
-		hs := extra
-		if hs == "" {
-			hs = "www.microsoft.com"
-		}
-		hp := 443
-		if h, ps, ok := strings.Cut(hs, ":"); ok {
-			if n, err := strconv.Atoi(ps); err == nil {
-				hs, hp = h, n
-			}
-		}
-		settings["handshake_server"], settings["handshake_port"] = hs, hp
-		b["ss_method"] = "2022-blake3-aes-128-gcm"
-	case "masque":
-		b["security"], b["tls"] = "tls", tls([]string{"h3"})
-		settings["pool"], settings["mtu"], settings["path"] = []string{"10.14.0.1/24", "fd14::1/64"}, 1280, "/.well-known/masque/ip/{target}/{ipproto}/"
-	case "wireguard", "amneziawg":
-		settings["dns"], settings["mtu"], settings["keepalive"] = []string{"1.1.1.1", "8.8.8.8"}, 1420, 25
-	case "tun":
-		settings["tun_name"], settings["gateway"], settings["mtu"] = "veilon-tun", []string{"10.77.0.1/24"}, 1500
-	case "mixed", "socks":
-		settings["udp"] = true
-	case "tunnel":
-		host, ps, ok := strings.Cut(extra, ":")
-		tp, err := strconv.Atoi(ps)
-		if !ok || err != nil || host == "" {
-			return nil, fmt.Errorf("tunnel target must be address:port")
-		}
-		settings["target_address"], settings["target_port"], settings["tunnel_network"] = host, tp, "tcp"
-	case "mtproto":
-		dom := extra
-		if dom == "" {
-			dom = "www.cloudflare.com"
-		}
-		settings["faketls_domain"] = dom
-	}
-	switch p {
-	case "vless", "vmess", "trojan", "shadowsocks", "http", "mixed", "socks", "tunnel":
-	default:
-		b["sniffing"] = false
-	}
-	b["settings"] = settings
-	ids := []int64{}
-	sel := setOf(d["place"])
-	for k, v := range sel {
-		if n, err := strconv.ParseInt(k, 10, 64); err == nil && v && n > 0 {
-			ids = append(ids, n)
-		}
-	}
-	b["node_ids"], b["serve_main"] = ids, sel["0"] || len(ids) == 0
-	return b, nil
-}
-
-func inboundCreate(r *req, _ []string) {
-	if r.st.draft["proto"] == "" {
-		inboundsList(r, nil)
-		return
-	}
-	body, err := inboundBody(r.st.draft)
-	if err != nil {
-		r.fail(err, "in")
-		return
-	}
-	r.progress(T("در حال ساختن ورودی"))
-	var out inbound
-	if err := r.call("POST", "/inbounds", body, &out); err != nil {
-		r.fail(err, "in")
-		return
-	}
-	r.st.draft = map[string]string{}
-	inboundView(r, []string{strconv.FormatInt(out.ID, 10)})
 }

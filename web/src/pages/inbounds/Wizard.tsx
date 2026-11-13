@@ -40,6 +40,15 @@ import {
   transportLabel,
   transportsOf,
   withSettings,
+  GRPC_MODES,
+  MASQUE_ALPNS,
+  REALITY_FPS,
+  TLS_ALPNS,
+  TUIC_CONGESTIONS,
+  XHTTP_MODES,
+  networksOf,
+  realityAllowed,
+  securitiesOf,
 } from '@/lib/protocols';
 import { toast } from '@/store/feedback';
 import { ProtoGlyph } from './ProtoGlyph';
@@ -48,12 +57,9 @@ import { TLS_FPS, cleanAdvanced, ltrIso, xrayNeeds, xrayNeedsIso, xrayServerWarn
 import { useXrayInfo } from '@/api/xray';
 import s from './Inbounds.module.css';
 
-const NETWORKS: Network[] = ['tcp', 'ws', 'grpc', 'httpupgrade', 'xhttp', 'kcp'];
 const SECURITIES: Security[] = ['none', 'tls', 'reality'];
 const FPS = TLS_FPS;
-// Reality only works with these client fingerprints (checked with Xray 26.10.31).
-const REALITY_FPS = ['chrome', 'firefox', 'safari'];
-const ALPNS = ['h3', 'h2', 'http/1.1'];
+const ALPNS = TLS_ALPNS;
 
 type StepId = 'protocol' | 'connection' | 'security' | 'keys' | 'review';
 const STEP_LABEL: Record<StepId, MessageKey> = {
@@ -71,8 +77,7 @@ function stepsFor(p: Protocol): StepId[] {
 
 const defaults = inboundDefaults;
 
-export const realityAllowed = (d: Pick<InboundInput, 'protocol' | 'network'>) =>
-  (d.protocol === 'vless' || d.protocol === 'trojan') && (d.network === 'tcp' || d.network === 'grpc' || d.network === 'xhttp');
+export { realityAllowed };
 
 function toInput(ib: Inbound): InboundInput {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -795,7 +800,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
                 <div className={s.span2}>
                   <span className="field__label">{t('inb.step.transport')}</span>
                   <div className={`${s.tiles} ${s.tilesSm}`} role="radiogroup" aria-label={t('inb.step.transport')}>
-                    {NETWORKS.map((net) => {
+                    {networksOf(p).map((net) => {
                       const disabled = false;
                       return (
                         <button key={net} type="button" role="radio" aria-checked={d.network === net} disabled={disabled} className={`${s.tile} ${s.tileSm} ${d.network === net ? s.tileOn : ''}`} onClick={() => setNetwork(net)}>
@@ -840,7 +845,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
                     <input className="input ltr mono" value={d.transport.service_name} onChange={(e) => patchT({ service_name: e.target.value })} />
                   </Field>
                   <Field label={t('inb.mode')}>
-                    <Select<string> ltr mono value={d.transport.mode || 'gun'} onChange={(v) => patchT({ mode: v })} ariaLabel={t('inb.mode')} options={['gun', 'multi'].map((m) => ({ value: m, label: m }))} />
+                    <Select<string> ltr mono value={d.transport.mode || 'gun'} onChange={(v) => patchT({ mode: v })} ariaLabel={t('inb.mode')} options={GRPC_MODES.map((m) => ({ value: m, label: m }))} />
                   </Field>
                 </>
               )}
@@ -852,7 +857,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
                     value={d.transport.mode || 'auto'}
                     onChange={(v) => patchT({ mode: v })}
                     ariaLabel={t('inb.mode')}
-                    options={['auto', 'packet-up', 'stream-up', 'stream-one'].map((m) => ({ value: m, label: m }))}
+                    options={XHTTP_MODES.map((m) => ({ value: m, label: m }))}
                   />
                 </Field>
               )}
@@ -960,7 +965,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
                     value={d.settings.congestion || 'bbr'}
                     onChange={(v) => patchS({ congestion: v as InboundSettings['congestion'] })}
                     ariaLabel={t('inb.congestion')}
-                    options={['bbr', 'cubic', 'new_reno'].map((m) => ({ value: m, label: m }))}
+                    options={TUIC_CONGESTIONS.map((m) => ({ value: m, label: m }))}
                   />
                 </Field>
               )}
@@ -1098,7 +1103,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
               <div className={s.span2}>
                 <div className={`${s.tiles} ${s.tilesSec}`} role="radiogroup" aria-label={t('inb.step.security')}>
                   {SECURITIES.map((sec) => {
-                    const disabled = (sec === 'reality' && !realityAllowed(d)) || (p === 'shadowsocks' && sec === 'reality') || (d.network === 'kcp' && sec === 'reality');
+                    const disabled = !securitiesOf(p, d.network).includes(sec);
                     const Icon = sec === 'none' ? ShieldOff : sec === 'tls' ? Lock : Sparkles;
                     return (
                       <button key={sec} type="button" role="radio" aria-checked={d.security === sec} disabled={disabled} className={`${s.tile} ${s.tileSm} ${d.security === sec ? s.tileOn : ''}`} onClick={() => setSecurity(sec)}>
@@ -1381,7 +1386,7 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
                 <div className={s.span2}>
                   <span className="field__label">{t('inb.alpn')}</span>
                   <div className={s.chipRow}>
-                    {['h3', 'h2'].map((a) => {
+                    {MASQUE_ALPNS.map((a) => {
                       const cur = d.tls?.alpn ?? [];
                       const on = cur.includes(a);
                       return (

@@ -396,7 +396,7 @@ func Normalize(v *View) error {
 		if v.Protocol != "vless" && v.Protocol != "trojan" {
 			return verr("reality is supported for vless and trojan only")
 		}
-		if v.Network != "tcp" && v.Network != "grpc" && v.Network != "xhttp" {
+		if !RealityAllowed(v.Protocol, v.Network) {
 			return verr("reality supports network tcp, grpc or xhttp")
 		}
 		r := v.Reality
@@ -471,7 +471,7 @@ func Normalize(v *View) error {
 		}
 		// VLESS Encryption carries Vision on every transport (tested with
 		// Xray 26.10.31: tcp, ws, grpc, httpupgrade, xhttp).
-		if v.Protocol != "vless" || !v.VLESSEnc.On() && (v.Network != "tcp" || v.Security == "none") {
+		if !FlowAllowed(v.Protocol, v.Network, v.Security, v.VLESSEnc.On()) {
 			return verr("xtls-rprx-vision requires vless with vless encryption, or vless over tcp with tls or reality")
 		}
 	}
