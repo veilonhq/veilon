@@ -25,6 +25,8 @@
 📱 [دانلود آخرین نسخه](https://github.com/veilonhq/veilon/releases/tag/client-latest)
 &nbsp;·&nbsp;
 🖥 [نصب پنل](https://github.com/veilonhq/veilon)
+&nbsp;·&nbsp;
+🔍 [اسکنر DNS و IP (ScanON)](https://github.com/skylarsob/ScanON)
 
 </div>
 
@@ -59,6 +61,16 @@ https://github.com/veilonhq/veilon/releases/download/client-latest/veilon-client
 2. در برنامه دکمه **+** را بزنید و لینک اشتراک را وارد کنید (یا کد QR آن را اسکن کنید).
 3. یک سرور انتخاب کنید و دکمه اتصال را بزنید. برای بروزرسانی اشتراک از دکمه بروزرسانی استفاده کنید.
 
+## ابزار پیشنهادی: ScanON
+
+اگر دنبال DNS یا IP تمیز هستید، [ScanON](https://github.com/skylarsob/ScanON) یک اپ اندرویدی برای کاربرهای ایران است که IP، DNS و دامنه را اسکن می کند و نتیجه واقعی و تایید شده می دهد.
+
+- اسکن DNS با UDP، TCP، DoT و DoH
+- تست TCP، HTTP، HTTPS، WebSocket، ICMP و سرعت دانلود
+- موقعیت و ASN هر IP
+
+راهنما و دانلود: https://skylarsob.github.io/ScanON/
+
 </div>
 
 ---
@@ -76,6 +88,8 @@ The official Android client for the Veilon panel
 📱 [Download the latest version](https://github.com/veilonhq/veilon/releases/tag/client-latest)
 &nbsp;·&nbsp;
 🖥 [Install the panel](https://github.com/veilonhq/veilon)
+&nbsp;·&nbsp;
+🔍 [DNS & IP scanner (ScanON)](https://github.com/skylarsob/ScanON)
 
 </div>
 
@@ -114,6 +128,16 @@ Versioned client releases use the tag prefix `client-v` (for example `client-v1.
 1. In the panel, open a user and copy their **subscription link**.
 2. In the app, tap **+** and paste the subscription URL (or scan its QR code).
 3. Pick a server and tap the connect button. Use the refresh button to update the subscription.
+
+## Recommended tool: ScanON
+
+Looking for a clean DNS or IP? [ScanON](https://github.com/skylarsob/ScanON) is an Android app for users in Iran that scans IPs, DNS servers and domains with verified, honest measurements.
+
+- DNS scanning over UDP, TCP, DoT and DoH
+- TCP, HTTP, HTTPS, WebSocket, ICMP and download-speed tests
+- Location and ASN for every IP
+
+Guide and download: https://skylarsob.github.io/ScanON/
 
 ## Layout
 
