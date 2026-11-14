@@ -287,6 +287,11 @@ func SetHeaders(w http.ResponseWriter, u *db.User, st db.Settings) {
 	}
 	w.Header().Set("profile-title", "base64:"+base64.StdEncoding.EncodeToString([]byte(title)))
 	w.Header().Set("profile-update-interval", strconv.Itoa(st.SubUpdateHours))
+	// announce: the description for the user, shown by clients that support
+	// it (Happ, Hiddify). Only when set, so other responses are unchanged.
+	if d := strings.TrimSpace(u.Description); d != "" {
+		w.Header().Set("announce", "base64:"+base64.StdEncoding.EncodeToString([]byte(d)))
+	}
 	w.Header().Set("Cache-Control", "no-store")
 }
 

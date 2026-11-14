@@ -27,10 +27,11 @@ func TestUpgradeFromSchema9AddsTelegramNotices(t *testing.T) {
 		var us, ibs, ui []map[string]any
 		gdb.Raw("SELECT * FROM users ORDER BY id").Scan(&us)
 		for _, u := range us {
-			// Columns added by later migrations (schema 12, 13).
+			// Columns added by later migrations (schema 12, 13, 14).
 			delete(u, "proxy_username")
 			delete(u, "proxy_password")
 			delete(u, "firewall")
+			delete(u, "description")
 		}
 		gdb.Raw("SELECT * FROM inbounds ORDER BY id").Scan(&ibs)
 		gdb.Raw("SELECT * FROM user_inbounds ORDER BY user_id, inbound_id").Scan(&ui)

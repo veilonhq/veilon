@@ -51,11 +51,15 @@ type User struct {
 	OnHoldDays    *int
 	ResetStrategy string
 	LastResetAt   *time.Time
-	Note          string
-	UUID          string `gorm:"column:uuid"`
-	Password      string
-	SubToken      string
-	LastOnlineAt  *time.Time
+	// Note is the admin's private note (never shown to the user).
+	Note string
+	// Description is written for the user: shown at the bottom of the
+	// subscription page and sent as the announce header.
+	Description  string `gorm:"column:description"`
+	UUID         string `gorm:"column:uuid"`
+	Password     string
+	SubToken     string
+	LastOnlineAt *time.Time
 	// ProxyUsername and ProxyPassword are the optional custom login for
 	// HTTP, Mixed and SOCKS inbounds ("" = automatic: "<id>.<username>" and
 	// Password). A custom username is what Xray reports for the user's

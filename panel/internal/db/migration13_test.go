@@ -65,7 +65,7 @@ func TestUpgradeFromSchema12AddsFirewall(t *testing.T) {
 
 func TestSchema13Dialects(t *testing.T) {
 	m := migrations[12]
-	if m.Version != 13 || LatestSchema() != 13 {
+	if m.Version != 13 || LatestSchema() < 13 {
 		t.Fatalf("migration 13 at index 12 is %d (latest %d)", m.Version, LatestSchema())
 	}
 	for _, d := range []string{"sqlite", "postgres"} {

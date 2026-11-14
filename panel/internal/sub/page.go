@@ -86,6 +86,10 @@ type PageData struct {
 	UpdateHours int        `json:"update_hours"`
 	Timezone    string     `json:"timezone"`
 	Links       []PageLink `json:"links"`
+	// Description is the admin's text for the user (for example a support
+	// channel), shown at the bottom of the page ("" = no card). The admin's
+	// private note is never part of the page.
+	Description string `json:"description,omitempty"`
 }
 
 func pageData(u *db.User, ps []Proxy, st db.Settings, host string) PageData {
@@ -97,6 +101,9 @@ func pageData(u *db.User, ps []Proxy, st db.Settings, host string) PageData {
 	d := PageData{Username: u.Username, Status: u.Status, Up: u.Up, Down: u.Down, Used: u.Used(), Limit: u.DataLimit,
 		ExpireAt: u.ExpireAt, OnHoldDays: u.OnHoldDays, LastOnlineAt: users.LastOnline(u.ID, u.LastOnlineAt), Online: users.IsOnline(u.ID, time.Now().UTC()), SubURL: su, Title: title,
 		UpdateHours: st.SubUpdateHours, Timezone: st.Timezone, Links: []PageLink{}}
+	if strings.TrimSpace(u.Description) != "" {
+		d.Description = u.Description
+	}
 	for i := range ps {
 		l := PageLink{Name: ps[i].Name, Protocol: ps[i].Protocol, Network: ps[i].Network, Security: ps[i].Security, URI: URI(&ps[i])}
 		if _, _, ok := ConfFile(&ps[i]); ok {

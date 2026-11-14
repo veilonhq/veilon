@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"gorm.io/gorm"
 
@@ -42,6 +43,7 @@ type View struct {
 	OnHoldDays    *int       `json:"on_hold_days"`
 	ResetStrategy string     `json:"reset_strategy"`
 	Note          string     `json:"note"`
+	Description   string     `json:"description"`
 	InboundIDs    []int64    `json:"inbound_ids"`
 	UUID          string     `json:"uuid"`
 	Password      string     `json:"password"`
@@ -84,6 +86,7 @@ type Input struct {
 	OnHoldDays    util.Opt[int]       `json:"on_hold_days"`
 	ResetStrategy util.Opt[string]    `json:"reset_strategy"`
 	Note          util.Opt[string]    `json:"note"`
+	Description   util.Opt[string]    `json:"description"`
 	InboundIDs    util.Opt[[]int64]   `json:"inbound_ids"`
 	Status        util.Opt[string]    `json:"status"`
 	ProxyUsername util.Opt[string]    `json:"proxy_username"`
@@ -105,6 +108,9 @@ type Input struct {
 	WindowDays        util.Opt[int]     `json:"window_days"`
 	GroupID           util.Opt[int64]   `json:"group_id"`
 }
+
+// MaxDescription is the longest description for the user, in characters.
+const MaxDescription = 1000
 
 // Errors.
 var (
@@ -193,7 +199,7 @@ func (s *Service) ToView(u *db.User, inboundIDs []int64, host string) View {
 	v := View{
 		ID: u.ID, Username: u.Username, Status: u.Status, DataLimit: u.DataLimit,
 		UsedTraffic: u.Used(), Up: u.Up, Down: u.Down, ExpireAt: u.ExpireAt, OnHoldDays: u.OnHoldDays,
-		ResetStrategy: u.ResetStrategy, Note: u.Note, InboundIDs: inboundIDs, UUID: u.UUID,
+		ResetStrategy: u.ResetStrategy, Note: u.Note, Description: u.Description, InboundIDs: inboundIDs, UUID: u.UUID,
 		Password: u.Password, SubToken: u.SubToken, ProxyUsername: u.ProxyUsername, ProxyPassword: u.ProxyPassword, Firewall: userfw.Split(u.Firewall), LastOnlineAt: LastOnline(u.ID, u.LastOnlineAt),
 		CreatedAt: u.CreatedAt, UpdatedAt: u.UpdatedAt,
 		IPLimit: u.IPLimit, DeviceLimit: u.DeviceLimit, RequireHWID: u.RequireHWID,
@@ -435,6 +441,13 @@ func applyInput(u *db.User, in *Input, creating bool) error {
 			return verr("note too long")
 		}
 		u.Note = in.Note.Val
+	}
+	if in.Description.Set {
+		d := strings.TrimSpace(strings.ReplaceAll(in.Description.Val, "\r\n", "\n"))
+		if utf8.RuneCountInString(d) > MaxDescription {
+			return verr("description too long (max %d characters)", MaxDescription)
+		}
+		u.Description = d
 	}
 	if err := applyLimits(u, in); err != nil {
 		return err

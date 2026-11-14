@@ -280,6 +280,12 @@ var migrations = []migration{
 	{13, "user firewall", []string{
 		`ALTER TABLE users ADD COLUMN firewall TEXT NOT NULL DEFAULT ''`,
 	}},
+	// Description for the user: text the admin writes for the end user (for
+	// example a support channel), shown on the subscription page. The
+	// existing note stays private. Additive: every user gets ''.
+	{14, "user description", []string{
+		`ALTER TABLE users ADD COLUMN description TEXT NOT NULL DEFAULT ''`,
+	}},
 }
 
 type schemaMigration struct {
