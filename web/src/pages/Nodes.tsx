@@ -157,6 +157,12 @@ function NodeCard({ node: x, onOpen, onInstall, remark }: { node: VNode; onOpen:
         </span>
       )}
 
+      {st.userfw_needs_update && (
+        <span className={s.xrayOld} role="status">
+          {t('nodes.userfwOld')}
+        </span>
+      )}
+
       <span className={s.metrics}>
         <span className={s.metric}>
           <small>

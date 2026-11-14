@@ -135,6 +135,8 @@ export interface User {
   /** custom login for HTTP, Mixed and SOCKS inbounds ('' = automatic) */
   proxy_username?: string;
   proxy_password?: string;
+  /** the user's own block list: domains, full:/regexp: names, IPs, CIDRs (canonical) */
+  firewall?: string[];
   sub_token: string;
   sub_url: string;
   online: boolean;
@@ -193,6 +195,8 @@ export interface UserInput extends Partial<UserLimits> {
   /** '' = automatic login on HTTP, Mixed and SOCKS inbounds */
   proxy_username?: string;
   proxy_password?: string;
+  /** replaces the user's block list ([] clears it) */
+  firewall?: string[];
 }
 
 export interface GroupDefaults extends Partial<UserLimits> {
@@ -658,6 +662,8 @@ export interface NodeState {
   needs_update?: { id: number; remark: string; protocol: Protocol }[] | null;
   /** inbounds left out because the node's Xray-core is too old for their settings */
   xray_too_old?: { id: number; remark: string; needs: XrayNeed[] }[] | null;
+  /** the node runs AmneziaWG inbounds but its agent cannot apply users' firewall lists there (needs an agent update) */
+  userfw_needs_update?: boolean;
 }
 export type NodeUpdatePhase = 'downloading' | 'verifying' | 'restarting' | 'done' | 'failed';
 export interface NodeUpdate {

@@ -1620,3 +1620,141 @@ html[lang='fa'] .lbText {
   padding: 0 12px;
   font-size: 12.5px;
 }
+
+/* per-user firewall */
+.fwAddRow {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.fwAddRow > :global(.btn) {
+  flex: none;
+  height: 44px;
+}
+.fwInput {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  max-height: 160px;
+  resize: vertical;
+  line-height: 1.5;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.fwEmpty {
+  color: var(--muted);
+  font-size: 13px;
+}
+.fwHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12.5px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.fwClear {
+  border: 0;
+  background: none;
+  color: var(--danger-fg);
+  font: inherit;
+  font-weight: 600;
+  padding: 4px 2px;
+  cursor: pointer;
+}
+.fwList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.fwItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+:global([dir='rtl']) .fwItem {
+  padding: 8px 14px 8px 8px;
+}
+.fwVal {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: start;
+}
+.fwKind {
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.fwDel {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.fwDel:hover {
+  background: var(--danger-soft);
+  color: var(--danger-fg);
+}
+.fwNote {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.fwNote > svg {
+  flex: none;
+  margin-top: 3px;
+}
+.fwFormats summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.fwFormats dl {
+  margin: 8px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.fwFormats dl > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+}
+.fwFormats dt {
+  font-size: 12.5px;
+}
+.fwFormats dd {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+@media (max-width: 480px) {
+  .fwKind {
+    display: none;
+  }
+}

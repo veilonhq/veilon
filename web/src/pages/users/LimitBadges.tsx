@@ -1,4 +1,4 @@
-import { CalendarClock, CirclePause, Gauge, Magnet, MonitorSmartphone, Network, Sun, type LucideIcon } from 'lucide-react';
+import { CalendarClock, CirclePause, Gauge, Magnet, MonitorSmartphone, Network, ShieldBan, Sun, type LucideIcon } from 'lucide-react';
 import type { User } from '@/api/types';
 import { useI18n, type TFn } from '@/i18n';
 import s from './Users.module.css';
@@ -28,6 +28,7 @@ export function limitBadges(u: User, { t, n, bytes }: Fmt): LimitBadge[] {
     if (u.suspend_reason !== 'window') out.push({ key: 'win', Icon: CalendarClock, label: t('badge.window') });
   }
   if (u.block_torrent) out.push({ key: 'tor', Icon: Magnet, label: t('badge.torrent') });
+  if (u.firewall?.length) out.push({ key: 'fw', Icon: ShieldBan, label: t('badge.firewall', { n: n(u.firewall.length) }) });
   if (u.traffic_multiplier && u.traffic_multiplier !== 1) {
     const v = n(u.traffic_multiplier, { maximumFractionDigits: 1 });
     out.push({ key: 'mul', text: `×${v}`, label: t('badge.mult', { v }) });

@@ -1,43 +1,36 @@
 package userfw
 
 import (
+	"encoding/json"
 	"errors"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
 )
 
 func TestNormalize(t *testing.T) {
-	ok := []struct{ in, out, kind string }{
-		{"example.com", "example.com", KindDomain},
-		{"  Example.COM. ", "example.com", KindDomain},
-		{"domain:YouTube.com", "youtube.com", KindDomain},
-		{"*.googlevideo.com", "googlevideo.com", KindDomain},
-		{"https://www.Example.com:8443/path?q=1", "www.example.com", KindDomain},
-		{"http://user@example.org/", "example.org", KindDomain},
-		{"example.com:443", "example.com", KindDomain},
-		{"ir", "ir", KindDomain},
-		{"xn--mgbaam7a8h", "xn--mgbaam7a8h", KindDomain},
-		{"_dmarc.example.com", "_dmarc.example.com", KindDomain},
-		{"full:Api.Example.com", "full:api.example.com", KindFull},
-		{"regexp:\\.example\\.(com|net)$", "regexp:\\.example\\.(com|net)$", KindRegexp},
-		{"1.2.3.4", "1.2.3.4", KindIP},
-		{"1.2.3.4:443", "1.2.3.4", KindIP},
-		{"1.2.3.4/32", "1.2.3.4", KindIP},
-		{"10.1.2.3/8", "10.0.0.0/8", KindIP},
-		{"2001:DB8::1", "2001:db8::1", KindIP},
-		{"[2001:db8::1]", "2001:db8::1", KindIP},
-		{"2001:db8:abcd::/48", "2001:db8:abcd::/48", KindIP},
-		{"::ffff:1.2.3.4", "1.2.3.4", KindIP},
-		{"https://[2001:db8::5]:443/", "2001:db8::5", KindIP},
-		{"http://8.8.8.8/dns", "8.8.8.8", KindIP},
+	raw, err := os.ReadFile("testdata/cases.json")
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, c := range ok {
-		v, k, err := Normalize(c.in)
-		if err != nil || v != c.out || k != c.kind {
-			t.Errorf("Normalize(%q) = %q %q %v, want %q %q", c.in, v, k, err, c.out, c.kind)
+	var cases struct {
+		OK  [][3]string `json:"ok"`
+		Bad [][2]string `json:"bad"`
+	}
+	if err := json.Unmarshal(raw, &cases); err != nil {
+		t.Fatal(err)
+	}
+	if len(cases.OK) < 20 || len(cases.Bad) < 20 {
+		t.Fatal("cases missing")
+	}
+	for _, c := range cases.OK {
+		in, kind, out := c[0], c[1], c[2]
+		v, k, err := Normalize(in)
+		if err != nil || v != out || k != kind {
+			t.Errorf("Normalize(%q) = %q %q %v, want %q %q", in, v, k, err, out, kind)
 		}
-		if Kind(v) != c.kind {
+		if Kind(v) != kind {
 			t.Errorf("Kind(%q) = %q", v, Kind(v))
 		}
 		// canonical forms are stable
@@ -45,35 +38,13 @@ func TestNormalize(t *testing.T) {
 			t.Errorf("not stable: %q -> %q %v", v, v2, err)
 		}
 	}
-	bad := []struct{ in, reason string }{
-		{"", ReasonEmpty},
-		{"   ", ReasonEmpty},
-		{"exa mple.com", ReasonBadDomain},
-		{"-bad.com", ReasonBadDomain},
-		{"ex..com", ReasonBadDomain},
-		{"سایت.com", ReasonBadDomain},
-		{"full:", ReasonBadDomain},
-		{"regexp:(", ReasonBadRegexp},
-		{"regexp:", ReasonBadRegexp},
-		{"1.2.3.256", ReasonBadIP},
-		{"1.2.3", ReasonBadIP},
-		{"1.2.3.4/33", ReasonBadIP},
-		{"0.0.0.0/0", ReasonTooBroad},
-		{"10.0.0.0/7", ReasonTooBroad},
-		{"::/0", ReasonTooBroad},
-		{"2000::/3", ReasonTooBroad},
-		{"geosite:youtube", ReasonUnsupported},
-		{"geoip:ir", ReasonUnsupported},
-		{"keyword:ads", ReasonUnsupported},
-		{"fe80::1%eth0", ReasonBadIP},
-		{strings.Repeat("a", 64) + ".com", ReasonBadDomain},
-		{strings.Repeat("a.", 130) + "com", ReasonTooLong},
-	}
+	bad := cases.Bad
+	bad = append(bad, [2]string{strings.Repeat("a.", 130) + "com", ReasonTooLong})
 	for _, c := range bad {
-		_, _, err := Normalize(c.in)
+		_, _, err := Normalize(c[0])
 		var e *EntryError
-		if !errors.As(err, &e) || e.Reason != c.reason {
-			t.Errorf("Normalize(%q) err = %v, want reason %s", c.in, err, c.reason)
+		if !errors.As(err, &e) || e.Reason != c[1] {
+			t.Errorf("Normalize(%q) err = %v, want reason %s", c[0], err, c[1])
 		}
 	}
 }

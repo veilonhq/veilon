@@ -274,6 +274,12 @@ export function NodeSheet({ open, node, onClose, inbounds, onCreated, askInstall
             <span>{t('node.needsUpdate', { list: node.state.needs_update.map((x) => x.remark).join('، ') })}</span>
           </div>
         )}
+        {node?.state.userfw_needs_update && (
+          <div className={s.stateErr} role="status">
+            <TriangleAlert size={16} aria-hidden="true" />
+            <span>{t('nodes.userfwOld')}</span>
+          </div>
+        )}
         {node && (
           <div className={s.sheetXray}>
             <NodeXrayRow node={node} />

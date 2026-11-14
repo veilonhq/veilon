@@ -1,4 +1,4 @@
-import { Cable, Check, ChevronDown, Clock, Gauge, HardDrive, KeyRound, Loader2, Minus, Plus, type LucideIcon } from 'lucide-react';
+import { Cable, Check, ChevronDown, Clock, Gauge, HardDrive, KeyRound, Loader2, Minus, Plus, ShieldBan, type LucideIcon } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useCreateUser, useGroups, useUpdateUser, useUser } from '@/api/hooks';
 import type { Group, Inbound, ResetStrategy, UserInput, UserLimits } from '@/api/types';
@@ -12,6 +12,8 @@ import { GB, USERNAME_RE, proxyPassProblem, proxyUserProblem } from '@/lib/user'
 import { ApiError } from '@/api/client';
 import { toast } from '@/store/feedback';
 import { LimitField } from './LimitField';
+import { FirewallField, type FwError } from './FirewallField';
+import { addEntries, type FwReason } from '@/lib/firewall';
 import s from './Users.module.css';
 
 type ExpMode = 'keep' | 'never' | 'days' | 'hold';
@@ -23,7 +25,7 @@ export const DAILY = [1, 2, 5];
 export const WEEK = [6, 0, 1, 2, 3, 4, 5];
 export const ALL_DAYS = 0x7f;
 export const CLOCKS = Array.from({ length: 48 }, (_, i) => `${String(Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}`);
-type SecKey = 'data' | 'time' | 'conn' | 'speed' | 'access';
+type SecKey = 'data' | 'time' | 'conn' | 'speed' | 'access' | 'firewall';
 
 export const round1 = (v: number) => Math.round(v * 10) / 10;
 export const gb = (bytes: number) => Math.round((bytes / GB) * 100) / 100;
@@ -160,6 +162,9 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
   const [proxyUser, setProxyUser] = useState('');
   const [proxyPass, setProxyPass] = useState('');
   const [proxyTaken, setProxyTaken] = useState(false);
+  const [fw, setFw] = useState<string[]>([]);
+  const [fwDraft, setFwDraft] = useState('');
+  const [fwErr, setFwErr] = useState<FwError | null>(null);
   const [openSecs, setOpenSecs] = useState<Set<SecKey>>(new Set(['data', 'time']));
   const groupsQ = useGroups(open);
   const groups = groupsQ.data ?? [];
@@ -199,6 +204,7 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
       setGroupId(u.group_id ?? null);
       setProxyUser(u.proxy_username ?? '');
       setProxyPass(u.proxy_password ?? '');
+      setFw(u.firewall ?? []);
     } else {
       setUsername('');
       setLimitGb(30);
@@ -214,7 +220,10 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
       setGroupId(null);
       setProxyUser('');
       setProxyPass('');
+      setFw([]);
     }
+    setFwDraft('');
+    setFwErr(null);
     setProxyTaken(false);
     setOpenSecs(new Set(['data', 'time']));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -272,6 +281,19 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
       return;
     }
     setServerErr(null);
+    // text typed in the firewall box but not added yet is added now (or stops the save)
+    let fwList = fw;
+    if (fwDraft.trim()) {
+      const r = addEntries(fw, fwDraft);
+      if (r.error) {
+        setFwErr(r.error);
+        setOpenSecs((x) => new Set([...x, 'firewall']));
+        return;
+      }
+      fwList = r.list;
+      setFw(r.list);
+      setFwDraft('');
+    }
     const body: Partial<UserInput> = {
       username,
       data_limit: Math.round(limitGb * GB),
@@ -282,6 +304,7 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
       traffic_multiplier: round1(lim.traffic_multiplier || 1),
       daily_limit: Math.round(lim.daily_limit),
       group_id: groupId,
+      firewall: fwList,
     };
     // hidden (no HTTP/Mixed/SOCKS inbound selected): the stored login is kept as it is
     if (proxyOn) Object.assign(body, { proxy_username: proxyUser.trim(), proxy_password: proxyPass.trim() });
@@ -294,6 +317,11 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
     if (expMode === 'days') Object.assign(body, { expire_at: expDate.toISOString(), on_hold_days: null });
     if (expMode === 'hold') Object.assign(body, { expire_at: null, on_hold_days: holdDays });
     const onError = (err: unknown) => {
+      if (err instanceof ApiError && err.status === 400 && err.details?.field === 'firewall') {
+        setFwErr({ entry: String(err.details.entry ?? ''), reason: (err.details.reason as FwReason) ?? 'bad_domain' });
+        setOpenSecs((x) => new Set([...x, 'firewall']));
+        return;
+      }
       if (err instanceof ApiError && err.status === 409 && err.details?.field === 'proxy_username') {
         setProxyTaken(true);
         setOpenSecs((x) => new Set([...x, 'access']));
@@ -342,6 +370,9 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
   const speedSum =
     lim.speed_limit_down || lim.speed_limit_up ? `↓ ${lim.speed_limit_down ? n(lim.speed_limit_down) : '∞'} · ↑ ${lim.speed_limit_up ? n(lim.speed_limit_up) : '∞'} Mbps` : t('form.sum.none');
   const accessSum = [groupId ? groups.find((g) => g.id === groupId)?.name ?? '' : '', t('form.sum.inbounds', { n: n(ibs.length) }), lim.block_torrent ? t('badge.torrent') : ''].filter(Boolean).join(sep);
+
+  const fwSum = fw.length ? t('form.fwCount', { n: n(fw.length) }) : t('form.sum.none');
+  const awgOn = ibs.some((id) => inbounds.find((i) => i.id === id)?.protocol === 'amneziawg');
 
   const modes: ExpMode[] = editing ? ['keep', 'days', 'never', 'hold'] : ['days', 'never', 'hold'];
 
@@ -600,6 +631,10 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
               </span>
               <Switch checked={lim.block_torrent} onChange={(v) => L('block_torrent', v)} label={t('form.blockTorrent')} />
             </div>
+          </Sec>
+
+          <Sec id="firewall" icon={ShieldBan} title={t('form.sec.firewall')} summary={fwSum} open={openSecs.has('firewall')} onToggle={toggleSec}>
+            <FirewallField list={fw} onChange={setFw} draft={fwDraft} onDraft={setFwDraft} error={fwErr} onError={setFwErr} awg={awgOn} />
           </Sec>
 
           <Field label={t('form.note')} optional>

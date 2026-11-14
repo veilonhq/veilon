@@ -137,7 +137,7 @@ func firewallView(id int64, name string, fw fwListView, page int, notice string)
 // Persian commas).
 func splitEntries(s string) []string {
 	return strings.FieldsFunc(s, func(c rune) bool {
-		return c == '\n' || c == '\r' || c == ' ' || c == '\t' || c == ',' || c == '،' || c == ';'
+		return c == '\n' || c == '\r' || c == ' ' || c == '\t' || c == ',' || c == '،' || c == ';' || c == '؛'
 	})
 }
 
