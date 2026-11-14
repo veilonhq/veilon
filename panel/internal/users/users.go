@@ -12,6 +12,7 @@ import (
 
 	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/presence"
+	"github.com/veilonhq/veilon/panel/internal/userfw"
 	"github.com/veilonhq/veilon/panel/internal/userkey"
 	"github.com/veilonhq/veilon/panel/internal/util"
 )
@@ -47,13 +48,16 @@ type View struct {
 	SubToken      string     `json:"sub_token"`
 	// ProxyUsername / ProxyPassword: custom login for HTTP, Mixed and SOCKS
 	// inbounds ("" = automatic).
-	ProxyUsername string     `json:"proxy_username"`
-	ProxyPassword string     `json:"proxy_password"`
-	SubURL        string     `json:"sub_url"`
-	Online        bool       `json:"online"`
-	LastOnlineAt  *time.Time `json:"last_online_at"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
+	ProxyUsername string `json:"proxy_username"`
+	ProxyPassword string `json:"proxy_password"`
+	// Firewall is the user's own block list (canonical entries; see
+	// package userfw).
+	Firewall     []string   `json:"firewall"`
+	SubURL       string     `json:"sub_url"`
+	Online       bool       `json:"online"`
+	LastOnlineAt *time.Time `json:"last_online_at"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
 
 	IPLimit           int     `json:"ip_limit"`
 	DeviceLimit       int     `json:"device_limit"`
@@ -84,6 +88,9 @@ type Input struct {
 	Status        util.Opt[string]    `json:"status"`
 	ProxyUsername util.Opt[string]    `json:"proxy_username"`
 	ProxyPassword util.Opt[string]    `json:"proxy_password"`
+	// Firewall replaces the user's block list (domains, full:/regexp:
+	// names, IP addresses, CIDR ranges); [] clears it.
+	Firewall util.Opt[[]string] `json:"firewall"`
 
 	IPLimit           util.Opt[int]     `json:"ip_limit"`
 	DeviceLimit       util.Opt[int]     `json:"device_limit"`
@@ -187,7 +194,7 @@ func (s *Service) ToView(u *db.User, inboundIDs []int64, host string) View {
 		ID: u.ID, Username: u.Username, Status: u.Status, DataLimit: u.DataLimit,
 		UsedTraffic: u.Used(), Up: u.Up, Down: u.Down, ExpireAt: u.ExpireAt, OnHoldDays: u.OnHoldDays,
 		ResetStrategy: u.ResetStrategy, Note: u.Note, InboundIDs: inboundIDs, UUID: u.UUID,
-		Password: u.Password, SubToken: u.SubToken, ProxyUsername: u.ProxyUsername, ProxyPassword: u.ProxyPassword, LastOnlineAt: LastOnline(u.ID, u.LastOnlineAt),
+		Password: u.Password, SubToken: u.SubToken, ProxyUsername: u.ProxyUsername, ProxyPassword: u.ProxyPassword, Firewall: userfw.Split(u.Firewall), LastOnlineAt: LastOnline(u.ID, u.LastOnlineAt),
 		CreatedAt: u.CreatedAt, UpdatedAt: u.UpdatedAt,
 		IPLimit: u.IPLimit, DeviceLimit: u.DeviceLimit, RequireHWID: u.RequireHWID,
 		SpeedLimitDown: kbpsToMbps(u.SpeedDownKbps), SpeedLimitUp: kbpsToMbps(u.SpeedUpKbps),
@@ -415,6 +422,13 @@ func applyInput(u *db.User, in *Input, creating bool) error {
 	}
 	if err := ValidateProxyLogin(u.ProxyUsername, u.ProxyPassword); err != nil {
 		return err
+	}
+	if in.Firewall.Set {
+		list, err := userfw.NormalizeList(in.Firewall.Val)
+		if err != nil {
+			return err
+		}
+		u.Firewall = userfw.Join(list)
 	}
 	if in.Note.Set {
 		if len(in.Note.Val) > 2000 {

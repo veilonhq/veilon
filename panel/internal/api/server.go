@@ -26,6 +26,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/stats"
 	"github.com/veilonhq/veilon/panel/internal/sub"
 	"github.com/veilonhq/veilon/panel/internal/tgbot"
+	"github.com/veilonhq/veilon/panel/internal/userfw"
 	"github.com/veilonhq/veilon/panel/internal/users"
 	"github.com/veilonhq/veilon/panel/internal/webui"
 	"github.com/veilonhq/veilon/panel/internal/xray"
@@ -196,8 +197,12 @@ func writeServiceErr(w http.ResponseWriter, err error) {
 		ic *inbounds.ConflictError
 		na *inbounds.NodeAgentError
 		pt *users.ProxyTakenError
+		fe *userfw.EntryError
 	)
 	switch {
+	case errors.As(err, &fe):
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": map[string]any{"code": "validation_error", "message": fe.Error(),
+			"field": "firewall", "entry": fe.Entry, "reason": fe.Reason}})
 	case errors.As(err, &pt):
 		writeJSON(w, http.StatusConflict, map[string]any{"error": map[string]any{"code": "conflict", "message": pt.Error(), "field": "proxy_username"}})
 	case errors.As(err, &na):

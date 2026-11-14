@@ -62,6 +62,10 @@ type User struct {
 	// traffic on those inbounds (see package userkey).
 	ProxyUsername string `gorm:"column:proxy_username"`
 	ProxyPassword string `gorm:"column:proxy_password"`
+	// Firewall is the user's own block list: canonical entries (domains,
+	// full:/regexp: names, IP addresses and CIDR ranges), one per line
+	// ("" = nothing blocked; see package userfw).
+	Firewall string `gorm:"column:firewall"`
 
 	// IPLimit is the number of client IPs allowed at the same time (0 = any).
 	IPLimit int `gorm:"column:ip_limit"`

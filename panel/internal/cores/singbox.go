@@ -18,6 +18,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/certs"
 	"github.com/veilonhq/veilon/panel/internal/guard"
 	"github.com/veilonhq/veilon/panel/internal/inbounds"
+	"github.com/veilonhq/veilon/panel/internal/userfw"
 	"github.com/veilonhq/veilon/panel/internal/xray"
 )
 
@@ -94,6 +95,7 @@ func SingboxConfig(in *xray.Input, bridgePort int) ([]byte, error) {
 				if cidrs := blockedCIDRs(in.Policy.BlockedIPs[name]); len(cidrs) > 0 {
 					rules = append(rules, obj{"auth_user": []string{name}, "source_ip_cidr": cidrs, "action": "reject"})
 				}
+				rules = append(rules, singboxFirewall(name, in.Policy.Firewall[name])...)
 				rules = append(rules, obj{"auth_user": []string{name}, "outbound": tag})
 			}
 		}
@@ -168,6 +170,33 @@ func singboxInbound(ib *inbounds.View, dataDir, listen string, users, ssUsers []
 			"method": ib.SSMethod, "password": ib.SSServerKey, "users": ssUsers}}
 	}
 	return []any{base}
+}
+
+// singboxFirewall renders one user's own block list as reject rules ahead
+// of the user's route to the Xray bridge (where Xray's rules check the
+// same list again). For names, the user's connections are sniffed first
+// (TLS SNI, HTTP Host, QUIC), so a client that dials an address still
+// meets its name rules; users without a list are not sniffed.
+func singboxFirewall(name string, r userfw.Rules) []any {
+	var out []any
+	if len(r.Suffix)+len(r.Exact)+len(r.Regex) > 0 {
+		out = append(out, obj{"auth_user": []string{name}, "action": "sniff"})
+		rule := obj{"auth_user": []string{name}, "action": "reject"}
+		if len(r.Suffix) > 0 {
+			rule["domain_suffix"] = r.Suffix
+		}
+		if len(r.Exact) > 0 {
+			rule["domain"] = r.Exact
+		}
+		if len(r.Regex) > 0 {
+			rule["domain_regex"] = r.Regex
+		}
+		out = append(out, rule)
+	}
+	if len(r.CIDRs) > 0 {
+		out = append(out, obj{"auth_user": []string{name}, "ip_cidr": r.CIDRs, "action": "reject"})
+	}
+	return out
 }
 
 // blockedCIDRs turns blocked client IPs into host prefixes; invalid

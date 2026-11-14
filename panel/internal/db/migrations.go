@@ -274,6 +274,12 @@ var migrations = []migration{
 		`ALTER TABLE users ADD COLUMN proxy_password VARCHAR(128) NOT NULL DEFAULT ''`,
 		`CREATE UNIQUE INDEX idx_users_proxy_username ON users(proxy_username) WHERE proxy_username <> ''`,
 	}},
+	// Per-user firewall: domains and IP addresses / ranges an admin blocks
+	// for one user, one canonical entry per line (package userfw).
+	// Additive: every existing user gets '' (nothing blocked).
+	{13, "user firewall", []string{
+		`ALTER TABLE users ADD COLUMN firewall TEXT NOT NULL DEFAULT ''`,
+	}},
 }
 
 type schemaMigration struct {

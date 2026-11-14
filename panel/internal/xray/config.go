@@ -17,6 +17,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/certs"
 	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/inbounds"
+	"github.com/veilonhq/veilon/panel/internal/userfw"
 	"github.com/veilonhq/veilon/panel/internal/userkey"
 	"github.com/veilonhq/veilon/panel/internal/users"
 )
@@ -78,6 +79,9 @@ type Policy struct {
 	// AdBlockAll blocks ads for everyone; otherwise AdBlockUsers (groups).
 	AdBlockAll   bool
 	AdBlockUsers []string
+	// Firewall maps a user email to the user's own block list (domains
+	// and IPs, package userfw), sent to the blackhole for that user only.
+	Firewall map[string]userfw.Rules
 }
 
 // policyRules renders the policy as routing rules (before the defaults).
@@ -93,6 +97,7 @@ func policyRules(p Policy, geosite bool, aliases map[string]string) ([]any, []st
 	for _, e := range emails {
 		rules = append(rules, obj{"type": "field", "user": users(e), "source": p.BlockedIPs[e], "outboundTag": "blocked"})
 	}
+	rules = append(rules, firewallRules(p.Firewall, users)...)
 	if p.TorrentAll {
 		rules = append(rules, obj{"type": "field", "protocol": []string{"bittorrent"}, "outboundTag": "blocked"})
 	} else if len(p.TorrentUsers) > 0 {
@@ -108,6 +113,30 @@ func policyRules(p Policy, geosite bool, aliases map[string]string) ([]any, []st
 		}
 	}
 	return rules, warn
+}
+
+// firewallRules renders every user's own block list: one rule for the
+// names (domain:, full:, regexp:) and one for the addresses, each matched
+// by the user's email (and custom proxy username) and sent to the
+// blackhole. They come before the admin's routing rules, so no outbound
+// choice can route around them.
+func firewallRules(fw map[string]userfw.Rules, users func(...string) []string) []any {
+	emails := make([]string, 0, len(fw))
+	for e := range fw {
+		emails = append(emails, e)
+	}
+	sort.Strings(emails)
+	var rules []any
+	for _, e := range emails {
+		r := fw[e]
+		if len(r.XrayDomains) > 0 {
+			rules = append(rules, obj{"type": "field", "user": users(e), "domain": r.XrayDomains, "outboundTag": TagBlocked})
+		}
+		if len(r.XrayIPs) > 0 {
+			rules = append(rules, obj{"type": "field", "user": users(e), "ip": r.XrayIPs, "outboundTag": TagBlocked})
+		}
+	}
+	return rules
 }
 
 // withAliases adds the custom proxy username of every listed email that
@@ -270,6 +299,14 @@ func loadPolicy(gdb *gorm.DB, served map[int64]db.User) Policy {
 		}
 		if u.GroupID != nil && adGroups[*u.GroupID] {
 			p.AdBlockUsers = append(p.AdBlockUsers, Email(&u))
+		}
+		if u.Firewall != "" {
+			if r := userfw.Render(userfw.Split(u.Firewall)); !r.Empty() {
+				if p.Firewall == nil {
+					p.Firewall = map[string]userfw.Rules{}
+				}
+				p.Firewall[Email(&u)] = r
+			}
 		}
 	}
 	return p

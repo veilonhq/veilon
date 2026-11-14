@@ -9,6 +9,7 @@ import (
 	"github.com/veilonhq/veilon/panel/internal/auth"
 	"github.com/veilonhq/veilon/panel/internal/db"
 	"github.com/veilonhq/veilon/panel/internal/sub"
+	"github.com/veilonhq/veilon/panel/internal/userfw"
 	"github.com/veilonhq/veilon/panel/internal/users"
 )
 
@@ -57,6 +58,9 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request, a *db.Admin)
 		}
 	}
 	audit.Log(s.DB, a, "user.create", fmt.Sprintf("user:%d %s", v.ID, v.Username), s.clientIP(r))
+	if len(v.Firewall) > 0 {
+		s.auditFirewall(r, a, v, nil)
+	}
 	writeJSON(w, 201, v)
 }
 
@@ -88,12 +92,21 @@ func (s *Server) updateUser(w http.ResponseWriter, r *http.Request, a *db.Admin)
 			return
 		}
 	}
+	var fwBefore []string
+	if in.Firewall.Set {
+		if u, err := s.Users.GetModel(id); err == nil {
+			fwBefore = userfw.Split(u.Firewall)
+		}
+	}
 	v, err := s.Users.Update(id, &in, r.Host)
 	if err != nil {
 		writeServiceErr(w, err)
 		return
 	}
 	audit.Log(s.DB, a, "user.update", fmt.Sprintf("user:%d %s", v.ID, v.Username), s.clientIP(r))
+	if in.Firewall.Set {
+		s.auditFirewall(r, a, v, fwBefore)
+	}
 	writeJSON(w, 200, v)
 }
 
