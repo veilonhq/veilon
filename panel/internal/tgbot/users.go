@@ -328,7 +328,10 @@ func userText(u *users.View, ibs map[int64]string, loc *time.Location, now time.
 		t += T("🔁 ریست دوره ای: ") + resetLabel[u.ResetStrategy] + "\n"
 	}
 	if u.Note != "" {
-		t += "📝 " + esc(cut(u.Note, 200)) + "\n"
+		t += T("🔒 یادداشت شخصی: ") + esc(cut(u.Note, 200)) + "\n"
+	}
+	if u.Description != "" {
+		t += T("💬 توضیحات برای کاربر: ") + esc(cut(u.Description, 200)) + "\n"
 	}
 	return t
 }
@@ -533,7 +536,8 @@ var userFields = map[string]struct{ label, prompt string }{
 	"lim":  {T("حجم کل"), T("حجم کل به گیگابایت را بفرستید (۰ یعنی نامحدود):")},
 	"exp":  {T("مدت اعتبار"), T("چند روز از امروز معتبر باشد؟ (۰ یعنی زمان نامحدود)")},
 	"hold": {T("شروع از اولین اتصال"), T("چند روز بعد از اولین اتصال منقضی شود؟ (تاریخ فعلی برداشته می شود)")},
-	"note": {T("یادداشت"), T("یادداشت را بفرستید (- برای پاک کردن):")},
+	"note": {T("یادداشت شخصی"), T("یادداشت شخصی را بفرستید؛ فقط مدیر ها آن را می بینند (- برای پاک کردن):")},
+	"desc": {T("توضیحات برای کاربر"), T("توضیحات برای کاربر را بفرستید؛ پایین صفحه اشتراک کاربر نمایش داده می شود (حداکثر ۱۰۰۰ نویسه، - برای پاک کردن):")},
 	"ipl":  {T("محدودیت IP"), T("حداکثر تعداد IP همزمان (۰ یعنی بدون محدودیت):")},
 	"dev":  {T("محدودیت دستگاه"), T("حداکثر تعداد دستگاه (۰ یعنی بدون محدودیت):")},
 	"spd":  {T("سرعت دانلود"), T("سقف سرعت دانلود به Mbps (۰ یعنی نامحدود):")},
@@ -576,6 +580,7 @@ func userEditMenu(r *req, a []string) {
 		{f("win"), btn(T("📅 روز های مجاز"), "uef", id, "days")},
 		{btn(T("📥 ورودی ها"), "uef", id, "inb"), btn(T("🏷 گروه"), "uef", id, "grp")},
 		{btn(T("🔁 ریست دوره ای"), "uef", id, "rst"), f("note")},
+		{f("desc")},
 		{f("pxu"), f("pxp")},
 		{btn(onOff(u.RequireHWID)+" HWID", "uht", id), btn(onOff(u.BlockTorrent)+T(" تورنت"), "utt", id)},
 		{btn(T("🛡 فایروال")+fwCount(len(u.Firewall)), "ufw", id), btn(T("🔑 تعویض لینک اشتراک"), "urv", id)},
@@ -654,6 +659,11 @@ func userFieldInput(r *req, a []string, text string, _ *Document) {
 			text = ""
 		}
 		body["note"] = text
+	case "desc":
+		if strings.TrimSpace(text) == "-" {
+			text = ""
+		}
+		body["description"] = text
 	case "pxu", "pxp":
 		t := strings.TrimSpace(text)
 		if t == "-" {
