@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ArrowUpFromLine, CalendarClock, Check, Copy, Download, Hourglass, Moon, QrCode, RefreshCw, Sun, Wifi, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpFromLine, CalendarClock, Check, Copy, Download, Hourglass, MessageSquareText, Moon, QrCode, RefreshCw, Sun, Wifi, X } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Backdrop } from '@/components/Backdrop';
@@ -11,6 +11,7 @@ import {
   formatNumber,
   knownStatus,
   linkChips,
+  linkify,
   liveURL,
   LIVE_POLL_MS,
   mergeLive,
@@ -436,6 +437,26 @@ export function SubApp({ data: initial, serverLang }: { data: SubData; serverLan
               </ul>
             )}
           </section>
+
+          {data.description?.trim() && (
+            <section className={`glass ${s.card} ${s.descCard}`} aria-labelledby="sub-desc">
+              <h2 id="sub-desc" className={s.cardTitle}>
+                <MessageSquareText size={17} aria-hidden="true" />
+                {t('desc.title')}
+              </h2>
+              <p className={`${s.desc} selectable`} dir="auto">
+                {linkify(data.description.trim()).map((p, i) =>
+                  p.href ? (
+                    <a key={i} href={p.href} target="_blank" rel="noopener noreferrer nofollow" dir="ltr">
+                      {p.text}
+                    </a>
+                  ) : (
+                    <span key={i}>{p.text}</span>
+                  ),
+                )}
+              </p>
+            </section>
+          )}
         </main>
 
         <footer className={s.footer}>

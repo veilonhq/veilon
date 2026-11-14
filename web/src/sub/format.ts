@@ -35,6 +35,8 @@ export interface SubData {
   update_hours: number;
   timezone: string;
   links: SubLink[];
+  /** the admin's description for the user (absent = no card) */
+  description?: string;
 }
 
 /** The JSON of ?format=live: the parts the open page refreshes. */
@@ -172,4 +174,52 @@ export function allLinks(links: SubLink[]) {
 export function onlineState(d: Pick<SubData, 'online' | 'last_online_at'>): 'online' | 'seen' | 'never' {
   if (d.online) return 'online';
   return d.last_online_at ? 'seen' : 'never';
+}
+
+/** A piece of the description: plain text, or a link the page may open. */
+export type Piece = { text: string; href?: string };
+
+// http(s) URLs, bare t.me / telegram.me links, and Telegram @handles (not
+// the middle of an e-mail address: the @ must not follow a letter or digit).
+const LINK_RE = /(https?:\/\/[^\s<>"']+)|((?:t|telegram)\.me\/[A-Za-z0-9_+/-]+[^\s<>"']*)|(^|[^\p{L}\p{N}_.@])@([A-Za-z][A-Za-z0-9_]{3,31})(?![A-Za-z0-9_@.])/gu;
+const TRAIL_RE = /[.,;:!?،؛)\]}»'"]+$/u;
+
+/**
+ * Splits the description into text and links. Only http(s) hrefs are ever
+ * produced; the text stays text (React escapes it).
+ */
+export function linkify(text: string): Piece[] {
+  const out: Piece[] = [];
+  const push = (p: Piece) => {
+    if (!p.text) return;
+    const last = out[out.length - 1];
+    if (!p.href && last && !last.href) last.text += p.text;
+    else out.push(p);
+  };
+  let at = 0;
+  for (const m of text.matchAll(LINK_RE)) {
+    const start = m.index ?? 0;
+    push({ text: text.slice(at, start) });
+    if (m[1] || m[2]) {
+      const raw = m[1] || m[2];
+      const tail = raw.match(TRAIL_RE)?.[0] ?? '';
+      const link = raw.slice(0, raw.length - tail.length);
+      const href = m[1] ? link : 'https://' + link;
+      let ok = false;
+      try {
+        const u = new URL(href);
+        ok = (u.protocol === 'https:' || u.protocol === 'http:') && !!u.hostname;
+      } catch {
+        ok = false;
+      }
+      push(ok ? { text: link, href } : { text: link });
+      push({ text: tail });
+    } else {
+      push({ text: m[3] });
+      push({ text: '@' + m[4], href: 'https://t.me/' + m[4] });
+    }
+    at = start + m[0].length;
+  }
+  push({ text: text.slice(at) });
+  return out;
 }

@@ -128,7 +128,10 @@ export interface User {
   expire_at: string | null;
   on_hold_days: number | null;
   reset_strategy: ResetStrategy;
+  /** private admin note (never shown to the user) */
   note: string;
+  /** shown at the bottom of the user's subscription page ('' = none) */
+  description: string;
   inbound_ids: number[];
   uuid: string;
   password: string;
@@ -190,6 +193,7 @@ export interface UserInput extends Partial<UserLimits> {
   on_hold_days: number | null;
   reset_strategy: ResetStrategy;
   note: string;
+  description: string;
   inbound_ids: number[];
   group_id?: number | null;
   /** '' = automatic login on HTTP, Mixed and SOCKS inbounds */

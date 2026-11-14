@@ -386,6 +386,34 @@
   font-size: 14px;
 }
 
+/* description for the user */
+.descCard {
+  gap: 12px;
+}
+.descCard .cardTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.descCard .cardTitle svg {
+  color: var(--muted);
+}
+.desc {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.85;
+  color: var(--text-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+.desc a {
+  color: var(--accent-fg);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  unicode-bidi: isolate;
+}
+
 /* footer */
 .footer {
   display: flex;

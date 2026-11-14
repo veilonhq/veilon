@@ -151,7 +151,7 @@ function mkUser(id: number): User {
   return {
     id, username, status, data_limit: limitGb * GB, used_traffic: used, up, down: used - up,
     expire_at: expire, on_hold_days: onHold, reset_strategy: pick(['no_reset', 'no_reset', 'month', 'week']),
-    note: pick(notes), inbound_ids: ib.length ? ib : [1], uuid: uuid(), password: b64(16), sub_token: token,
+    note: pick(notes), description: '', inbound_ids: ib.length ? ib : [1], uuid: uuid(), password: b64(16), sub_token: token,
     sub_url: `https://${SERVER}/sub/${token}`,
     online: online && !limits.suspend_reason, last_online_at: status === 'on_hold' ? null : online ? iso(now()) : iso(now() - Math.floor(rnd() * 9 * DAY)),
     created_at: iso(created), updated_at: iso(created + DAY),
@@ -643,7 +643,7 @@ function route(method: string, path: string, q: URLSearchParams, body: Body): un
       const token = b64(22);
       const u: User = {
         id: nextUserId++, username: b.username, status: b.on_hold_days ? 'on_hold' : 'active', data_limit: b.data_limit ?? 0, used_traffic: 0, up: 0, down: 0,
-        expire_at: b.expire_at ?? null, on_hold_days: b.on_hold_days ?? null, reset_strategy: b.reset_strategy ?? 'no_reset', note: b.note ?? '',
+        expire_at: b.expire_at ?? null, on_hold_days: b.on_hold_days ?? null, reset_strategy: b.reset_strategy ?? 'no_reset', note: b.note ?? '', description: b.description ?? '',
         inbound_ids: b.inbound_ids ?? [], uuid: uuid(), password: b64(16), sub_token: token, sub_url: `https://${SERVER}/sub/${token}`,
         online: false, last_online_at: null, created_at: iso(now()), updated_at: iso(now()),
         ...LIMIT_DEFAULTS,

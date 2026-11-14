@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { StickyNote } from 'lucide-react';
 import { memo } from 'react';
 import type { Group, Inbound, User } from '@/api/types';
 import { StatusChip } from '@/components/misc';
@@ -102,9 +103,9 @@ export const PassCard = memo(function PassCard({ u, inbounds, selected, onToggle
       </button>
       <div className={s.passSeen}>
         <LastSeen u={u} />
-        {u.note && <span className={s.passNote}>· {u.note}</span>}
         <LimitBadges u={u} max={4} className={s.lbEnd} />
       </div>
+      <NoteLine note={u.note} />
 
       <div className={s.perf} aria-hidden="true" />
 
@@ -146,6 +147,22 @@ export const PassCard = memo(function PassCard({ u, inbounds, selected, onToggle
     </motion.article>
   );
 });
+
+/**
+ * The admin's private note on a card: one line (two on the large card),
+ * the full text in the user details. Nothing when there is no note.
+ */
+function NoteLine({ note, mini }: { note: string; mini?: boolean }) {
+  const { t } = useI18n();
+  const text = note.trim();
+  if (!text) return null;
+  return (
+    <p className={`${s.cardNote} ${mini ? s.cardNoteMini : ''}`} title={text} aria-label={`${t('user.note')}: ${text}`}>
+      <StickyNote size={13} aria-hidden="true" />
+      <span dir="auto">{text}</span>
+    </p>
+  );
+}
 
 /**
  * Compact pass: one short ticket per user. The quota ring sits in a stub
@@ -215,6 +232,7 @@ export const CompactPass = memo(function CompactPass({ u, inbounds, selected, on
         <div className={s.miniSeen}>
           <LastSeen u={u} />
         </div>
+        <NoteLine note={u.note} mini />
       </div>
     </motion.article>
   );

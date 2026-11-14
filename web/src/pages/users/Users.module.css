@@ -185,9 +185,40 @@ html[lang='fa'] .passNo {
   white-space: nowrap;
   overflow: hidden;
 }
-.passNote {
+.cardNote {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 6px 0 0;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.cardNote svg {
+  flex: none;
+  margin-top: 3px;
+  opacity: 0.8;
+}
+.cardNote span {
+  min-width: 0;
   overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.cardNoteMini {
+  margin: 0;
+}
+.cardNoteMini span {
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  white-space: nowrap;
   text-overflow: ellipsis;
+  display: block;
 }
 .onlineTag {
   display: inline-flex;
@@ -1757,4 +1788,42 @@ html[lang='fa'] .lbText {
   .fwKind {
     display: none;
   }
+}
+
+/* private note and description in the user details */
+.dTexts {
+  display: grid;
+  gap: 10px;
+}
+.dText {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel-2);
+  min-width: 0;
+}
+.dTextLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.dTextBody {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.dTextLink {
+  color: var(--accent-fg);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  unicode-bidi: isolate;
 }

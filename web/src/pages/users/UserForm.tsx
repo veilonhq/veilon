@@ -16,6 +16,9 @@ import { FirewallField, type FwError } from './FirewallField';
 import { addEntries, type FwReason } from '@/lib/firewall';
 import s from './Users.module.css';
 
+/** Longest description for the user (characters), same as the server. */
+const DESC_MAX = 1000;
+
 type ExpMode = 'keep' | 'never' | 'days' | 'hold';
 export const RESETS: ResetStrategy[] = ['no_reset', 'day', 'week', 'month'];
 export const LIMITS = [10, 30, 50, 100];
@@ -155,6 +158,7 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
   const [reset, setReset] = useState<ResetStrategy>('no_reset');
   const [ibs, setIbs] = useState<number[]>([]);
   const [note, setNote] = useState('');
+  const [desc, setDesc] = useState('');
   const [active, setActive] = useState(true);
   const [lim, setLim] = useState<UserLimits>(NO_LIMITS);
   const [winOn, setWinOn] = useState(false);
@@ -194,6 +198,7 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
       setReset(u.reset_strategy);
       setIbs(u.inbound_ids);
       setNote(u.note);
+      setDesc(u.description ?? '');
       setActive(u.status !== 'disabled');
       setLim({
         ip_limit: u.ip_limit ?? 0, device_limit: u.device_limit ?? 0, require_hwid: !!u.require_hwid, speed_limit_down: u.speed_limit_down ?? 0,
@@ -214,6 +219,7 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
       setReset('no_reset');
       setIbs(inbounds.filter((i) => i.enabled).map((i) => i.id));
       setNote('');
+      setDesc('');
       setActive(true);
       setLim({ ...NO_LIMITS, window_from: '08:00', window_to: '18:00', window_days: ALL_DAYS });
       setWinOn(false);
@@ -299,6 +305,7 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
       data_limit: Math.round(limitGb * GB),
       reset_strategy: reset,
       note,
+      description: desc,
       inbound_ids: ibs,
       ...lim,
       traffic_multiplier: round1(lim.traffic_multiplier || 1),
@@ -638,7 +645,18 @@ export function UserForm({ open, editId, onClose, onSaved, inbounds }: Props) {
           </Sec>
 
           <Field label={t('form.note')} optional>
-            <textarea className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('form.notePlaceholder')} rows={3} />
+            <textarea className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('form.notePlaceholder')} rows={3} dir="auto" />
+          </Field>
+
+          <Field label={t('form.description')} optional hint={`${t('form.descriptionHint')} (${n(Array.from(desc).length)}/${n(DESC_MAX)})`}>
+            <textarea
+              className="input"
+              value={desc}
+              onChange={(e) => setDesc(Array.from(e.target.value).slice(0, DESC_MAX).join(''))}
+              placeholder={t('form.descriptionPlaceholder')}
+              rows={3}
+              dir="auto"
+            />
           </Field>
 
           {editing && (

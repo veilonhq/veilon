@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
-import { ArrowDown, ArrowUp, Download, KeyRound, Pencil, Power, PowerOff, RotateCcw, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Download, KeyRound, MessageSquareText, Pencil, Power, PowerOff, RotateCcw, StickyNote, Trash2 } from 'lucide-react';
+import { linkify } from '@/sub/format';
 import { useEffect, useState } from 'react';
 import { useDeleteUser, useResetTraffic, useRevokeSub, useUpdateUser, useUser, useUserLinks } from '@/api/hooks';
 import type { Inbound, User, UserLink } from '@/api/types';
@@ -243,6 +244,42 @@ function DetailBody({ u, onEdit, onClose, inbounds }: { u: User; onEdit: (id: nu
         </div>
       )}
 
+      {/* private note (admins only) and description for the user (subscription page) */}
+      {(u.note.trim() || (u.description ?? '').trim()) && (
+        <div className={s.dTexts}>
+          {u.note.trim() && (
+            <figure className={s.dText}>
+              <figcaption className={s.dTextLabel}>
+                <StickyNote size={14} aria-hidden="true" />
+                {t('user.note')}
+              </figcaption>
+              <p className={s.dTextBody} dir="auto">
+                {u.note}
+              </p>
+            </figure>
+          )}
+          {(u.description ?? '').trim() && (
+            <figure className={s.dText}>
+              <figcaption className={s.dTextLabel}>
+                <MessageSquareText size={14} aria-hidden="true" />
+                {t('user.description')}
+              </figcaption>
+              <p className={s.dTextBody} dir="auto">
+                {linkify(u.description.trim()).map((p, i) =>
+                  p.href ? (
+                    <a key={i} href={p.href} target="_blank" rel="noopener noreferrer nofollow" dir="ltr" className={s.dTextLink}>
+                      {p.text}
+                    </a>
+                  ) : (
+                    <span key={i}>{p.text}</span>
+                  ),
+                )}
+              </p>
+            </figure>
+          )}
+        </div>
+      )}
+
       {/* tabs */}
       <div className={`seg ${s.dTabs}`} role="tablist" aria-label={t('user.details')}>
         {(
@@ -349,12 +386,6 @@ function DetailBody({ u, onEdit, onClose, inbounds }: { u: User; onEdit: (id: nu
                 <dt>{t('user.createdAt')}</dt>
                 <dd>{dateTime(u.created_at)}</dd>
               </div>
-              {u.note && (
-                <div>
-                  <dt>{t('user.note')}</dt>
-                  <dd>{u.note}</dd>
-                </div>
-              )}
             </dl>
           )}
         </motion.div>
