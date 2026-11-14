@@ -34,7 +34,7 @@ The first time you press `/start`, the bot asks whether it should speak Persian 
 
 `/start` or `/menu` opens the main menu:
 
-- **👥 Users:** list with search and filters, create, edit, renew (days and data), reset usage, enable and disable, group and inbounds, connections, subscription link and QR, new subscription link, and delete with confirmation.
+- **👥 Users:** list with search and filters, create, edit, renew (days and data), reset usage, enable and disable, group and inbounds, connections, subscription link and QR, new subscription link, and delete with confirmation. **Edit** has two separate texts: **Private note** (admins only) and **Description for the user** (shown at the bottom of the user's subscription page); send `-` to clear either.
 - **📥 Inbounds:** list, create (see below), rename and change port, link address, **🔧 Security and transport**, where it runs (main server or nodes), full JSON edit, turn on and off, and delete with confirmation.
 - **🌐 Nodes:** list with status, details, add a node and its install command, a new install command, agent update with progress, the node's Xray version (five newest stable releases) with confirmation and steps, enable and disable, and delete with confirmation.
 - **📊 Server status:** CPU, memory, disk, uptime, traffic, online users, core versions, logs (long logs as a file) and core restart with confirmation.

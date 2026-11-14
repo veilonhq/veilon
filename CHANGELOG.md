@@ -2,6 +2,18 @@
 
 Each release's notes, Persian first. Older releases: https://github.com/veilonhq/veilon/releases
 
+## Unreleased
+
+### فارسی
+
+- **یادداشت شخصی و توضیحات برای کاربر**: یادداشت هر کاربر حالا **یادداشت شخصی** نام دارد و فقط مدیر ها آن را می بینند: روی کارت کاربر در فهرست (فشرده و بزرگ)، بالای جزئیات کاربر با متن کامل و در ربات تلگرام. فیلد تازه **توضیحات برای کاربر** (حداکثر ۱۰۰۰ نویسه) پایین صفحه اشتراک کاربر در یک کارت نمایش داده می شود، با حفظ خط ها و جهت خودکار راست به چپ یا چپ به راست؛ نشانی های http و https، لینک های t.me و @نام کاربری تلگرام قابل کلیک هستند و متن هرگز به شکل HTML اجرا نمی شود. برای برنامه هایی مثل Happ و Hiddify همان متن در سرآیند `announce` هم فرستاده می شود. هر دو به طور پیش فرض خالی هستند. در فرم وب، ربات (ویرایش ← **توضیحات برای کاربر**) و API (`description`) هست. [API](docs/api-v1.md)
+- مهاجرت پایگاه داده: schema 14 (ستون users.description)، فقط افزودنی
+
+### English
+
+- **Private note and description for the user**: the user's note is now the **Private note**, seen by admins only: on the user card in the list (compact and large), in full at the top of the user details, and in the Telegram bot. A new **Description for the user** field (up to 1000 characters) is shown in a card at the bottom of the user's subscription page, keeping line breaks with automatic right-to-left or left-to-right direction; http and https URLs, t.me links and Telegram @handles are clickable, and the text is never rendered as HTML. Clients such as Happ and Hiddify also get it in the `announce` header. Both are empty by default. In the web form, the bot (Edit → **Description for the user**) and the API (`description`). [API](docs/api-v1.md)
+- Database migration: schema 14 (users.description column), additive only
+
 ## v0.3.13 (2026-11-14)
 
 ### فارسی
