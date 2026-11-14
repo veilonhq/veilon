@@ -31,19 +31,36 @@ User object:
 { id, username, status: "active"|"disabled"|"limited"|"expired"|"on_hold",
   data_limit, used_traffic, up, down, expire_at|null, on_hold_days|null,
   reset_strategy: "no_reset"|"day"|"week"|"month",
-  note, inbound_ids:[int], uuid, password, proxy_username, proxy_password, sub_token, sub_url,
+  note, inbound_ids:[int], uuid, password, proxy_username, proxy_password, firewall:[string], sub_token, sub_url,
   online: bool, last_online_at|null, created_at, updated_at }
 ```
 - `GET /users?search=&status=&page=1&per_page=20&sort=-created_at` → `{items:[User], total}`
   (`search` matches username or note; `status` also accepts `online`; `sort` fields: `created_at`, `username`, `used_traffic`, `data_limit`, `expire_at`, `last_online_at`, `id`, prefix `-` for descending; `per_page` max 500)
 - `POST /users` `{username, data_limit, expire_at|null, on_hold_days|null, reset_strategy, note, inbound_ids}` → `201` User
   (`proxy_username` / `proxy_password` (optional, both kinds of request): a custom login for HTTP, Mixed and SOCKS inbounds; `""` = automatic (`<id>.<username>` and `password`). Username 3-32 of letters, digits, `. _ -`, not starting with digits and a dot, unique across users case-insensitively (`409` with `field:"proxy_username"`); password 8-64 of letters, digits and `. _ - ~ ! @ # $ % ^ & * + =`.)
+  (`firewall` (optional, both kinds of request): the user's own block list, see [Per-user firewall](#per-user-firewall). On PATCH the list replaces the stored one (`[]` clears it); entries are stored in canonical form.)
   (`on_hold_days` with no `expire_at` creates an `on_hold` user whose period starts at first connection; if both are given, `expire_at` wins)
 - `GET /users/{id}`, `PATCH /users/{id}` (same fields + status active/disabled; only fields present are changed, `null` clears nullable fields), `DELETE /users/{id}` → `{ok}`
 - `POST /users/{id}/reset-traffic`, `POST /users/{id}/revoke-sub` (new sub_token + new uuid/password)
 - `GET /users/{id}/links` → `{links:[{inbound_id, remark, protocol, uri, conf?, conf_name?, conf_url?}], sub_url}` — `uri` is `""` for protocols without a share-link standard (amneziawg, masque, shadowtls); WireGuard/AmneziaWG links carry the client config file in `conf` (with `conf_name`, e.g. `WG.conf`) and `conf_url`, a direct download of the same file (see Subscription). Tunnel and TUN inbounds have no client links.
 - `POST /users/bulk` `{action:"delete"|"disable"|"enable"|"reset_traffic"|"extend", ids:[], days?}` → `{ok, affected}`
   (`extend` adds `days` to `expire_at` — from now if already expired — or to `on_hold_days` for on-hold users; users without expiry are unchanged)
+
+
+### Per-user firewall
+
+Domains and IP addresses blocked for one user only (`firewall` on the User object). Permission `users` view for GET, edit for the rest.
+
+- `GET /users/{id}/firewall` → `{user_id, entries:[{value, kind:"domain"|"full"|"regexp"|"ip", amneziawg:bool}], max:200}` (`amneziawg` is `true` for entries AmneziaWG can apply: addresses and ranges; IPv6 ones are still skipped there)
+- `PUT /users/{id}/firewall` `{entries:[string]}` → replaces the whole list (`[]` clears it); same reply as GET
+- `POST /users/{id}/firewall` `{entries:[string]}` → adds entries (ones already on the list are ignored); `entries` is required
+- `DELETE /users/{id}/firewall?entry=` → removes one entry (written in any accepted form; `404 not_found` when it is not on the list); without `entry` clears the list
+
+Entry forms: `example.com` (also `domain:`, `*.`, a URL; the domain and its subdomains), `full:name` (exactly this name), `regexp:…` (Go/RE2 syntax), an IPv4/IPv6 address or a CIDR range. At most 200 entries, each at most 253 characters; ranges at most /8 (IPv4) and /16 (IPv6). A refused entry, from these endpoints or from `firewall` in user create/PATCH, answers `400`:
+```
+{"error":{"code":"validation_error","message":"…","field":"firewall","entry":"geosite:youtube","reason":"unsupported"}}
+```
+`reason` is one of `empty`, `too_long`, `bad_domain`, `bad_regexp`, `bad_ip`, `too_broad`, `unsupported`, `too_many` (`entry` is empty for `too_many`). Every change is audited as `user.firewall`. Saving rebuilds the configs, so cores restart briefly. Xray uses blackhole rules and sing-box reject rules per user; AmneziaWG applies IPv4 addresses and ranges with nftables (table `inet veilon_userfw`) on the main server and on nodes whose agent has the `userfw` capability (v0.3.13+). The node object carries `userfw_needs_update:true` when the node runs AmneziaWG inbounds with an agent that lacks it. An IP entry does not block traffic that reaches the site by its domain name; add the domain too.
 
 ## Inbounds
 Inbound object:

@@ -2,6 +2,20 @@
 
 Each release's notes, Persian first. Older releases: https://github.com/veilonhq/veilon/releases
 
+## Unreleased
+
+### فارسی
+
+- **فایروال هر کاربر**: در فرم کاربر بخش تازه **فایروال** برای بستن دامنه ها و IP ها فقط برای همان کاربر، تا وقتی که حذفشان کنید. قالب ها: دامنه (با همه زیر دامنه ها؛ `domain:`، `*.` و نشانی کامل هم پذیرفته می شوند)، `full:` برای فقط همان نام، `regexp:`، آدرس IPv4 یا IPv6 و بازه CIDR (بزرگ ترین بازه /8 برای IPv4 و /16 برای IPv6). حداکثر ۲۰۰ مورد برای هر کاربر و هر مورد حداکثر ۲۵۳ نویسه. روی Xray (blackhole) و sing-box (reject) همه قالب ها اعمال می شوند و روی AmneziaWG فقط IP و CIDR نسخه ۴ (nftables، جدول `inet veilon_userfw`). مورد IP ترافیکی را که با نام دامنه می رسد نمی بندد، پس دامنه را هم اضافه کنید. ذخیره کردن هسته ها را کوتاه دوباره راه اندازی می کند. برچسب فایروال در فهرست کاربران، در ربات تلگرام (صفحه کاربر ← **🛡 فایروال**) و API (`firewall` در کاربر و `/users/{id}/firewall`) هم هست. برای موارد AmneziaWG روی نودها برنامه نود همین نسخه لازم است (هشدار در کارت نود و ربات). [راهنما](docs/fa/user-firewall.md)
+- رفع اشکال: وقتی محدودیت سرعت آخرین کاربر AmneziaWG برداشته می شد، فهرست خالی به نودها نمی رسید و محدودیت قبلی روی نود می ماند
+- مهاجرت پایگاه داده: schema 13 (ستون users.firewall)، فقط افزودنی
+
+### English
+
+- **Per-user firewall**: a new **Firewall** section in the user form blocks domains and IPs for that user only, until you remove them. Formats: a domain (with every subdomain; `domain:`, `*.` and a full URL are accepted too), `full:` for exactly that name, `regexp:`, an IPv4 or IPv6 address and a CIDR range (widest /8 for IPv4 and /16 for IPv6). At most 200 entries per user, each at most 253 characters. Xray (blackhole) and sing-box (reject) apply every format; AmneziaWG applies IPv4 addresses and ranges only (nftables, table `inet veilon_userfw`). An IP entry does not block traffic that reaches the site by its domain name, so add the domain too. Saving restarts the cores briefly. A firewall badge in the user list, and also in the Telegram bot (user screen → **🛡 Firewall**) and the API (`firewall` on the user and `/users/{id}/firewall`). Nodes need this release's node agent for AmneziaWG entries (the node card and the bot warn). [Guide](docs/en/user-firewall.md)
+- Fix: when the speed limit of the last limited AmneziaWG user was removed, the empty list never reached nodes and the old limit stayed on the node
+- Database migration: schema 13 (users.firewall column), additive only
+
 ## v0.3.12 (2026-11-13)
 
 ### فارسی
