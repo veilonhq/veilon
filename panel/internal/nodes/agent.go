@@ -56,6 +56,12 @@ type AWGShaper interface {
 	ApplyAWGLimits([]guard.Shape)
 }
 
+// UserFWApplier is a Shaper that also applies users' own block lists to
+// the AmneziaWG peers (the agent then announces CapUserFW).
+type UserFWApplier interface {
+	ApplyUserFirewall([]guard.UserFW)
+}
+
 // Agent is the node side ("veilon node serve").
 type Agent struct {
 	Enrollment *Enrollment
@@ -508,6 +514,9 @@ func (a *Agent) info() Info {
 		if _, ok := a.Shaper.(AWGShaper); ok {
 			in.Caps = append(in.Caps, CapAWGShape)
 		}
+		if _, ok := a.Shaper.(UserFWApplier); ok {
+			in.Caps = append(in.Caps, CapUserFW)
+		}
 		if a.Hop != nil {
 			in.Caps = append(in.Caps, CapPortHop)
 		}
@@ -664,6 +673,9 @@ func (a *Agent) putBans(w http.ResponseWriter, r *http.Request) {
 	}
 	if ls, ok := a.Shaper.(AWGShaper); ok && p.Limits != nil {
 		ls.ApplyAWGLimits(p.Limits)
+	}
+	if fa, ok := a.Shaper.(UserFWApplier); ok && p.Firewall != nil {
+		fa.ApplyUserFirewall(p.Firewall)
 	}
 	if a.Firewall == nil {
 		writeJ(w, 200, map[string]bool{"ok": false})

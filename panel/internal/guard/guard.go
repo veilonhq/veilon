@@ -73,6 +73,13 @@ type Guard struct {
 	awgNftSig string
 	awgTC     map[string]string
 	awgFailed bool
+	// Per-user firewall on AmneziaWG (userfw.go): address entries per
+	// user (from the database, or from the master on a node: fwRemote)
+	// and the applied nft script.
+	fwLists     map[int64][]string
+	fwRemote    bool
+	fwSig       string
+	fwNftFailed bool
 }
 
 type limit struct {
@@ -140,6 +147,7 @@ func (g *Guard) RunLoop(ctx context.Context) {
 		case <-ctx.Done():
 			g.safe("flush", g.Flush)
 			g.safe("clear", g.clearTC)
+			g.safe("user firewall clear", g.clearUserFW)
 			return
 		case <-fast.C:
 			g.safe("enforce", g.Enforce)
@@ -193,6 +201,8 @@ func (g *Guard) Refresh() {
 		g.fwReady = false
 		g.mu.Unlock()
 	}
+	g.refreshUserFW()
+	g.safe("user firewall", g.ApplyUserFW)
 }
 
 // Limit sets one user's limits directly (used after edits and in tests).

@@ -76,6 +76,10 @@ type State struct {
 	// Xray-core than the node reported; they are left out of its config
 	// (its other inbounds keep running) until Xray is updated.
 	XrayTooOld []XrayOldInbound `json:"xray_too_old"`
+	// UserFWNeedsUpdate: the node runs AmneziaWG inbounds and a user has
+	// addresses on their own block list, but the agent is too old to apply
+	// them there (no CapUserFW). Xray inbounds on the node are not affected.
+	UserFWNeedsUpdate bool `json:"userfw_needs_update"`
 	// liveOnline: the agent lists the users with open connections
 	// (CapOnline, v0.3.6 and later).
 	liveOnline bool
@@ -135,6 +139,10 @@ type Manager struct {
 	// Limits lists every user with a speed limit; nodes with CapAWGShape
 	// get it with the bans, for their AmneziaWG users (nil = not sent).
 	Limits func() []guard.Shape
+	// UserFirewalls lists the address entries of every user's own block
+	// list; nodes with CapUserFW apply them to their AmneziaWG peers (the
+	// names reach every node through its Xray config).
+	UserFirewalls func() []guard.UserFW
 	// Version is the main server's version: nodes are updated to it.
 	Version string
 	// ReleaseAPI is the release list nodes are updated from ("" = the
@@ -387,7 +395,7 @@ func (m *Manager) SyncNode(parent context.Context, n *db.Node) {
 			status = StateWaiting // never reached: most likely not installed yet
 		}
 		st := &State{Status: status, Error: err.Error(), Version: prev.Version, XrayVersion: prev.XrayVersion,
-			Arch: prev.Arch, CanUpdate: prev.CanUpdate, Caps: prev.Caps, NeedsUpdate: prev.NeedsUpdate, CanUpdateXray: prev.CanUpdateXray}
+			Arch: prev.Arch, CanUpdate: prev.CanUpdate, Caps: prev.Caps, NeedsUpdate: prev.NeedsUpdate, CanUpdateXray: prev.CanUpdateXray, UserFWNeedsUpdate: prev.UserFWNeedsUpdate}
 		m.setState(n.ID, st)
 		m.trackUpdate(n, nil)
 		m.trackXray(n, nil)
@@ -599,6 +607,11 @@ func (m *Manager) syncEngines(ctx context.Context, hc *http.Client, n *db.Node, 
 	}
 	if !canAWG && !canMTG {
 		return "" // an older agent: it runs Xray only
+	}
+	if len(spec.AWG) > 0 && !info.HasCap(CapUserFW) && m.UserFirewalls != nil {
+		var fw []guard.UserFW
+		util.Safe("node user firewall", func() { fw = m.UserFirewalls() })
+		st.UserFWNeedsUpdate = len(fw) > 0
 	}
 	if !info.HasCap(CapPortHop) {
 		spec.Hop = nil // links to this node carry no hop ports either
@@ -882,6 +895,15 @@ func (m *Manager) sendBans(ctx context.Context, hc *http.Client, n *db.Node) {
 			}
 		}
 	}
+	var fw []guard.UserFW
+	if m.UserFirewalls != nil {
+		if caps, _ := m.Caps(n.ID); hasCap(caps, CapUserFW) {
+			util.Safe("node user firewall", func() { fw = m.UserFirewalls() })
+			if fw == nil {
+				fw = []guard.UserFW{}
+			}
+		}
+	}
 	ips := make([]string, len(bans))
 	for i, b := range bans {
 		ips[i] = b.IP
@@ -896,6 +918,12 @@ func (m *Manager) sendBans(ctx context.Context, hc *http.Client, n *db.Node) {
 			sig += fmt.Sprintf("|%d:%d:%d", s.UserID, s.DownKbps, s.UpKbps)
 		}
 	}
+	if fw != nil {
+		sig += "#fw"
+		for _, f := range fw {
+			sig += fmt.Sprintf("|%d:%s", f.UserID, strings.Join(f.CIDRs, ","))
+		}
+	}
 	m.mu.Lock()
 	prev := m.bansSent[n.ID]
 	m.mu.Unlock()
@@ -904,13 +932,13 @@ func (m *Manager) sendBans(ctx context.Context, hc *http.Client, n *db.Node) {
 		return
 	case !prev.unsupported && prev.sig == sig && time.Since(prev.at) < time.Minute:
 		return
-	case !prev.unsupported && prev.at.IsZero() && len(bans) == 0 && len(shapes) == 0 && len(limits) == 0:
+	case !prev.unsupported && prev.at.IsZero() && len(bans) == 0 && len(shapes) == 0 && len(limits) == 0 && len(fw) == 0:
 		m.mu.Lock()
 		m.bansSent[n.ID] = bansState{sig: sig, at: time.Now()}
 		m.mu.Unlock()
 		return
 	}
-	err := m.call(ctx, hc, http.MethodPut, baseURL(n)+"/v1/bans", BansPush{Bans: bans, Shapes: shapes, Limits: limits}, nil)
+	err := m.call(ctx, hc, http.MethodPut, baseURL(n)+"/v1/bans", BansPush{Bans: bans, Shapes: shapes, Limits: limits, Firewall: fw}, nil)
 	st := bansState{sig: sig, at: time.Now()}
 	if err != nil {
 		if strings.Contains(err.Error(), "HTTP 404") || strings.Contains(err.Error(), "HTTP 405") {

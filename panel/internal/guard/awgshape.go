@@ -222,6 +222,7 @@ func (g *Guard) SetAWGPeers(peers []AWGPeer) {
 	g.awgPeers = append([]AWGPeer(nil), peers...)
 	g.mu.Unlock()
 	g.safe("awg shape", g.ApplyAWG)
+	g.safe("user firewall", g.ApplyUserFW)
 }
 
 // SpeedLimits lists every user with a speed limit (no IPs), for nodes that
@@ -265,9 +266,11 @@ func (g *Guard) RunAWGLoop(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			g.safe("awg clear", g.clearAWG)
+			g.safe("user firewall clear", g.clearUserFW)
 			return
 		case <-t.C:
 			g.safe("awg shape", g.ApplyAWG)
+			g.safe("user firewall", g.ApplyUserFW)
 		}
 	}
 }

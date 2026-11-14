@@ -78,6 +78,13 @@ const (
 // AmneziaWG at all; the master sends Limits only to agents with it.
 const CapAWGShape = "awgshape"
 
+// CapUserFW: the agent applies the address entries of users' own block
+// lists to its AmneziaWG peers (BansPush.Firewall, nftables). Older agents
+// do not; the master marks such nodes (State.UserFWNeedsUpdate) when they
+// run AmneziaWG inbounds while a user has a list. Names and every Xray
+// inbound need no capability: they travel in the node's Xray config.
+const CapUserFW = "userfw"
+
 // CapPortHop: the agent redirects the port-hopping ranges of its Hysteria 2
 // inbounds (NodeSpec.Hop). The master leaves the ranges out for agents
 // without it, and their subscription links carry no hop ports.
@@ -181,7 +188,12 @@ type BansPush struct {
 	// Limits are all users with a speed limit (no IPs), for the AmneziaWG
 	// shaping by tunnel address (agents with CapAWGShape only; nil from
 	// older masters = no AmneziaWG shaping).
-	Limits []guard.Shape `json:"limits,omitempty"`
+	// (Sent as null, not left out, so an emptied list reaches the agent.)
+	Limits []guard.Shape `json:"limits"`
+	// Firewall is the address part of every user's own block list, for
+	// the node's AmneziaWG peers (agents with CapUserFW only; nil from
+	// older masters = unchanged).
+	Firewall []guard.UserFW `json:"firewall"`
 }
 
 // Hash is the config hash both sides agree on.

@@ -109,7 +109,7 @@ func cmdServe(args []string) error {
 	// Remote nodes get every change too (their config is rendered from the
 	// same users, inbounds and template).
 	nodeMgr := &nodes.Manager{DB: gdb, DataDir: cfg.DataDir, PKI: &nodes.PKI{Dir: filepath.Join(cfg.DataDir, "nodes")},
-		OnIPs: connGuard.ObserveRemote, Bans: connGuard.Bans, Shapes: connGuard.Shapes, Limits: connGuard.SpeedLimits, Version: version.Version}
+		OnIPs: connGuard.ObserveRemote, Bans: connGuard.Bans, Shapes: connGuard.Shapes, Limits: connGuard.SpeedLimits, UserFirewalls: connGuard.UserFirewalls, Version: version.Version}
 	reloadAll := func() { core.RequestReload(); nodeMgr.Kick() }
 	inbounds.NodeLacksCap = func(id int64, c string) bool {
 		caps, known := nodeMgr.Caps(id)
