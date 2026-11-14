@@ -14,7 +14,7 @@ func nodeBadge(n *nodeRow) string {
 	switch {
 	case !n.Enabled || n.State.Status == "disabled":
 		return "⛔️"
-	case n.State.Status == "online" && (n.UpdateTo != "" || len(n.State.NeedsUpdate) > 0 || len(n.State.XrayTooOld) > 0):
+	case n.State.Status == "online" && (n.UpdateTo != "" || len(n.State.NeedsUpdate) > 0 || len(n.State.XrayTooOld) > 0 || n.State.UserFWNeedsUpdate):
 		return "🟡"
 	case n.State.Status == "online":
 		return "🟢"
@@ -253,6 +253,9 @@ func nodeText(n *nodeRow, r *req) string {
 			names = append(names, esc(x.Remark))
 		}
 		t += T("⚠️ این ورودی ها تا بروزرسانی نود اجرا نمی شوند: ") + strings.Join(names, T("، ")) + "\n"
+	}
+	if n.State.UserFWNeedsUpdate {
+		t += T("⚠️ عامل این نود برای فایروال کاربران روی AmneziaWG قدیمی است: IP هایی که برای کاربران بسته اید روی ورودی های AmneziaWG این نود اعمال نمی شوند. نود را بروزرسانی کنید.") + "\n"
 	}
 	if len(n.State.XrayTooOld) > 0 {
 		var parts []string

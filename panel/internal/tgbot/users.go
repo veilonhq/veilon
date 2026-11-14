@@ -321,6 +321,9 @@ func userText(u *users.View, ibs map[int64]string, loc *time.Location, now time.
 	if len(lim) > 0 {
 		t += T("🎛 محدودیت ها: ") + strings.Join(lim, " · ") + "\n"
 	}
+	if len(u.Firewall) > 0 {
+		t += T("🛡 فایروال: ") + faInt(len(u.Firewall)) + T(" مورد بسته") + "\n"
+	}
 	if u.ResetStrategy != "" && u.ResetStrategy != "no_reset" {
 		t += T("🔁 ریست دوره ای: ") + resetLabel[u.ResetStrategy] + "\n"
 	}
@@ -575,9 +578,18 @@ func userEditMenu(r *req, a []string) {
 		{btn(T("🔁 ریست دوره ای"), "uef", id, "rst"), f("note")},
 		{f("pxu"), f("pxp")},
 		{btn(onOff(u.RequireHWID)+" HWID", "uht", id), btn(onOff(u.BlockTorrent)+T(" تورنت"), "utt", id)},
-		{btn(T("🔑 تعویض لینک اشتراک"), "urv", id)},
+		{btn(T("🛡 فایروال")+fwCount(len(u.Firewall)), "ufw", id), btn(T("🔑 تعویض لینک اشتراک"), "urv", id)},
 		nav(cbd("uv", id)),
 	}})
+}
+
+// fwCount is the number shown on the firewall button (" (3)"; "" when
+// the list is empty).
+func fwCount(n int) string {
+	if n == 0 {
+		return ""
+	}
+	return " (" + faInt(n) + ")"
 }
 
 func userEditField(r *req, a []string) {

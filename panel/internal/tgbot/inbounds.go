@@ -131,6 +131,7 @@ type nodeRow struct {
 			Remark string     `json:"remark"`
 			Needs  []xrayNeed `json:"needs"`
 		} `json:"xray_too_old"`
+		UserFWNeedsUpdate bool `json:"userfw_needs_update"`
 	} `json:"state"`
 }
 
