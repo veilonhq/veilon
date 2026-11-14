@@ -49,14 +49,6 @@
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".QrScanActivity"
-            android:exported="false"
-            android:screenOrientation="fullSensor"
-            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
-            android:hardwareAccelerated="true"
-            tools:ignore="DiscouragedApi" />
-
         <service
             android:name=".VeilonVpnService"
             android:exported="false"

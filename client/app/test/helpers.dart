@@ -113,6 +113,14 @@ String? fakeUpdateDir;
 String? fakeNativeSha;
 String fakeInstallResult = 'ok';
 
+/// 1.0.10 QR scanner mocks: camera permission answers (one per call, the
+/// last one repeats), torch support and the gallery pick result
+/// (null = cancelled).
+List<String> fakeCamera = ['granted'];
+bool fakeHasTorch = true;
+Map<String, Object?>? fakeQrPick;
+bool fakeTorchResult = true;
+
 void installNativeMocks() {
   final m = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   m.setMockMethodCallHandler(coreChannel, (call) async {
@@ -159,6 +167,16 @@ void installNativeMocks() {
         return fakeNativeSha;
       case 'installApk':
         return fakeInstallResult;
+      case 'cameraPermission':
+        return fakeCamera.length > 1 ? fakeCamera.removeAt(0) : fakeCamera.first;
+      case 'qrHasTorch':
+        return fakeHasTorch;
+      case 'qrTorch':
+        return fakeTorchResult;
+      case 'openAppSettings':
+        return true;
+      case 'pickQrImage':
+        return fakeQrPick;
       case 'setSubPins':
         lastSubPins = (call.arguments as Map)['pins'] as String?;
         return true;

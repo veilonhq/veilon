@@ -16,7 +16,7 @@ object Store {
     private const val K_OPTIONS = "serviceOptions"
     private const val K_HWID_MODE = "hwidMode"
 
-    private fun prefs(ctx: Context): SharedPreferences =
+    fun prefs(ctx: Context): SharedPreferences =
         ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
     fun saveLast(ctx: Context, profile: String, settings: String) {

@@ -1,7 +1,7 @@
 name: veilon
 description: "Veilon — VPN client for the Veilon panel."
 publish_to: 'none'
-version: 1.0.9+10
+version: 1.0.10+11
 
 environment:
   sdk: ^3.13.7

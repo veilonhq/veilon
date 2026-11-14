@@ -6,6 +6,7 @@ import '../../core/native.dart';
 import '../../l10n/strings.dart';
 import '../../theme/palette.dart';
 import '../pages/profile_editor_page.dart';
+import '../pages/qr_scan_page.dart';
 import '../widgets/glass.dart';
 
 /// True while the add sheet is open (the Servers page hides its "+" button).
@@ -151,7 +152,7 @@ class _AddSheetState extends State<AddSheet> {
                 icon: Icons.qr_code_scanner_rounded,
                 label: s.t('add.qr'),
                 onTap: () async {
-                  final code = await Native.instance.scanQr();
+                  final code = await QrScanPage.open(context);
                   if (code != null && code.isNotEmpty) _run(() => app.importText(code));
                 },
               ),

@@ -39,7 +39,8 @@ class MainActivity : FlutterActivity() {
     companion object {
         private const val REQ_VPN = 7001
         private const val REQ_FILE = 7002
-        private const val REQ_QR = 7003
+        private const val REQ_QR_IMAGE = 7003
+        private const val REQ_CAMERA = 7005
         private const val REQ_NOTIF = 7004
     }
 
@@ -48,7 +49,12 @@ class MainActivity : FlutterActivity() {
 
     private var pendingConnect: Triple<String, String, MethodChannel.Result>? = null
     private var pendingFile: MethodChannel.Result? = null
-    private var pendingQr: MethodChannel.Result? = null
+    private var pendingQrImage: MethodChannel.Result? = null
+    private var pendingCamera: MethodChannel.Result? = null
+
+    // 1.0.10 QR scanner: the live camera view (one at a time) and its channel.
+    private var qrView: QrCameraView? = null
+    private var qrChannel: MethodChannel? = null
 
     private var eventListener: ((Map<String, Any?>) -> Unit)? = null
 
@@ -63,6 +69,14 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
         MethodChannel(messenger, "app.veilon/core").setMethodCallHandler(::onCallGuarded)
+        val qr = MethodChannel(messenger, "app.veilon/qr")
+        qrChannel = qr
+        runCatching {
+            flutterEngine.platformViewsController.registry.registerViewFactory(
+                "app.veilon/qr-camera",
+                QrCameraFactory(this, qr, onCreated = { v -> qrView?.dispose(); qrView = v }, onGone = { v -> if (qrView === v) qrView = null }),
+            )
+        }.onFailure { CrashLog.report(Thread.currentThread(), it, "qr view factory") }
         EventChannel(messenger, "app.veilon/events").setStreamHandler(object : EventChannel.StreamHandler {
             override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
                 eventListener?.let { VpnState.listeners.remove(it) }
@@ -99,11 +113,13 @@ class MainActivity : FlutterActivity() {
         super.onResume()
         resumed = true
         updateUiAttached()
+        runCatching { qrView?.resume() }
     }
 
     override fun onPause() {
         resumed = false
         updateUiAttached()
+        runCatching { qrView?.pause() }
         super.onPause()
     }
 
@@ -203,7 +219,13 @@ class MainActivity : FlutterActivity() {
             "installedApps" -> bg(result) { installedApps() }
             "appIcon" -> bg(result) { appIcon(s("package")) }
             "pickFile" -> pickFile(result)
-            "scanQr" -> scanQr(result)
+            "cameraPermission" -> cameraPermission(call.argument<Boolean>("request") == true, result)
+            "qrHasTorch" -> result.success(packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH))
+            "qrTorch" -> result.success(qrView?.setTorch(call.argument<Boolean>("on") == true) ?: false)
+            "openAppSettings" -> result.success(runCatching {
+                startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)))
+            }.isSuccess)
+            "pickQrImage" -> pickQrImage(result)
             "openUrl" -> result.success(openUrl(s("url")))
             // In-app update (1.0.7): see AppUpdate.kt.
             "installedAbis" -> bg(result) { AppUpdate.installedAbis(this) }
@@ -413,14 +435,49 @@ class MainActivity : FlutterActivity() {
         return mapOf("name" to name, "text" to String(bytes, Charsets.UTF_8))
     }
 
-    private fun scanQr(result: MethodChannel.Result) {
-        pendingQr?.success(null)
-        pendingQr = result
+    // ------------------------------------------------------------ QR scanner (1.0.10)
+
+    private fun cameraPermission(request: Boolean, result: MethodChannel.Result) {
+        if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) return result.success("granted")
+        if (!request) {
+            // Asked before and the system will not show the dialog again.
+            val blocked = Store.prefs(this).getBoolean("cameraAsked", false) && !shouldShowRequestPermissionRationale(Manifest.permission.CAMERA)
+            return result.success(if (blocked) "blocked" else "denied")
+        }
+        pendingCamera?.let { runCatching { it.success("denied") } }
+        pendingCamera = result
         try {
-            startActivityForResult(Intent(this, QrScanActivity::class.java), REQ_QR)
+            requestPermissions(arrayOf(Manifest.permission.CAMERA), REQ_CAMERA)
         } catch (e: Throwable) {
-            pendingQr = null
-            result.success(null)
+            pendingCamera = null
+            result.success("denied")
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQ_CAMERA) return
+        val r = pendingCamera ?: return
+        pendingCamera = null
+        val granted = grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
+        // An empty result = the request was interrupted (not a refusal).
+        if (grantResults.isNotEmpty()) runCatching { Store.prefs(this).edit().putBoolean("cameraAsked", true).apply() }
+        val state = when {
+            granted -> "granted"
+            grantResults.isNotEmpty() && !shouldShowRequestPermissionRationale(Manifest.permission.CAMERA) -> "blocked"
+            else -> "denied"
+        }
+        runCatching { r.success(state) }
+    }
+
+    private fun pickQrImage(result: MethodChannel.Result) {
+        pendingQrImage?.let { runCatching { it.success(null) } }
+        pendingQrImage = result
+        val ok = runCatching { startActivityForResult(QrImage.pickIntent(), REQ_QR_IMAGE) }.isSuccess ||
+            runCatching { startActivityForResult(QrImage.fallbackIntent(), REQ_QR_IMAGE) }.isSuccess
+        if (!ok) {
+            pendingQrImage = null
+            result.success(mapOf("error" to "unreadable"))
         }
     }
 
@@ -464,10 +521,19 @@ class MainActivity : FlutterActivity() {
                     runCatching { r.success(null) }
                 }
             }
-            REQ_QR -> {
-                val r = pendingQr ?: return
-                pendingQr = null
-                r.success(if (resultCode == Activity.RESULT_OK) data?.getStringExtra(QrScanActivity.EXTRA_TEXT) else null)
+            REQ_QR_IMAGE -> {
+                val r = pendingQrImage ?: return
+                pendingQrImage = null
+                val uri = data?.data
+                if (resultCode != Activity.RESULT_OK || uri == null) return r.success(null)
+                try {
+                    io.execute {
+                        val m = runCatching { QrImage.decode(applicationContext, uri) }.getOrElse { mapOf("error" to "unreadable") }
+                        main.post { runCatching { r.success(m) } }
+                    }
+                } catch (e: Throwable) {
+                    runCatching { r.success(mapOf("error" to "unreadable")) }
+                }
             }
             else -> super.onActivityResult(requestCode, resultCode, data)
         }

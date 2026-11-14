@@ -152,8 +152,26 @@ class Native {
     return r == null ? null : Map<String, dynamic>.from(r);
   }
 
-  /// Opens the native QR scanner; returns the decoded text or null.
-  Future<String?> scanQr() => _call<String>('scanQr');
+  /// 1.0.10 QR scanner (lib/ui/pages/qr_scan_page.dart): camera permission
+  /// state 'granted' | 'denied' | 'blocked' (denied for good: only the app
+  /// settings can give it). [request] asks the user when not granted.
+  Future<String> cameraPermission({bool request = false}) async =>
+      await _call<String>('cameraPermission', {'request': request}) ?? 'denied';
+
+  Future<bool> qrHasTorch() async => await _call<bool>('qrHasTorch') ?? false;
+
+  /// Torch of the live scanner preview; false when it could not be set.
+  Future<bool> qrTorch(bool on) async => await _call<bool>('qrTorch', {'on': on}) ?? false;
+
+  Future<bool> openAppSettings() async => await _call<bool>('openAppSettings') ?? false;
+
+  /// Lets the user pick an image (system photo picker; no storage
+  /// permission) and decodes a QR code from it natively (ZXing).
+  /// null = cancelled; {'text': ...} = found; {'error': 'noQr' | 'unreadable'}.
+  Future<Map<String, dynamic>?> pickQrImage() async {
+    final r = await _call<Map>('pickQrImage');
+    return r == null ? null : Map<String, dynamic>.from(r);
+  }
 
   Future<bool> openUrl(String url) async => await _call<bool>('openUrl', {'url': url}) ?? false;
 
