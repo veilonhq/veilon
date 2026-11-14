@@ -1,9 +1,13 @@
+// 1.0.11: gallery picks now always open the adjust screen first (no direct
+// import); those cases go pick → adjust → "Scan this area" (test/qr111_test.dart
+// covers the adjust screen itself).
 // v1.0.10: QR scanner redesign (Flutter overlay over the native camera view),
 // pick-from-gallery decode, and system-bar insets (nothing behind the status
 // bar or the navigation / gesture bar, 320 dp included).
 // Goldens: test/goldens/qr_*.png. Native decoding itself is tested
 // off-device in android/kt-tests/QrDecodeTest.kt.
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -108,6 +112,25 @@ Future<AppState> pumpScanner(WidgetTester t, String lang, {String theme = 'dark'
 
 final popped = <String?>[];
 
+/// 1.0.11: what the native side returns for a picked image (kept in its cache).
+const pickedImage = <String, Object?>{
+  'path': '/data/user/0/app.veilon/cache/qr-pick/pick-1.img',
+  'preview': '/data/user/0/app.veilon/cache/qr-pick/pick-1.img.preview.jpg',
+  'width': 600,
+  'height': 800,
+};
+
+/// Gallery → adjust screen → "Scan this area" (the native decode answers [area]).
+Future<void> galleryScan(WidgetTester t, Map<String, Object?> area) async {
+  fakeQrPick = pickedImage;
+  fakeQrArea = [area];
+  await t.tap(find.byKey(const ValueKey('qr-gallery')));
+  await settle(t);
+  expect(find.byType(QrAdjustPage), findsOneWidget);
+  await t.tap(find.byKey(const ValueKey('qr-scan-area')));
+  await settle(t);
+}
+
 Future<void> settle(WidgetTester t, [int frames = 10]) async {
   for (var i = 0; i < frames; i++) {
     await t.pump(const Duration(milliseconds: 100));
@@ -158,7 +181,11 @@ void main() {
     fakeHasTorch = true;
     fakeTorchResult = true;
     fakeQrPick = null;
+    fakeQrArea = [
+      {'error': 'noQr'}
+    ];
     QrScanPage.debugPreview = (_) => const FakeCamera();
+    QrAdjustPage.debugImage = (_) => MemoryImage(File('test/fixtures/qr_photo.png').readAsBytesSync());
   });
 
   group('look (goldens)', () {
@@ -203,18 +230,18 @@ void main() {
       await done(t, st);
     });
 
-    testWidgets('no QR in the picked image: localized error (fa dark 320, en light 360), torch on', (t) async {
+    testWidgets('picked image cannot be opened: localized error (fa dark 320, en light 360), torch on', (t) async {
       phone(t, width: 320, height: 640);
       addTearDown(t.view.reset);
-      fakeQrPick = {'error': 'noQr'};
+      fakeQrPick = {'error': 'unreadable'};
       var st = await pumpScanner(t, 'fa');
       await t.tap(find.byKey(const ValueKey('qr-gallery')));
       await settle(t, 4);
-      final msg = S('fa').t('qr.noQr');
+      final msg = S('fa').t('qr.unreadable');
       expect(find.text(msg), findsOneWidget);
       expect(popped, isEmpty);
       expectNothingClipped(t, msg, w: 320, h: 640);
-      await expectLater(goldenRoot(), matchesGoldenFile('goldens/qr_noqr_fa_dark_320.png'));
+      await expectLater(goldenRoot(), matchesGoldenFile('goldens/qr_unreadable_fa_dark_320.png'));
       await done(t, st);
 
       phone(t);
@@ -223,23 +250,24 @@ void main() {
       await settle(t, 3);
       await t.tap(find.byKey(const ValueKey('qr-gallery')));
       await settle(t, 4);
-      expect(find.text(S('en').t('qr.noQr')), findsOneWidget);
-      await expectLater(goldenRoot(), matchesGoldenFile('goldens/qr_noqr_torch_en_light_360.png'));
+      expect(find.text(S('en').t('qr.unreadable')), findsOneWidget);
+      expect(find.byType(QrAdjustPage), findsNothing);
+      await expectLater(goldenRoot(), matchesGoldenFile('goldens/qr_unreadable_torch_en_light_360.png'));
       await done(t, st);
     });
   });
 
   group('behaviour', () {
-    testWidgets('gallery QR found → page returns the text like a camera scan', (t) async {
+    testWidgets('gallery: pick → adjust → scan finds the QR → page returns the text like a camera scan', (t) async {
       phone(t);
       addTearDown(t.view.reset);
-      fakeQrPick = {'text': '  $link\n'};
       final st = await pumpScanner(t, 'en');
-      await t.tap(find.byKey(const ValueKey('qr-gallery')));
-      await settle(t);
+      await galleryScan(t, {'text': '  $link\n'});
       expect(popped, [link]);
       expect(find.byType(QrScanPage), findsNothing);
+      expect(find.byType(QrAdjustPage), findsNothing);
       expect(calls.where((c) => c.method == 'pickQrImage'), hasLength(1));
+      expect(calls.where((c) => c.method == 'qrDecodeArea'), hasLength(1));
       await done(t, st);
     });
 
@@ -262,9 +290,7 @@ void main() {
       expect(find.byType(QrScanPage), findsOneWidget);
       expect(find.text(S('fa').t('qr.noQr')), findsNothing);
       expect(popped, isEmpty);
-      fakeQrPick = {'text': link};
-      await t.tap(find.byKey(const ValueKey('qr-gallery')));
-      await settle(t);
+      await galleryScan(t, {'text': link});
       expect(popped, [link]);
       await done(t, st);
     });
@@ -295,9 +321,7 @@ void main() {
       expect(find.text(S('fa').t('qr.cameraFailedTitle')), findsOneWidget);
       expect(find.text(S('fa').t('qr.cameraFailed')), findsOneWidget);
       expect(find.byType(FakeCamera), findsNothing);
-      fakeQrPick = {'text': link};
-      await t.tap(find.byKey(const ValueKey('qr-gallery')));
-      await settle(t);
+      await galleryScan(t, {'text': link});
       expect(popped, [link]);
       await done(t, st);
     });
@@ -367,12 +391,11 @@ void main() {
         await settle(t);
         expect(find.byType(QrScanPage), findsOneWidget);
         if (viaGallery) {
-          fakeQrPick = {'text': link};
-          await t.tap(find.byKey(const ValueKey('qr-gallery')));
+          await galleryScan(t, {'text': link});
         } else {
           await nativeQr(t, 'scanned', link);
+          await settle(t);
         }
-        await settle(t);
         expect(find.byType(QrScanPage), findsNothing);
         final parsed = calls.where((c) => c.method == 'parseText').map((c) => (c.arguments as Map)['text']).toList();
         expect(parsed, [link], reason: viaGallery ? 'gallery' : 'camera');

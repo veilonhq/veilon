@@ -121,6 +121,12 @@ bool fakeHasTorch = true;
 Map<String, Object?>? fakeQrPick;
 bool fakeTorchResult = true;
 
+/// 1.0.11 adjust screen: answers of 'qrDecodeArea', one per call (the last
+/// one repeats).
+List<Map<String, Object?>> fakeQrArea = [
+  {'error': 'noQr'}
+];
+
 void installNativeMocks() {
   final m = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   m.setMockMethodCallHandler(coreChannel, (call) async {
@@ -177,6 +183,10 @@ void installNativeMocks() {
         return true;
       case 'pickQrImage':
         return fakeQrPick;
+      case 'qrDecodeArea':
+        return fakeQrArea.length > 1 ? fakeQrArea.removeAt(0) : fakeQrArea.first;
+      case 'qrDiscard':
+        return true;
       case 'setSubPins':
         lastSubPins = (call.arguments as Map)['pins'] as String?;
         return true;

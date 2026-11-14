@@ -166,12 +166,27 @@ class Native {
   Future<bool> openAppSettings() async => await _call<bool>('openAppSettings') ?? false;
 
   /// Lets the user pick an image (system photo picker; no storage
-  /// permission) and decodes a QR code from it natively (ZXing).
-  /// null = cancelled; {'text': ...} = found; {'error': 'noQr' | 'unreadable'}.
+  /// permission). 1.0.11: nothing is decoded yet; the native side keeps a
+  /// copy in the app cache for the adjust screen.
+  /// null = cancelled; {'path', 'preview', 'width', 'height'} (preview is an
+  /// upright downscaled JPEG, width/height the upright original's pixels);
+  /// {'error': 'unreadable'}.
   Future<Map<String, dynamic>?> pickQrImage() async {
     final r = await _call<Map>('pickQrImage');
     return r == null ? null : Map<String, dynamic>.from(r);
   }
+
+  /// 1.0.11: decodes the area ([left], [top], [width], [height] in the
+  /// upright original's pixels) of the picked image at [path]; with [whole]
+  /// the whole image is tried when the area has no QR.
+  /// {'text': ...} | {'error': 'noQr' | 'unreadable'}; null on a native failure.
+  Future<Map<String, dynamic>?> qrDecodeArea(String path, {required int left, required int top, required int width, required int height, bool whole = true}) async {
+    final r = await _call<Map>('qrDecodeArea', {'path': path, 'left': left, 'top': top, 'width': width, 'height': height, 'whole': whole});
+    return r == null ? null : Map<String, dynamic>.from(r);
+  }
+
+  /// 1.0.11: deletes the cached copy of a picked image.
+  Future<void> qrDiscard(String path) => _call('qrDiscard', {'path': path});
 
   Future<bool> openUrl(String url) async => await _call<bool>('openUrl', {'url': url}) ?? false;
 

@@ -226,6 +226,11 @@ class MainActivity : FlutterActivity() {
                 startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)))
             }.isSuccess)
             "pickQrImage" -> pickQrImage(result)
+            // 1.0.11 adjust screen: decode the framed area (then the whole image), drop the cached copy.
+            "qrDecodeArea" -> bg(result) {
+                QrImage.decodeArea(applicationContext, s("path"), i("left", 0), i("top", 0), i("width", 0), i("height", 0), call.argument<Boolean>("whole") != false)
+            }
+            "qrDiscard" -> bg(result) { QrImage.discard(applicationContext, s("path")) }
             "openUrl" -> result.success(openUrl(s("url")))
             // In-app update (1.0.7): see AppUpdate.kt.
             "installedAbis" -> bg(result) { AppUpdate.installedAbis(this) }
@@ -528,7 +533,7 @@ class MainActivity : FlutterActivity() {
                 if (resultCode != Activity.RESULT_OK || uri == null) return r.success(null)
                 try {
                     io.execute {
-                        val m = runCatching { QrImage.decode(applicationContext, uri) }.getOrElse { mapOf("error" to "unreadable") }
+                        val m = runCatching { QrImage.prepare(applicationContext, uri) }.getOrElse { mapOf("error" to "unreadable") }
                         main.post { runCatching { r.success(m) } }
                     }
                 } catch (e: Throwable) {

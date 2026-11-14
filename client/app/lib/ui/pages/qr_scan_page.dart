@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -17,6 +18,9 @@ import '../widgets/glass.dart';
 /// hybrid-composition platform view). A QR picked from the gallery is decoded
 /// natively with the same ZXing library and returned exactly like a camera
 /// scan. Pops with the decoded text, or null when closed.
+///
+/// 1.0.11: a picked image always opens [QrAdjustPage] first (no automatic
+/// decode): the user zooms / drags the QR into the frame and scans that area.
 class QrScanPage extends StatefulWidget {
   const QrScanPage({super.key, this.previewBuilder});
 
@@ -58,6 +62,7 @@ class _QrScanPageState extends State<QrScanPage> with WidgetsBindingObserver {
   bool _torch = false;
   bool _picking = false;
   bool _done = false;
+  bool _adjusting = false;
   String? _error;
   Timer? _errorTimer;
 
@@ -95,6 +100,7 @@ class _QrScanPageState extends State<QrScanPage> with WidgetsBindingObserver {
     if (!mounted) return null;
     switch (call.method) {
       case 'scanned':
+        if (_adjusting) return null; // the adjust screen is on top
         final text = (call.arguments as String?)?.trim() ?? '';
         if (text.isNotEmpty) _finish(text);
       case 'cameraError':
@@ -139,7 +145,7 @@ class _QrScanPageState extends State<QrScanPage> with WidgetsBindingObserver {
   }
 
   Future<void> _pickImage() async {
-    if (_picking) return;
+    if (_picking || _adjusting) return;
     final s = S.of(context);
     setState(() {
       _picking = true;
@@ -149,9 +155,25 @@ class _QrScanPageState extends State<QrScanPage> with WidgetsBindingObserver {
     if (!mounted) return;
     setState(() => _picking = false);
     if (r == null) return; // cancelled
-    final text = (r['text'] as String?)?.trim() ?? '';
+    final picked = QrPicked.fromMap(r);
+    if (picked == null) {
+      final text = (r['text'] as String?)?.trim() ?? ''; // older native reply
+      if (text.isNotEmpty) return _finish(text);
+      return _showError(s.t(r['error'] == 'noQr' ? 'qr.noQr' : 'qr.unreadable'));
+    }
+    // The camera preview is dropped while the adjust screen is open (frees
+    // the camera; no camera result can pop the wrong page).
+    if (_torch) Native.instance.qrTorch(false);
+    setState(() {
+      _adjusting = true;
+      _torch = false;
+    });
+    final res = await QrAdjustPage.open(context, picked);
+    if (!mounted) return;
+    setState(() => _adjusting = false);
+    final text = res?.text?.trim() ?? '';
     if (text.isNotEmpty) return _finish(text);
-    _showError(s.t(r['error'] == 'unreadable' ? 'qr.unreadable' : 'qr.noQr'));
+    if (res?.pickAnother == true) return _pickImage();
   }
 
   Future<void> _toggleTorch() async {
@@ -174,7 +196,7 @@ class _QrScanPageState extends State<QrScanPage> with WidgetsBindingObserver {
     final mq = MediaQuery.of(context);
     final geo = QrGeometry.of(mq.size, mq.viewPadding, textScale: mq.textScaler.scale(13.5) / 13.5);
     final rtl = Directionality.of(context) == TextDirection.rtl;
-    final live = _camera == QrCamera.ready;
+    final live = _camera == QrCamera.ready && !_adjusting;
     final animate = live && !mq.disableAnimations;
 
     Widget preview;
@@ -204,7 +226,7 @@ class _QrScanPageState extends State<QrScanPage> with WidgetsBindingObserver {
             child: _Overlay(rect: geo.cutout, animate: animate, live: live),
           ),
         ),
-        if (!live && _camera != QrCamera.checking)
+        if (!live && !_adjusting && _camera != QrCamera.checking)
           Positioned.fromRect(
             rect: geo.cutout,
             child: _NoCamera(
@@ -673,6 +695,370 @@ class _NoCamera extends StatelessWidget {
               ),
             ],
           ]),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------- 1.0.11 adjust screen
+
+/// A picked image kept by the native side for the adjust screen.
+@immutable
+class QrPicked {
+  const QrPicked({required this.path, required this.preview, required this.width, required this.height});
+
+  /// Cached copy (native side reads the crop from it).
+  final String path;
+
+  /// Upright, downscaled JPEG for display.
+  final String preview;
+
+  /// Upright original size in pixels: the space of the crop rect.
+  final int width;
+  final int height;
+
+  Size get size => Size(width.toDouble(), height.toDouble());
+
+  static QrPicked? fromMap(Map<String, dynamic> m) {
+    final path = m['path'], preview = m['preview'], w = m['width'], h = m['height'];
+    if (path is! String || path.isEmpty || preview is! String || w is! num || h is! num || w <= 0 || h <= 0) return null;
+    return QrPicked(path: path, preview: preview, width: w.toInt(), height: h.toInt());
+  }
+}
+
+/// What the adjust screen returns: the decoded text, or a request to pick
+/// another image; null = back to the camera.
+@immutable
+class QrAdjustResult {
+  const QrAdjustResult.text(String this.text) : pickAnother = false;
+  const QrAdjustResult.pickAnother()
+      : text = null,
+        pickAnother = true;
+  final String? text;
+  final bool pickAnother;
+}
+
+/// Pure crop math of the adjust screen (tested in test/qr111_test.dart).
+abstract final class QrCropMath {
+  /// Where the image sits at zoom 1: fitted (contain) and centred in [viewport].
+  static Rect fitted(Size viewport, Size image) {
+    if (image.isEmpty || viewport.isEmpty) return Offset.zero & viewport;
+    final k = min(viewport.width / image.width, viewport.height / image.height);
+    final w = image.width * k, h = image.height * k;
+    return Rect.fromLTWH((viewport.width - w) / 2, (viewport.height - h) / 2, w, h);
+  }
+
+  /// The part of the image (upright original pixels) that lies inside
+  /// [frame] (screen coordinates) for the viewer's [transform]; clamped to
+  /// the image, null when the frame does not cover any of it.
+  static Rect? imageRect({required Size viewport, required Rect frame, required Matrix4 transform, required Size image}) {
+    if (image.isEmpty) return null;
+    final inv = Matrix4.tryInvert(transform);
+    if (inv == null) return null;
+    final child = MatrixUtils.transformRect(inv, frame); // frame in the viewer's child space
+    final shown = fitted(viewport, image);
+    final k = image.width / shown.width;
+    final r = Rect.fromLTRB(
+      (child.left - shown.left) * k,
+      (child.top - shown.top) * k,
+      (child.right - shown.left) * k,
+      (child.bottom - shown.top) * k,
+    ).intersect(Offset.zero & image);
+    if (r.width < 1 || r.height < 1) return null;
+    return r;
+  }
+
+  /// Whole pixels covering [r] (outward rounding), inside [image].
+  static ({int left, int top, int width, int height}) pixels(Rect r, Size image) {
+    final l = r.left.floor().clamp(0, image.width.toInt());
+    final t = r.top.floor().clamp(0, image.height.toInt());
+    final ri = r.right.ceil().clamp(0, image.width.toInt());
+    final b = r.bottom.ceil().clamp(0, image.height.toInt());
+    return (left: l, top: t, width: ri - l, height: b - t);
+  }
+}
+
+/// 1.0.11: the picked image under the scanner's frame. The user pinch-zooms
+/// and drags it so the QR sits in the frame; "Scan this area" decodes only
+/// the framed area natively (then the whole image). Same design as the
+/// scanner (veil, rounded window with lime corners, hint pill, safe area).
+class QrAdjustPage extends StatefulWidget {
+  const QrAdjustPage({super.key, required this.picked});
+  final QrPicked picked;
+
+  /// Replaces the preview image (tests: no file IO there).
+  @visibleForTesting
+  static ImageProvider Function(QrPicked p)? debugImage;
+
+  static Future<QrAdjustResult?> open(BuildContext context, QrPicked picked) {
+    return Navigator.of(context, rootNavigator: true).push<QrAdjustResult>(PageRouteBuilder<QrAdjustResult>(
+      opaque: true,
+      transitionDuration: const Duration(milliseconds: 240),
+      reverseTransitionDuration: const Duration(milliseconds: 180),
+      pageBuilder: (_, _, _) => QrAdjustPage(picked: picked),
+      transitionsBuilder: (_, a, _, child) => FadeTransition(
+        opacity: CurvedAnimation(parent: a, curve: Curves.easeOutCubic),
+        child: child,
+      ),
+    ));
+  }
+
+  @override
+  State<QrAdjustPage> createState() => QrAdjustPageState();
+}
+
+class QrAdjustPageState extends State<QrAdjustPage> {
+  final TransformationController controller = TransformationController();
+  bool _busy = false;
+  bool _closed = false;
+  String? _error;
+  Timer? _errorTimer;
+
+  /// Screen rect of the frame and screen size of the last build (tests).
+  Rect frame = Rect.zero;
+  Size viewport = Size.zero;
+
+  @override
+  void dispose() {
+    _errorTimer?.cancel();
+    controller.dispose();
+    // The cached copy is not needed any more (found, back, or another image).
+    Native.instance.qrDiscard(widget.picked.path);
+    super.dispose();
+  }
+
+  void _close(QrAdjustResult? r) {
+    if (_closed || !mounted) return;
+    _closed = true;
+    Navigator.of(context).pop(r);
+  }
+
+  void _showError(String msg) {
+    HapticFeedback.heavyImpact();
+    _errorTimer?.cancel();
+    setState(() => _error = msg);
+    _errorTimer = Timer(const Duration(milliseconds: 4500), () {
+      if (mounted) setState(() => _error = null);
+    });
+  }
+
+  /// The framed area in the image's pixels (null = the frame is off the image).
+  ({int left, int top, int width, int height})? currentArea() {
+    final r = QrCropMath.imageRect(viewport: viewport, frame: frame, transform: controller.value, image: widget.picked.size);
+    return r == null ? null : QrCropMath.pixels(r, widget.picked.size);
+  }
+
+  Future<void> _scan() async {
+    if (_busy || _closed) return;
+    final s = S.of(context);
+    final a = currentArea();
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final r = await Native.instance.qrDecodeArea(widget.picked.path,
+        left: a?.left ?? 0, top: a?.top ?? 0, width: a?.width ?? 0, height: a?.height ?? 0, whole: true);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    final text = (r?['text'] as String?)?.trim() ?? '';
+    if (text.isNotEmpty) {
+      HapticFeedback.mediumImpact();
+      return _close(QrAdjustResult.text(text));
+    }
+    _showError(s.t(r?['error'] == 'noQr' ? 'qr.noQr' : 'qr.unreadable'));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final mq = MediaQuery.of(context);
+    final geo = QrGeometry.of(mq.size, mq.viewPadding, textScale: mq.textScaler.scale(13.5) / 13.5);
+    frame = geo.cutout;
+    viewport = mq.size;
+    final shown = QrCropMath.fitted(mq.size, widget.picked.size);
+    final image = QrAdjustPage.debugImage?.call(widget.picked) ?? FileImage(File(widget.picked.preview));
+    final hint = s.t('qr.adjustHint');
+    final big = max(mq.size.width, mq.size.height);
+
+    return Scaffold(
+      backgroundColor: Palette.bg,
+      resizeToAvoidBottomInset: false,
+      body: Stack(children: [
+        Positioned.fill(
+          child: InteractiveViewer(
+            key: const ValueKey('qr-adjust-viewer'),
+            transformationController: controller,
+            minScale: 0.5,
+            maxScale: 24,
+            // Room to drag a QR at the image's edge into the frame.
+            boundaryMargin: EdgeInsets.all(big),
+            clipBehavior: Clip.none,
+            child: SizedBox(
+              width: mq.size.width,
+              height: mq.size.height,
+              child: Stack(children: [
+                Positioned.fromRect(
+                  rect: shown,
+                  child: Image(
+                    image: image,
+                    fit: BoxFit.fill,
+                    filterQuality: FilterQuality.medium,
+                    gaplessPlayback: true,
+                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                  ),
+                ),
+              ]),
+            ),
+          ),
+        ),
+        Positioned.fill(
+          child: IgnorePointer(
+            child: RepaintBoundary(
+              child: CustomPaint(
+                painter: QrOverlayPainter(rect: geo.cutout, scan: kAlwaysCompleteAnimation, showLine: false),
+                size: Size.infinite,
+              ),
+            ),
+          ),
+        ),
+        // Top bar: back, title.
+        Positioned(
+          top: geo.padding.top + Gap.s,
+          left: geo.padding.left + Gap.l,
+          right: geo.padding.right + Gap.l,
+          height: QrGeometry.barHeight - Gap.s * 2,
+          child: Row(children: [
+            GlassIconButton(
+              key: const ValueKey('qr-adjust-back'),
+              icon: Icons.arrow_back_rounded,
+              tooltip: s.t('qr.back'),
+              onTap: () => _close(null),
+            ),
+            const SizedBox(width: Gap.m),
+            Expanded(
+              child: Text(s.t('qr.adjustTitle'),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Palette.text, fontSize: 17, fontWeight: FontWeight.w800)),
+            ),
+            const SizedBox(width: Gap.m),
+            const SizedBox(width: 44),
+          ]),
+        ),
+        if (geo.showHint || _error != null)
+          Positioned(
+            top: geo.showHint ? geo.cutout.bottom + QrGeometry.hintGap : geo.cutout.top + Gap.m,
+            left: geo.padding.left + Gap.xl,
+            right: geo.padding.right + Gap.xl,
+            height: geo.showHint ? geo.hintHeight : QrGeometry.hintFor(1),
+            child: IgnorePointer(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  child: _HintPill(key: ValueKey(_error ?? hint), text: _error ?? hint, error: _error != null),
+                ),
+              ),
+            ),
+          ),
+        // Scan this area + pick another image, above the navigation bar.
+        Positioned(
+          left: geo.padding.left + Gap.page,
+          right: geo.padding.right + Gap.page,
+          bottom: geo.padding.bottom + QrGeometry.bottomGap,
+          height: QrGeometry.buttonHeight,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 360),
+              child: Row(children: [
+                Expanded(
+                  child: _ScanAreaButton(
+                    key: const ValueKey('qr-scan-area'),
+                    label: s.t(_busy ? 'qr.reading' : 'qr.scanArea'),
+                    busy: _busy,
+                    onTap: _scan,
+                  ),
+                ),
+                const SizedBox(width: Gap.m),
+                _SquareButton(
+                  key: const ValueKey('qr-pick-another'),
+                  icon: Icons.photo_library_rounded,
+                  tooltip: s.t('qr.pickAnother'),
+                  onTap: _busy ? null : () => _close(const QrAdjustResult.pickAnother()),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+class _ScanAreaButton extends StatelessWidget {
+  const _ScanAreaButton({super.key, required this.label, required this.busy, required this.onTap});
+  final String label;
+  final bool busy;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Pressable(
+      onTap: busy ? null : onTap,
+      child: Container(
+        height: QrGeometry.buttonHeight,
+        padding: const EdgeInsets.symmetric(horizontal: Gap.l),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(Radii.m),
+          gradient: LinearGradient(colors: [Palette.limeFill2, Palette.limeFill]),
+          boxShadow: [BoxShadow(color: Palette.limeFill.withValues(alpha: Palette.isLight ? 0.25 : 0.35), blurRadius: 18, spreadRadius: -6, offset: const Offset(0, 6))],
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
+          SizedBox(
+            width: 22,
+            height: 22,
+            child: busy
+                ? Padding(padding: const EdgeInsets.all(2), child: CircularProgressIndicator(strokeWidth: 2.2, color: Palette.limeInk))
+                : Icon(Icons.qr_code_scanner_rounded, size: 22, color: Palette.limeInk),
+          ),
+          const SizedBox(width: Gap.m),
+          Flexible(
+            child: Text(label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: Palette.limeInk, fontSize: 15, fontWeight: FontWeight.w800)),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+class _SquareButton extends StatelessWidget {
+  const _SquareButton({super.key, required this.icon, required this.tooltip, required this.onTap});
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final light = Palette.isLight;
+    return Tooltip(
+      message: tooltip,
+      child: Pressable(
+        onTap: onTap,
+        child: Container(
+          width: QrGeometry.buttonHeight,
+          height: QrGeometry.buttonHeight,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(Radii.m),
+            color: light ? Palette.bg2 : const Color(0xCC0D0F16),
+            border: Border.all(color: Palette.line2),
+            boxShadow: light ? [BoxShadow(color: Palette.shadow, blurRadius: 18, spreadRadius: -6, offset: const Offset(0, 6))] : null,
+          ),
+          child: Icon(icon, size: 22, color: Palette.lime),
         ),
       ),
     );
