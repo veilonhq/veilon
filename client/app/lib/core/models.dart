@@ -162,7 +162,8 @@ class Subscription {
     this.lastError = '',
     this.refused = '',
     this.supportUrl = '',
-  });
+    String description = '',
+  }) : description = cleanSubDescription(description);
 
   factory Subscription.fromJson(Map<String, dynamic> j) => Subscription(
     id: j['id'] as String,
@@ -176,6 +177,7 @@ class Subscription {
     lastError: j['lastError'] as String? ?? '',
     refused: j['refused'] as String? ?? '',
     supportUrl: j['supportUrl'] as String? ?? '',
+    description: j['description'] as String? ?? '',
   );
 
   final String id;
@@ -189,6 +191,11 @@ class Subscription {
   String lastError;
   String refused;
   String supportUrl;
+
+  /// 1.0.12: the panel's profile-description (header or `#profile-description:`
+  /// body line). Untrusted plain text, cleaned by [cleanSubDescription];
+  /// replaced on every successful refresh (empty when the panel sends none).
+  String description;
 
   String get displayName {
     if (name.isNotEmpty) return name;
@@ -214,7 +221,61 @@ class Subscription {
     'lastError': lastError,
     'refused': refused,
     'supportUrl': supportUrl,
+    if (description.isNotEmpty) 'description': description,
   };
+}
+
+/// Longest subscription description kept (same cap as the core).
+const maxSubDescription = 1000;
+
+/// 1.0.12: makes a subscription description safe plain text (mirrors the
+/// core's cleanDescription; applied again here because stored data and the
+/// native reply are not trusted): line breaks normalised, control characters
+/// and bidi embedding/override/isolate/mark characters removed, tab, NBSP and
+/// ZWNJ become a space, at most one empty line in a row, trimmed, capped at
+/// [maxSubDescription] characters (with "…").
+String cleanSubDescription(String s) {
+  if (s.isEmpty) return s;
+  s = s.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+  final b = StringBuffer();
+  for (final r in s.runes) {
+    if (r == 0x0A) {
+      b.writeCharCode(r);
+    } else if (r == 0x09 || r == 0x200C || r == 0xA0) {
+      b.write(' ');
+    } else if (r < 0x20 ||
+        (r >= 0x7F && r <= 0x9F) ||
+        (r >= 0x202A && r <= 0x202E) ||
+        (r >= 0x2066 && r <= 0x2069) ||
+        r == 0x200E ||
+        r == 0x200F ||
+        r == 0x061C ||
+        r == 0xFEFF ||
+        r == 0xFFFD ||
+        (r >= 0xD800 && r <= 0xDFFF)) {
+      continue;
+    } else {
+      b.writeCharCode(r);
+    }
+  }
+  final out = <String>[];
+  var blank = false;
+  for (var line in b.toString().split('\n')) {
+    line = line.trimRight();
+    if (line.trim().isEmpty) {
+      if (!blank && out.isNotEmpty) out.add('');
+      blank = true;
+      continue;
+    }
+    blank = false;
+    out.add(line);
+  }
+  var res = out.join('\n').trim();
+  final runes = res.runes.toList();
+  if (runes.length > maxSubDescription) {
+    res = '${String.fromCharCodes(runes.take(maxSubDescription - 1)).trim()}…';
+  }
+  return res;
 }
 
 enum ConnState { disconnected, connecting, connected, disconnecting, error }

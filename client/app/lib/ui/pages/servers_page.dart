@@ -393,6 +393,12 @@ class GroupHeader extends StatelessWidget {
               ],
             ],
           ),
+          // 1.0.12: the panel's description (profile-description).
+          if (sub != null && sub.description.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: Gap.xs),
+              child: SubDescription(key: ValueKey('group-desc-$id'), id: id, text: sub.description),
+            ),
           // Usage bar (subscriptions) with the group actions at its end.
           if (sub != null)
             Padding(
@@ -427,6 +433,110 @@ class GroupHeader extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// Direction of [text] from its first strong character (Persian/Arabic/
+/// Hebrew → RTL, Latin and other letters → LTR); [fallback] when it has none.
+TextDirection textDirectionOf(String text, TextDirection fallback) {
+  for (final r in text.runes) {
+    if ((r >= 0x0590 && r <= 0x08FF) || (r >= 0xFB1D && r <= 0xFDFF) || (r >= 0xFE70 && r <= 0xFEFF)) {
+      // Arabic-Indic digits (U+0660–0669, U+06F0–06F9) are not strong.
+      if ((r >= 0x0660 && r <= 0x0669) || (r >= 0x06F0 && r <= 0x06F9)) continue;
+      return TextDirection.rtl;
+    }
+    if ((r >= 0x41 && r <= 0x5A) || (r >= 0x61 && r <= 0x7A) || (r >= 0xC0 && r <= 0x024F) || (r >= 0x0370 && r <= 0x058F)) {
+      return TextDirection.ltr;
+    }
+  }
+  return fallback;
+}
+
+/// 1.0.12: the subscription description in the group header. Untrusted plain
+/// text (already cleaned by cleanSubDescription): no links or markup are
+/// interpreted. Direction follows the text itself; at most three lines until
+/// "More" is tapped (only offered when the text is longer than that).
+class SubDescription extends StatefulWidget {
+  const SubDescription({super.key, required this.id, required this.text});
+  final String id;
+  final String text;
+
+  static const collapsedLines = 3;
+
+  @override
+  State<SubDescription> createState() => _SubDescriptionState();
+}
+
+class _SubDescriptionState extends State<SubDescription> {
+  bool _open = false;
+
+  @override
+  void didUpdateWidget(SubDescription old) {
+    super.didUpdateWidget(old);
+    if (old.text != widget.text) _open = false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final dir = textDirectionOf(widget.text, Directionality.of(context));
+    final style = DefaultTextStyle.of(context).style.merge(TextStyle(color: Palette.text2, fontSize: 12.5, height: 1.55));
+    return LayoutBuilder(
+      builder: (context, c) {
+        final textWidth = c.maxWidth - Gap.xs * 2 - 3 - Gap.s;
+        final tp = TextPainter(
+          text: TextSpan(text: widget.text, style: style),
+          textDirection: dir,
+          textScaler: MediaQuery.textScalerOf(context),
+          maxLines: SubDescription.collapsedLines,
+        )..layout(maxWidth: textWidth > 0 ? textWidth : 0);
+        final long = tp.didExceedMaxLines;
+        tp.dispose();
+        final body = Container(
+          padding: const EdgeInsetsDirectional.only(start: Gap.s),
+          decoration: BoxDecoration(
+            border: BorderDirectional(start: BorderSide(color: Palette.violetFg.withValues(alpha: 0.55), width: 3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AnimatedSize(
+                duration: const Duration(milliseconds: 180),
+                alignment: AlignmentDirectional.topStart,
+                child: Text(
+                  widget.text,
+                  key: ValueKey('group-desc-text-${widget.id}'),
+                  textDirection: dir,
+                  textAlign: TextAlign.start,
+                  maxLines: _open ? null : SubDescription.collapsedLines,
+                  overflow: _open ? TextOverflow.clip : TextOverflow.ellipsis,
+                  style: style,
+                ),
+              ),
+              if (long)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    s.t(_open ? 'sub.descLess' : 'sub.descMore'),
+                    key: ValueKey('group-desc-more-${widget.id}'),
+                    style: TextStyle(color: Palette.violetFg, fontSize: 12, fontWeight: FontWeight.w700, height: 1.4),
+                  ),
+                ),
+            ],
+          ),
+        );
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: Gap.xs),
+          child: long
+              ? GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => setState(() => _open = !_open),
+                  child: body,
+                )
+              : body,
+        );
+      },
     );
   }
 }

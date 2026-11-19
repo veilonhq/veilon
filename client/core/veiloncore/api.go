@@ -14,7 +14,7 @@ import (
 )
 
 // Version of the core library.
-const Version = "1.0.8"
+const Version = "1.0.12"
 
 func decodeProfile(s string) (*Profile, error) {
 	var p Profile
