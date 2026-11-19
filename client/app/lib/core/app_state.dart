@@ -473,7 +473,10 @@ class AppState extends ChangeNotifier {
     sub.updateHours = (r['updateHours'] as num?)?.toInt() ?? sub.updateHours;
     sub.supportUrl = r['supportUrl'] as String? ?? sub.supportUrl;
     // 1.0.12: replaced on every successful refresh; none sent → cleared.
-    sub.description = cleanSubDescription(r['description'] as String? ?? '');
+    // 1.0.13: many panels send the text only as the `announce` header
+    // (already base64-decoded by the core); profile-description wins when
+    // it has text, otherwise announce is shown.
+    sub.description = subDescriptionFrom(r);
     sub.updatedAt = DateTime.now().millisecondsSinceEpoch;
     sub.lastError = '';
     final fresh = ((r['profiles'] as List?) ?? const []).map((e) => Profile.fromJson(e as Map<String, dynamic>)).toList();

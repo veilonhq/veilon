@@ -195,6 +195,8 @@ class Subscription {
   /// 1.0.12: the panel's profile-description (header or `#profile-description:`
   /// body line). Untrusted plain text, cleaned by [cleanSubDescription];
   /// replaced on every successful refresh (empty when the panel sends none).
+  /// 1.0.13: falls back to the `announce` header when there is no
+  /// profile-description (see [subDescriptionFrom]).
   String description;
 
   String get displayName {
@@ -223,6 +225,19 @@ class Subscription {
     'supportUrl': supportUrl,
     if (description.isNotEmpty) 'description': description,
   };
+}
+
+/// 1.0.13: the description to show for a core SubResult (JSON map):
+/// `description` (profile-description) when it has text after cleaning,
+/// else `announce`; both cleaned by [cleanSubDescription]. '' when neither.
+String subDescriptionFrom(Map<String, dynamic> r) {
+  String field(String k) {
+    final v = r[k];
+    return v is String ? cleanSubDescription(v) : '';
+  }
+
+  final d = field('description');
+  return d.isNotEmpty ? d : field('announce');
 }
 
 /// Longest subscription description kept (same cap as the core).
