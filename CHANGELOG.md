@@ -2,7 +2,7 @@
 
 Each release's notes, Persian first. Older releases: https://github.com/veilonhq/veilon/releases
 
-## Unreleased
+## v0.3.15 (2026-11-21)
 
 ### فارسی
 
