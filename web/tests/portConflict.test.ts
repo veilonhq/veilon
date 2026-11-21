@@ -38,3 +38,25 @@ test('edits re-check only what changed', () => {
   const legacy = { id: 21, port: 443, protocol: 'vless', serve_main: true, node_ids: [] };
   assert.equal(clash({ id: 21, port: 443, serve_main: true }, legacy), null);
 });
+
+import { hopClash, parseHopRanges } from '../src/lib/portConflict.ts';
+
+test('hop ranges are locked per server like ports', () => {
+  const hy = (id: number, remark: string, port: number, hop: string, serve_main = true, node_ids: number[] = [], listen = '') => ({ id, remark, port, protocol: 'hysteria', hop_ports: hop, udp: true, serve_main, node_ids, listen });
+  const os = [hy(1, 'a', 8443, '20000-30000'), { id: 2, remark: 'wg', port: 40000, protocol: 'wireguard', udp: true, serve_main: true, node_ids: [] }, { id: 3, remark: 'vl', port: 45000, protocol: 'vless', udp: false, serve_main: true, node_ids: [] }];
+  assert.deepEqual(hopClash(hy(9, 'b', 9443, '25000-26000'), os, nodes), { field: 'hop', kind: 'overlap', other: 'a', where: { server: 'main' } });
+  assert.deepEqual(hopClash(hy(9, 'b', 9443, '30000-31000'), os, nodes)?.kind, 'overlap', 'touching edge');
+  assert.equal(hopClash(hy(9, 'b', 9443, '30001-31000'), os, nodes), null);
+  assert.deepEqual(hopClash(hy(9, 'b', 9443, '39000-41000'), os, nodes)?.kind, 'covers');
+  assert.equal(hopClash(hy(9, 'b', 9443, '44000-46000'), os, nodes), null, 'TCP port inside is fine');
+  assert.deepEqual(hopClash(hy(9, 'b', 21000, ''), os, nodes), { field: 'port', kind: 'inside', other: 'a', where: { server: 'main' } });
+  assert.equal(hopClash(hy(9, 'b', 9443, '25000-26000', false, [1]), os, nodes), null, 'other server');
+  assert.equal(hopClash(hy(1, 'a', 8443, '20000-30000'), os, nodes), null, 'itself');
+  const listenA = [hy(1, 'a', 8443, '20000-30000', true, [], '1.1.1.1')];
+  assert.equal(hopClash(hy(9, 'b', 9443, '25000-26000', true, [], '2.2.2.2'), listenA, nodes), null, 'different listen IPs');
+  assert.ok(hopClash(hy(9, 'b', 9443, '25000-26000', true, [], ''), listenA, nodes), 'all addresses overlap');
+  const onNode = [hy(1, 'a', 8443, '20000-30000', false, [1])];
+  assert.deepEqual(hopClash(hy(9, 'b', 9443, '۲۵۰۰۰-۲۶۰۰۰', true, [2, 1]), onNode, nodes)?.where, { server: 'node', nodeId: 1, name: 'Lightsail' });
+  assert.deepEqual(parseHopRanges('30000-31000, 20000'), [[20000, 20000], [30000, 31000]]);
+  assert.equal(parseHopRanges('1-2'), null);
+});

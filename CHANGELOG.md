@@ -2,6 +2,16 @@
 
 Each release's notes, Persian first. Older releases: https://github.com/veilonhq/veilon/releases
 
+## Unreleased
+
+### فارسی
+
+- **قفل بازه پرش پورت Hysteria 2 مثل پورت**: هر بازه پرش پورت روی هر سرور فقط مال یک ورودی است. فرم ورودی حالا همان لحظه تایپ (مثل پورت) جلوی بازه ای را می گیرد که با بازه پرش ورودی دیگری روی همان سرور هم پوشانی دارد یا پورت UDP ورودی دیگری را در بر می گیرد، و پورت UDP داخل بازه پرش ورودی دیگر را هم نمی پذیرد؛ پیام، نام ورودی و سرور (سرور اصلی یا نود) را می گوید. سرور همین قانون را در ساخت و ویرایش (وب، ربات و API) اعمال می کند. ورودی های روی سرورهای جدا یا روی دو IP گوش دادن متفاوت با هم تداخل ندارند.
+
+### English
+
+- **Hysteria 2 hop ranges locked like ports**: each port hopping range belongs to one inbound per server. The inbound form now blocks, as you type (like the port), a range that overlaps another inbound's hop range on the same server or covers another inbound's UDP port, and a UDP port inside another inbound's hop range; the message names the inbound and the server (main server or node). The server enforces the same rule on create and edit (web, bot and API). Inbounds on different servers or on two different listen IPs do not clash.
+
 ## v0.3.14 (2026-11-14)
 
 ### فارسی

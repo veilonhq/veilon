@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { genRealityKeys, genVlessEncKeys, genWgKeys, useCerts, useInbounds, useNodes, useSaveInbound, useSettings } from '@/api/hooks';
 import { ApiError } from '@/api/client';
-import { portClash, type PortClash } from '@/lib/portConflict';
+import { hopClash, portClash, type HopClash, type PortClash } from '@/lib/portConflict';
 import type { AwgParams, Inbound, InboundAdvanced, InboundInput, InboundSettings, Network, Protocol, Security, VlessEnc, VNode } from '@/api/types';
 import { Sheet } from '@/components/Overlay';
 import { Select } from '@/components/Select';
@@ -333,6 +333,11 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
   // had is never flagged, matching the server.
   const portMsg = (c: PortClash) =>
     c.server === 'main' ? t('inb.portUsedMain', { port: n(d.port, { useGrouping: false }) }) : t('inb.portUsedNode', { port: n(d.port, { useGrouping: false }), name: c.name });
+  const hopMsg = (h: HopClash) => {
+    const where = h.where.server === 'main' ? t('inb.hopWhereMain') : t('inb.hopWhereNode', { name: h.where.name });
+    const key = h.kind === 'overlap' ? 'inb.hopTaken' : h.kind === 'covers' ? 'inb.hopCoversPort' : 'inb.portInHop';
+    return t(key, { inbound: h.other, where });
+  };
   const dupErrors = useMemo(() => {
     const e: Record<string, string> = {};
     const others = (allInbounds.data ?? []).filter((i) => i.id !== editing?.id);
@@ -347,10 +352,16 @@ export function InboundWizard({ open, onClose, editing }: { open: boolean; onClo
       const reserved = panelSettings.data?.panel_port ? [panelSettings.data.panel_port] : [];
       const c = portClash({ id: editing?.id, port: d.port, protocol: p, ...placed }, others, nodes, reserved, editing);
       if (c) e.port = portMsg(c);
+      // Hysteria 2 hop ranges are locked per server like ports.
+      const mine = { id: editing?.id, port: d.port, protocol: p, listen: d.listen.trim(), hop_ports: p === 'hysteria' ? d.settings.hop_ports : '', udp: transportsOf(d).udp, ...placed };
+      const theirs = others.map((o) => ({ id: o.id, remark: o.remark, port: o.port, protocol: o.protocol, listen: o.listen, hop_ports: o.settings?.hop_ports ?? '', udp: transportsOf(o).udp, serve_main: o.serve_main, node_ids: o.node_ids ?? [] }));
+      const h = hopClash(mine, theirs, nodes);
+      if (h && h.field === 'hop') e.hop = hopMsg(h);
+      else if (h && !e.port) e.port = hopMsg(h);
     }
     return e;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allInbounds.data, panelSettings.data, editing, d.remark, d.port, d.serve_main, d.node_ids, onNodes, nodes, p, t, n]);
+  }, [allInbounds.data, panelSettings.data, editing, d.remark, d.port, d.listen, d.settings, d.network, d.tls, d.advanced, d.serve_main, d.node_ids, onNodes, nodes, p, t, n]);
 
   const errors = useMemo(() => {
     const e: Record<string, string> = {};
